@@ -1,10 +1,18 @@
 module ADM
 
 import JSON
+using Distributions: Categorical
+using LinearAlgebra
 
 include("style.jl")
+include("beliefs/discrete_filter.jl")
+include("beliefs/kalman_filter.jl")
+include("beliefs/particle_filter.jl")
 
-export write_json
+export write_json, show_source
+export predict_discrete, correct_discrete, update_discrete
+export LinearGaussianModel, kalman_predict, kalman_correct, kalman_update
+export update_particles
 
 """
     write_json(obj, path) -> path
@@ -19,6 +27,17 @@ function write_json(obj, path::AbstractString)
     isempty(dir) || mkpath(dir)
     write(path, text * "\n")
     return path
+end
+
+"""
+    show_source(relpath)
+
+Print a file under `julia/src` as one fenced Julia block. Use in an executed cell with
+`#| output: asis`, so a code tab shows exactly the code that produced the page's results.
+"""
+function show_source(relpath::AbstractString, io::IO=stdout)
+    code = read(joinpath(@__DIR__, relpath), String)
+    println(io, "```julia\n", rstrip(code), "\n```")
 end
 
 end

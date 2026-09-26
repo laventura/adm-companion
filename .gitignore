@@ -1,0 +1,10 @@
+refs/
+CLAUDE.md
+/_site/
+/.quarto/
+.venv/
+__pycache__/
+.pytest_cache/
+.DS_Store
+
+**/*.quarto_ipynb

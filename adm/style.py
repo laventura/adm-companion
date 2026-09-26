@@ -14,8 +14,8 @@ SEQUENTIAL_BLUE = [
     "#2a78d6", "#256abf", "#1c5cab", "#184f95", "#104281", "#0d366b",
 ]
 
-# Negative pole, neutral midpoint, positive pole.
-DIVERGING = ("#2a78d6", "#f0efec", "#e34948")
+# Negative pole (red), neutral midpoint, positive pole (blue).
+DIVERGING = ("#e34948", "#f0efec", "#2a78d6")
 
 SURFACE = "#fcfcfb"
 INK = "#0b0b0b"

@@ -13,4 +13,10 @@ This site uses the book's notation. Symbols are added here as chapters are writt
 | $\gamma$ | Discount factor, $0 \le \gamma \le 1$ | Ch 7 |
 | $\pi$ | Policy: maps states to actions | Ch 7 |
 | $U^\pi(s)$ | Value (utility) of state $s$ under policy $\pi$ | Ch 7 |
-| $Q(s, a)$ | Action value: value of taking $a$ in $s$, then acting optimally | Ch 7 |
+| $U^*(s)$ | Optimal value of state $s$ | Ch 7 |
+| $U_k$ | Value estimate after $k$ sweeps of value iteration | Ch 7 |
+| $Q(s, a)$ | Action value: reward for $a$ in $s$ plus the discounted value $U$ of where you land | Ch 7 |
+| $A(s, a)$ | Advantage: $Q(s, a) - U(s)$ | Ch 7 |
+| $\mathbf{T}^\pi$, $\mathbf{R}^\pi$ | Transition matrix and reward vector with the policy's action fixed in each state | Ch 7 |
+| $\lVert U \rVert_\infty$ | Largest absolute entry, $\max_s \lvert U(s) \rvert$ | Ch 7 |
+| $\delta$, $\epsilon$ | Bellman-residual threshold and target accuracy in value iteration | Ch 7 |

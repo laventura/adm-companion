@@ -2,6 +2,8 @@
 title: "N · Chapter Title"
 subtitle: "Part X — Part Title"
 jupyter: python3          # or `engine: julia` (CLAUDE.md §6.1)
+execute:
+  echo: false
 ---
 
 ::: {.callout-note appearance="minimal"}
@@ -9,13 +11,17 @@ jupyter: python3          # or `engine: julia` (CLAUDE.md §6.1)
 :::
 
 ## Big picture
-<!-- Where this chapter sits (Mermaid mind map). The one-sentence idea. {{< video URL >}} -->
+<!-- Where this chapter sits: a Graphviz chapter map in the site palette (CLAUDE.md §6.3). The one-sentence idea. {{< video URL >}} -->
 
 ## Intuition
 <!-- A concrete story or analogy before any math. Use .callout-tip titled "Analogy". -->
 
 ## Formalism
-<!-- Definitions and key equations, labeled {#eq-...}. -->
+<!-- Every displayed equation (CLAUDE.md §6.4):
+::: {.key-equation data-name="Name of the equation"}     add .famous if well known by name
+$$ ... $$ {#eq-...}
+:::
+**In words.** ...   **Term by term.** ...   **Why it holds.** ... (and a quick numeric check when possible) -->
 
 ## Worked example
 <!-- Step by step with real numbers; small tables for intermediate values. -->
@@ -30,5 +36,8 @@ jupyter: python3          # or `engine: julia` (CLAUDE.md §6.1)
 <!-- 3–5 original problems, each with its solution in:
 ::: {.callout-tip collapse="true" title="Solution"} ... ::: -->
 
+## Recap
+<!-- 4–6 numbered key points. Each: the point in bold, then "*Why it matters:*" linking it to the big picture and later chapters. -->
+
 ## Cheat sheet & connections
-<!-- Table of key equations; common pitfalls; links to related chapters. -->
+<!-- Table: Name | Formula | Ref | Cost (★ marks well-known equations); common pitfalls; links to related chapters. -->

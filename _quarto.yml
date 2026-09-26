@@ -53,4 +53,9 @@ format:
       dark: [darkly, theme.scss]
     toc: true
     code-copy: true
+    syntax-highlighting: github   # Quarto picks github-light / github-dark to match the theme
+    syntax-definitions:
+      - _syntax/python.xml        # Pandoc's Python grammar plus function-name highlighting
+    code-overflow: wrap
+    code-block-border-left: true
     lang: en

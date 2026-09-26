@@ -2,7 +2,36 @@
 
 /*-- scss:rules --*/
 
-// Shared by the light and dark themes, so no colors here.
+// Shared by the light and dark themes: use theme variables, never fixed colors.
 figcaption {
   font-size: 0.9rem;
+}
+
+// Boxed equations: ::: {.key-equation data-name="..."}. Add .famous for well-known ones.
+.key-equation {
+  border-left: 4px solid $primary;
+  background: rgba($primary, 0.07);
+  border-radius: 0 6px 6px 0;
+  padding: 0.5rem 1rem 0.1rem;
+  margin: 1.25rem 0 1rem;
+}
+
+.key-equation::before {
+  content: attr(data-name);
+  display: block;
+  font-size: 0.8rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: $body-color;
+  opacity: 0.8;
+}
+
+.key-equation.famous {
+  border-left-color: $warning;
+  background: rgba($warning, 0.08);
+}
+
+.key-equation.famous::before {
+  content: "★ " attr(data-name);
 }

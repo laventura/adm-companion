@@ -1,0 +1,8 @@
+---
+title: "E · Search Algorithms"
+subtitle: "Appendices"
+---
+
+::: {.callout-note appearance="minimal"}
+**In progress.** This page will cover ADM Appendix E, *Search Algorithms*.
+:::

@@ -1,0 +1,8 @@
+---
+title: "16 · Model-Based Methods"
+subtitle: "Part III — Model Uncertainty"
+---
+
+::: {.callout-note appearance="minimal"}
+**In progress.** This page will cover ADM Ch. 16, *Model-Based Methods*.
+:::

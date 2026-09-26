@@ -1,0 +1,8 @@
+---
+title: "12 · Policy Gradient Optimization"
+subtitle: "Part II — Sequential Problems"
+---
+
+::: {.callout-note appearance="minimal"}
+**In progress.** This page will cover ADM Ch. 12, *Policy Gradient Optimization*.
+:::

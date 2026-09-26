@@ -1,0 +1,27 @@
+---
+title: "ADM Companion"
+subtitle: "Concepts, pictures, and code for *Algorithms for Decision Making*"
+---
+
+This site is an independent, unofficial companion to *Algorithms for Decision Making* by Mykel Kochenderfer, Tim Wheeler, and Kyle Wray (MIT Press, 2022), the textbook for Stanford AA228/CS238. The book is freely available at [algorithmsbook.com](https://algorithmsbook.com).
+
+::: {.callout-note appearance="minimal"}
+**In progress.** Pages are being written chapter by chapter. A map of the whole book will appear here.
+:::
+
+## How to use this site
+
+Each chapter has one page, laid out the same way:
+
+1. **Big picture:** where the chapter fits, in one diagram.
+2. **Intuition:** a concrete story before any math.
+3. **Formalism:** the definitions and key equations, in the book's notation.
+4. **Worked example:** the ideas applied to real numbers.
+5. **Interactive:** figures you can change.
+6. **Algorithms & code:** implementations in Python and Julia, side by side.
+7. **Solved problems:** try each one before opening its solution.
+8. **Cheat sheet & connections:** the key equations, and links to related chapters.
+
+Each page states which language was executed to produce its figures. The code in the other language is tested separately.
+
+The [notation](notation.qmd) page collects the symbols used across the site.

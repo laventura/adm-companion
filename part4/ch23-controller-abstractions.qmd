@@ -1,0 +1,8 @@
+---
+title: "23 · Controller Abstractions"
+subtitle: "Part IV — State Uncertainty"
+---
+
+::: {.callout-note appearance="minimal"}
+**In progress.** This page will cover ADM Ch. 23, *Controller Abstractions*.
+:::

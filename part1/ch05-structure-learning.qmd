@@ -1,0 +1,8 @@
+---
+title: "5 · Structure Learning"
+subtitle: "Part I — Probabilistic Reasoning"
+---
+
+::: {.callout-note appearance="minimal"}
+**In progress.** This page will cover ADM Ch. 5, *Structure Learning*.
+:::

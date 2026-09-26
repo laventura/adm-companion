@@ -1,0 +1,8 @@
+---
+title: "6 · Simple Decisions"
+subtitle: "Part I — Probabilistic Reasoning"
+---
+
+::: {.callout-note appearance="minimal"}
+**In progress.** This page will cover ADM Ch. 6, *Simple Decisions*.
+:::

@@ -1,0 +1,8 @@
+---
+title: "3 · Inference"
+subtitle: "Part I — Probabilistic Reasoning"
+---
+
+::: {.callout-note appearance="minimal"}
+**In progress.** This page will cover ADM Ch. 3, *Inference*.
+:::

@@ -1,0 +1,8 @@
+---
+title: "27 · Collaborative Agents"
+subtitle: "Part V — Multiagent Systems"
+---
+
+::: {.callout-note appearance="minimal"}
+**In progress.** This page will cover ADM Ch. 27, *Collaborative Agents*.
+:::

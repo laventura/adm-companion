@@ -1,0 +1,8 @@
+---
+title: "7 · Exact Solution Methods"
+subtitle: "Part II — Sequential Problems"
+---
+
+::: {.callout-note appearance="minimal"}
+**In progress.** This page will cover ADM Ch. 7, *Exact Solution Methods*.
+:::

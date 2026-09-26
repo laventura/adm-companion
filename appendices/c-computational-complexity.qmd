@@ -1,0 +1,8 @@
+---
+title: "C · Computational Complexity"
+subtitle: "Appendices"
+---
+
+::: {.callout-note appearance="minimal"}
+**In progress.** This page will cover ADM Appendix C, *Computational Complexity*.
+:::

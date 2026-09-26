@@ -1,0 +1,56 @@
+project:
+  type: website
+  # Explicit list: otherwise Quarto would also publish CLAUDE.md, README.md, and templates/.
+  render:
+    - index.qmd
+    - notation.qmd
+    - "intro/*.qmd"
+    - "part*/*.qmd"
+    - "appendices/*.qmd"
+  resources:
+    - "part*/data/*.json"
+    - "appendices/data/*.json"
+
+execute:
+  freeze: auto
+
+website:
+  title: "ADM Companion"
+  description: "An independent, unofficial companion to Algorithms for Decision Making."
+  site-url: "https://laventura.github.io/adm-companion/"
+  page-navigation: true
+  sidebar:
+    style: docked
+    search: true
+    collapse-level: 1
+    contents:
+      - index.qmd
+      - notation.qmd
+      - section: "Introduction"
+        contents: "intro/*.qmd"
+      - section: "Part I — Probabilistic Reasoning"
+        contents: "part1/*.qmd"
+      - section: "Part II — Sequential Problems"
+        contents: "part2/*.qmd"
+      - section: "Part III — Model Uncertainty"
+        contents: "part3/*.qmd"
+      - section: "Part IV — State Uncertainty"
+        contents: "part4/*.qmd"
+      - section: "Part V — Multiagent Systems"
+        contents: "part5/*.qmd"
+      - section: "Appendices"
+        contents: "appendices/*.qmd"
+  page-footer:
+    center: >-
+      An independent, unofficial companion to *Algorithms for Decision Making*
+      (MIT Press, 2022). The book is freely available at
+      [algorithmsbook.com](https://algorithmsbook.com).
+
+format:
+  html:
+    theme:
+      light: [cosmo, theme.scss]
+      dark: [darkly, theme.scss]
+    toc: true
+    code-copy: true
+    lang: en

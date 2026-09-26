@@ -1,0 +1,34 @@
+---
+title: "N · Chapter Title"
+subtitle: "Part X — Part Title"
+jupyter: python3          # or `engine: julia` (CLAUDE.md §6.1)
+---
+
+::: {.callout-note appearance="minimal"}
+**Executed in:** Python · **Book:** ADM Ch. N · **Lecture:** [AA228 video](URL)
+:::
+
+## Big picture
+<!-- Where this chapter sits (Mermaid mind map). The one-sentence idea. {{< video URL >}} -->
+
+## Intuition
+<!-- A concrete story or analogy before any math. Use .callout-tip titled "Analogy". -->
+
+## Formalism
+<!-- Definitions and key equations, labeled {#eq-...}. -->
+
+## Worked example
+<!-- Step by step with real numbers; small tables for intermediate values. -->
+
+## Interactive
+<!-- 1–2 figures (Tier 1 or 2). -->
+
+## Algorithms & code
+<!-- Synced Python | Julia tabs (§6.2). Figures and results outside the tabs. -->
+
+## Solved problems
+<!-- 3–5 original problems, each with its solution in:
+::: {.callout-tip collapse="true" title="Solution"} ... ::: -->
+
+## Cheat sheet & connections
+<!-- Table of key equations; common pitfalls; links to related chapters. -->

@@ -1,0 +1,8 @@
+---
+title: "D · Neural Representations"
+subtitle: "Appendices"
+---
+
+::: {.callout-note appearance="minimal"}
+**In progress.** This page will cover ADM Appendix D, *Neural Representations*.
+:::

@@ -1,0 +1,8 @@
+---
+title: "2 · Representation"
+subtitle: "Part I — Probabilistic Reasoning"
+---
+
+::: {.callout-note appearance="minimal"}
+**In progress.** This page will cover ADM Ch. 2, *Representation*.
+:::

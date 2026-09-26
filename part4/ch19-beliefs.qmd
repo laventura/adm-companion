@@ -1,0 +1,8 @@
+---
+title: "19 · Beliefs"
+subtitle: "Part IV — State Uncertainty"
+---
+
+::: {.callout-note appearance="minimal"}
+**In progress.** This page will cover ADM Ch. 19, *Beliefs*.
+:::

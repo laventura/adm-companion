@@ -1,8 +1,812 @@
 ---
 title: "19 · Beliefs"
 subtitle: "Part IV — State Uncertainty"
+engine: julia
+execute:
+  echo: false
 ---
 
 ::: {.callout-note appearance="minimal"}
-**In progress.** This page will cover ADM Ch. 19, *Beliefs*.
+**Executed in:** Julia · **Book:** ADM Ch. 19 · **Lecture:** to be added
 :::
+<!-- TODO(video): link the official Stanford AA228 lecture on beliefs / state estimation. -->
+
+```{julia}
+#| include: false
+using ADM, CairoMakie, LinearAlgebra, Random, Statistics
+import Distributions   # qualified use only: Makie also exports a `Categorical`
+include("../julia/src/makie_theme.jl")
+set_theme!(adm_theme())
+CairoMakie.activate!(type = "png", px_per_unit = 2)
+blue, orange = ADM.CATEGORICAL[1], ADM.CATEGORICAL[2]
+seq = cgrad(ADM.SEQUENTIAL_BLUE)
+
+"95% ellipse of a 2×2 covariance, as points for `poly!`."
+function ellipse(μ, Σ; n = 60)
+    L = cholesky(Symmetric(Matrix(Σ))).L
+    return [Point2f(μ .+ sqrt(5.991) .* (L * [cos(θ), sin(θ)])) for θ in range(0, 2π, length = n)]
+end
+
+"Print a Markdown table from a header and rows of strings."
+function md_table(header, rows)
+    println("| ", join(header, " | "), " |")
+    println("|", repeat("---|", length(header)))
+    foreach(r -> println("| ", join(r, " | "), " |"), rows)
+end
+```
+
+## Big picture
+
+Until now, the agent always knew which state it was in. Part IV drops that assumption. A robot has noisy sensors, a doctor sees symptoms rather than the disease, and a tracker sees radar blips rather than the aircraft. The agent can't act on the state, so it acts on a **belief**: a probability distribution over the states it might be in.
+
+The one-sentence idea: **a belief is kept up to date with two moves, repeated forever: *predict* (push the belief through what your action does, so it spreads out) and *correct* (reweight it by how well each state explains what you just observed, so it sharpens).** The rest of the chapter is about how to store the belief so that these two moves stay cheap.
+
+```{dot}
+//| label: fig-ch19-map
+//| fig-width: 7
+//| fig-height: 3.44
+//| fig-cap: "Map of this chapter. Every filter runs the same predict–correct loop; they differ in how they store the belief. The book also covers belief initialization, the extended and unscented Kalman filters for nonlinear models, and particle injection (ADM §19.1, §19.4–19.5, §19.7)."
+//| fig-alt: "Flow diagram. A blue Belief box leads, by an arrow labeled act, to Predict (apply T, belief spreads out), which leads by an arrow labeled observe to Correct (apply O, belief sharpens), which returns to Belief by an arrow labeled b′. Below, a gray group titled How the belief is stored holds three boxes: a table of probabilities for the discrete filter, a mean and covariance for the Kalman filter, and a cloud of samples for the particle filter."
+digraph ch19 {
+  rankdir=TB; bgcolor="#fcfcfb"; pad=0.3; nodesep=0.45; ranksep=0.45;
+  node [shape=box, style="rounded,filled", fillcolor="white", color="#c3c2b7", penwidth=1.2,
+        fontname="Helvetica", fontsize=13, fontcolor="#0b0b0b", margin="0.18,0.1"];
+  edge [color="#52514e", penwidth=1.2, arrowsize=0.7, fontname="Helvetica", fontsize=11, fontcolor="#52514e"];
+
+  belief [label=<<B>Belief b</B><BR/><FONT POINT-SIZE="11">where might I be?</FONT>>, fillcolor="#cde2fb", color="#2a78d6"];
+  predict [label=<<B>Predict</B>&nbsp;(apply T)<BR/><FONT POINT-SIZE="11">belief spreads out</FONT>>];
+  correct [label=<<B>Correct</B>&nbsp;(apply O)<BR/><FONT POINT-SIZE="11">belief sharpens</FONT>>];
+  { rank=same; predict; correct; }
+  belief -> predict [label="act"];
+  predict -> correct [label="observe"];
+  correct -> belief [label="b′"];
+
+  subgraph cluster_store {
+    label=<<B>How the belief is stored</B>>; labelloc=b; fontname="Helvetica"; fontsize=13; fontcolor="#0b0b0b";
+    style="rounded,filled"; fillcolor="#f0efec"; color="#c3c2b7"; penwidth=1.5; margin=14;
+    table [label=<<B>Table of probabilities</B><BR/><FONT POINT-SIZE="11">discrete filter</FONT>>];
+    gauss [label=<<B>Mean + covariance</B><BR/><FONT POINT-SIZE="11">Kalman filter</FONT>>];
+    samples [label=<<B>Cloud of samples</B><BR/><FONT POINT-SIZE="11">particle filter</FONT>>];
+  }
+  predict -> table [style=invis]; correct -> samples [style=invis];
+}
+```
+
+## Intuition
+
+::: {.callout-tip title="Analogy"}
+A ship's navigator before GPS works in two alternating moves.
+
+**Dead reckoning (predict).** "We sailed north at 10 knots for an hour, so we're about 10 miles north of where we were." But currents and wind add error, so every hour of dead reckoning makes the navigator *less* sure. The circle of possible positions on the chart grows.
+
+**A sighting (correct).** A lighthouse comes into view at a known bearing. Positions that fit that sighting become more likely, and positions that don't become less likely. The circle shrinks.
+
+Uncertainty **grows when you move and shrinks when you look.** A filter is that routine written as math, run at every step.
+:::
+
+What the belief looks like depends on the problem. In @fig-tram-belief, a tram rider on a 12-stop loop can't see the stop signs, only whether the window is dark (tunnel) or light. At first every stop is equally likely. As the pattern of tunnels and open track goes by, the belief concentrates on the right stop, and it never becomes perfectly sure, because the tram sometimes lingers or skips a stop.
+
+```{julia}
+#| include: false
+# The tram: 12 stops on a loop; stops 3, 4, 5, 9 and 11 are in tunnels.
+n, tunnels = 12, [3, 4, 5, 9, 11]
+T = zeros(n, 1, n)
+for s in 1:n, (step, p) in ((0, 0.1), (1, 0.8), (2, 0.1))
+    T[s, 1, mod1(s + step, n)] += p
+end
+O = zeros(1, n, 2)
+for s in 1:n
+    p_dark = s in tunnels ? 0.9 : 0.2
+    O[1, s, :] = [1 - p_dark, p_dark]
+end
+
+function simulate_tram(steps; seed = 7)
+    rng = MersenneTwister(seed)
+    sense(s) = rand(rng) < O[1, s, 2] ? 2 : 1
+    s = 1
+    o = sense(s)
+    b_pred = fill(1 / n, n)
+    b = correct_discrete(b_pred, O, 1, o)
+    history = [(t = 0, stop = s, obs = o, pred = b_pred, post = b)]
+    for t in 1:steps
+        s = rand(rng, Distributions.Categorical(T[s, 1, :]))
+        o = sense(s)
+        b_pred = predict_discrete(b, T, 1)
+        b = correct_discrete(b_pred, O, 1, o)
+        push!(history, (t = t, stop = s, obs = o, pred = b_pred, post = b))
+    end
+    return history
+end
+tram = simulate_tram(15)
+```
+
+```{julia}
+#| label: fig-tram-belief
+#| fig-cap: "Discrete filter on the tram. Each column is the belief over the 12 stops after that step's observation; darker blue is more probable. Diamonds mark the true stop. The top strip shows what the sensor read."
+#| fig-alt: "Heatmap with time steps 0 to 15 across and stops 1 to 12 up the side, with tunnel stops labeled. Column 0 is spread evenly over the seven open stops, since the first reading was light. Over time a dark diagonal band forms that follows orange diamonds marking the true stop, which moves up mostly one stop per step and wraps from 12 to 1. A thin strip above shows dark and light sensor readings."
+let steps = length(tram) - 1
+    fig = Figure(size = (640, 380))
+    top = Axis(fig[1, 1], height = 16, xticksvisible = false, xticklabelsvisible = false,
+               yticksvisible = false, yticklabelsvisible = false, ylabel = "Sensor", ylabelrotation = 0,
+               xgridvisible = false, ygridvisible = false, leftspinevisible = false, bottomspinevisible = false)
+    heatmap!(top, 0:steps, [1], reshape([h.obs for h in tram], :, 1),
+             colormap = [ADM.SEQUENTIAL_BLUE[1], ADM.INK_SECONDARY], colorrange = (1, 2))
+    ax = Axis(fig[2, 1], xlabel = "Time step t", ylabel = "Stop", yticks = 1:n,
+              ytickformat = ys -> [s in tunnels ? "$(Int(s)) (tunnel)" : string(Int(s)) for s in ys],
+              xgridvisible = false, ygridvisible = false)
+    post = permutedims(reduce(hcat, [h.post for h in tram]))
+    hm = heatmap!(ax, 0:steps, 1:n, post, colormap = seq, colorrange = (0, 1))
+    scatter!(ax, 0:steps, [h.stop for h in tram], color = orange, marker = :diamond,
+             markersize = 12, strokecolor = :white, strokewidth = 1)
+    linkxaxes!(top, ax)
+    rowgap!(fig.layout, 4)
+    Colorbar(fig[2, 2], hm, label = "Belief b(s)")
+    fig
+end
+```
+
+## Formalism
+
+### Beliefs
+
+::: {.key-equation data-name="Belief"}
+$$
+b(s) = P(s_t = s \mid a_{1:t},\ o_{1:t})
+$$ {#eq-belief}
+:::
+
+**In words.** $b(s)$ is how probable it is that the current state is $s$, given every action taken and every observation received so far.
+
+**Term by term.**
+
+- $s_t$ is the (hidden) state at time $t$.
+- $a_{1:t}$ and $o_{1:t}$ are the whole history of actions and observations.
+- $b$ is a probability distribution: $b(s) \ge 0$ and it sums (or integrates) to 1.
+
+Keeping the whole history would grow without bound. The point of a filter is that the belief *summarizes* the history: to update it, you need only the old belief, the latest action, and the latest observation.
+
+The model now has one more piece than an MDP. Besides $T(s' \mid s, a)$, there is an **observation model** $O(o \mid a, s')$: the probability of observing $o$ when you took action $a$ and landed in $s'$.
+
+### The belief update
+
+Updating a belief rests on one famous rule:
+
+::: {.key-equation .famous data-name="Bayes' rule"}
+$$
+P(s \mid o) = \frac{P(o \mid s)\, P(s)}{P(o)} \;\propto\; P(o \mid s)\, P(s)
+$$ {#eq-bayes}
+:::
+
+**In words.** After seeing $o$, a state's probability is its old probability times how well it explains $o$, rescaled so everything sums to 1.
+
+**Term by term.** $P(s)$ is the *prior*, what you believed before looking. $P(o \mid s)$ is the *likelihood*, how expected $o$ is if $s$ is true. $P(s \mid o)$ is the *posterior*, what you believe after looking. $P(o)$ doesn't depend on $s$, so it only rescales. That is why "$\propto$" (proportional to) plus normalizing is enough.
+
+Combining Bayes' rule with the transition model gives the update for one step:
+
+::: {.key-equation .famous data-name="Belief update (Bayes filter)"}
+$$
+b'(s') \;\propto\; \underbrace{O(o \mid a, s')}_{\text{correct}} \;\underbrace{\sum_{s} T(s' \mid s, a)\, b(s)}_{\text{predict}}
+$$ {#eq-belief-update}
+:::
+
+**In words.** First predict where you probably are after acting. Then reweight each candidate by how well it explains what you saw, and normalize.
+
+**Term by term.**
+
+- $\sum_{s} T(s' \mid s, a)\, b(s)$ is the **prediction**. Add up every way of reaching $s'$: start in $s$ (probability $b(s)$), then move to $s'$ (probability $T(s' \mid s, a)$). This is the *law of total probability*, and it spreads the belief out.
+- $O(o \mid a, s')$ is the **correction**, the likelihood from @eq-bayes. It sharpens the belief toward states consistent with $o$.
+- $\propto$: divide by the sum over $s'$ so that $b'$ sums to 1.
+
+**Why it holds.** It is @eq-bayes with the prediction as the prior. That works because of two Markov assumptions: the next state depends only on the current state and action, and the observation depends only on the action and the state you land in. So the old belief carries everything the past can tell you.
+
+For a finite set of states, @eq-belief-update *is* the algorithm: the **discrete state filter** (ADM §19.2). It costs $O(|\mathcal{S}|^2)$ per step for the prediction.
+
+**Try it.** On the tram, start uniform ($b = 1/12$) and read "dark". Tunnel stops explain that with probability 0.9 and open stops with 0.2. Five stops are tunnels, so the normalizer is $5(0.9) + 7(0.2) = 5.9$. Each tunnel stop gets $0.9 / 5.9 \approx 0.153$ and each open stop gets $0.2 / 5.9 \approx 0.034$.
+
+### Kalman filter: when everything is Gaussian
+
+Continuous states make the sum an integral, which in general has no closed form. One important case does: **linear dynamics with Gaussian noise** (ADM §19.3).
+
+::: {.key-equation data-name="Linear-Gaussian model"}
+$$
+T(s' \mid s, a) = \mathcal{N}(s' \mid \mathbf{T}_s s + \mathbf{T}_a a,\ \boldsymbol{\Sigma}_s)
+\qquad
+O(o \mid s') = \mathcal{N}(o \mid \mathbf{O}_s s',\ \boldsymbol{\Sigma}_o)
+$$ {#eq-linear-gaussian}
+:::
+
+**In words.** The next state is a linear function of the state and action, plus Gaussian noise. The observation is a linear function of the state, plus Gaussian noise.
+
+**Term by term.**
+
+- $\mathcal{N}(x \mid \mu, \Sigma)$ is the Gaussian density at $x$, with mean $\mu$ and covariance $\Sigma$.
+- $\mathbf{T}_s$ and $\mathbf{T}_a$ say how the state and the action move the state. For a buoy drifting at constant velocity, $\mathbf{T}_s$ adds the velocity to the position at each step.
+- $\boldsymbol{\Sigma}_s$ is the process noise: currents, gusts, anything the model leaves out.
+- $\mathbf{O}_s$ picks out what the sensor sees, such as position but not velocity. $\boldsymbol{\Sigma}_o$ is the sensor noise.
+
+If the belief starts Gaussian, $\mathcal{N}(\boldsymbol{\mu}_b, \boldsymbol{\Sigma}_b)$, it stays Gaussian forever. So the whole belief is just a mean and a covariance, and @eq-belief-update becomes a few matrix formulas.
+
+::: {.key-equation .famous data-name="Kalman filter — predict"}
+$$
+\boldsymbol{\mu}_p = \mathbf{T}_s \boldsymbol{\mu}_b + \mathbf{T}_a a
+\qquad
+\boldsymbol{\Sigma}_p = \mathbf{T}_s \boldsymbol{\Sigma}_b \mathbf{T}_s^\top + \boldsymbol{\Sigma}_s
+$$ {#eq-kalman-predict}
+:::
+
+**In words.** Move the best guess through the dynamics. The uncertainty is carried along (and stretched or rotated) by the dynamics, then grows by the process noise.
+
+**Term by term.**
+
+- $\boldsymbol{\mu}_p$ is the predicted mean: where the physics says you should be.
+- $\mathbf{T}_s \boldsymbol{\Sigma}_b \mathbf{T}_s^\top$ is how a linear map transforms a covariance. In 1D with $\mathbf{T}_s = t$, it is $t^2 \sigma^2$.
+- $+\,\boldsymbol{\Sigma}_s$ is the new uncertainty added by the step. This is dead reckoning's growing circle.
+
+::: {.key-equation .famous data-name="Kalman filter — correct (Kalman gain)"}
+$$
+\mathbf{K} = \boldsymbol{\Sigma}_p \mathbf{O}_s^\top \big(\mathbf{O}_s \boldsymbol{\Sigma}_p \mathbf{O}_s^\top + \boldsymbol{\Sigma}_o\big)^{-1}
+\qquad
+\boldsymbol{\mu}_b' = \boldsymbol{\mu}_p + \mathbf{K}\big(o - \mathbf{O}_s \boldsymbol{\mu}_p\big)
+\qquad
+\boldsymbol{\Sigma}_b' = (\mathbf{I} - \mathbf{K} \mathbf{O}_s)\, \boldsymbol{\Sigma}_p
+$$ {#eq-kalman-correct}
+:::
+
+**In words.** Compare what you observed with what you expected to observe. Move the estimate part of the way toward the observation, by a fraction $\mathbf{K}$ set by how much you trust the prediction versus the sensor. The uncertainty always shrinks.
+
+**Term by term.**
+
+- $o - \mathbf{O}_s \boldsymbol{\mu}_p$ is the **innovation**, or surprise: the observation minus the observation you predicted.
+- $\mathbf{K}$ is the **Kalman gain**. In 1D with $\mathbf{O}_s = 1$, it is $K = \sigma_p^2 / (\sigma_p^2 + \sigma_o^2)$, a number between 0 and 1. A noisy sensor ($\sigma_o^2$ large) gives $K \approx 0$: ignore it. A shaky prediction ($\sigma_p^2$ large) gives $K \approx 1$: trust the sensor.
+- $(\mathbf{I} - \mathbf{K}\mathbf{O}_s)\boldsymbol{\Sigma}_p$: in 1D, $(1 - K)\sigma_p^2 = \frac{\sigma_p^2 \sigma_o^2}{\sigma_p^2 + \sigma_o^2}$, which is smaller than both $\sigma_p^2$ and $\sigma_o^2$.
+
+**Why it holds (1D).** The corrected belief is proportional to the prior times the likelihood, $\mathcal{N}(s \mid \mu_p, \sigma_p^2)\, \mathcal{N}(o \mid s, \sigma_o^2)$. A product of two Gaussians in $s$ is a Gaussian whose *precision* (inverse variance) is the sum of the two precisions, $1/\sigma_b^2 = 1/\sigma_p^2 + 1/\sigma_o^2$. Its mean is the precision-weighted average of $\mu_p$ and $o$. Rearranging that average gives $\mu_p + K(o - \mu_p)$ with $K = \sigma_p^2 / (\sigma_p^2 + \sigma_o^2)$.
+
+When the dynamics or sensor are *nonlinear*, two variants keep the Gaussian shape by approximation. The **extended Kalman filter** linearizes the model around the current mean (ADM §19.4). The **unscented Kalman filter** pushes a few carefully chosen "sigma points" through the true nonlinear model (ADM §19.5).
+
+### Particle filter: any shape at all
+
+A Gaussian has one peak. Some beliefs have two ("I'm either north or south of the lighthouse"), and some have odd shapes. A **particle filter** (ADM §19.6) stores the belief as a cloud of sampled states, or *particles*, and lets the cloud take any shape:
+
+::: {.key-equation data-name="Particle approximation and weights"}
+$$
+b(s) \approx \frac{1}{N} \sum_{i=1}^{N} \delta\big(s - s^{(i)}\big)
+\qquad
+w^{(i)} \propto O\big(o \mid a, s'^{(i)}\big), \quad s'^{(i)} \sim T\big(\cdot \mid s^{(i)}, a\big)
+$$ {#eq-particles}
+:::
+
+**In words.** The belief is "wherever the particles are": a region holding 30% of the particles has probability about 0.3. To update, move every particle with a random draw from the dynamics (predict), score it by how well it explains the observation (the weight $w$), then draw a fresh set of $N$ particles in proportion to those weights (resample).
+
+**Term by term.**
+
+- $\delta(s - s^{(i)})$ is a spike of probability at particle $s^{(i)}$.
+- $s'^{(i)} \sim T(\cdot \mid s^{(i)}, a)$ is the predict step, done by *simulation*. You only need to be able to sample from the model, not to write down its probabilities.
+- $w^{(i)}$ is the correct step. It is @eq-belief-update's likelihood, applied to each particle.
+- Resampling copies high-weight particles and drops low-weight ones, so effort goes where the probability is.
+
+The cost is $O(N)$ per step whatever the shape, but accuracy improves only like $1/\sqrt{N}$. When the sensor is very precise, almost no particle lands where the likelihood is high. **Particle injection** adds fresh random particles to recover (ADM §19.7).
+
+## Worked example
+
+### The tram by hand
+
+The tram is a discrete filter with 12 states and one action (drive). The transition and observation models are two arrays:
+
+::: {.panel-tabset group="lang"}
+## Python
+```{.python .snippet}
+import numpy as np
+
+# 12 stops on a loop (0-based here); stops 2, 3, 4, 8 and 10 are in tunnels.
+n, tunnels = 12, {2, 3, 4, 8, 10}
+# One action (0 = drive): advance 1 stop w.p. 0.8, stay w.p. 0.1, skip ahead 2 w.p. 0.1.
+T = np.zeros((n, 1, n))
+for s in range(n):
+    for step, p in ((0, 0.1), (1, 0.8), (2, 0.1)):
+        T[s, 0, (s + step) % n] += p
+# Light sensor: o = 0 "light", o = 1 "dark". Reads dark 90% of the time in a tunnel, 20% outside.
+O = np.zeros((1, n, 2))
+for s in range(n):
+    p_dark = 0.9 if s in tunnels else 0.2
+    O[0, s] = [1 - p_dark, p_dark]
+```
+## Julia
+```{julia}
+#| echo: true
+#| output: false
+# 12 stops on a loop; stops 3, 4, 5, 9 and 11 are in tunnels.
+n, tunnels = 12, [3, 4, 5, 9, 11]
+# One action (1 = drive): advance 1 stop w.p. 0.8, stay w.p. 0.1, skip ahead 2 w.p. 0.1.
+T = zeros(n, 1, n)
+for s in 1:n, (step, p) in ((0, 0.1), (1, 0.8), (2, 0.1))
+    T[s, 1, mod1(s + step, n)] += p
+end
+# Light sensor: o = 1 "light", o = 2 "dark". Reads dark 90% of the time in a tunnel, 20% outside.
+O = zeros(1, n, 2)
+for s in 1:n
+    p_dark = s in tunnels ? 0.9 : 0.2
+    O[1, s, :] = [1 - p_dark, p_dark]
+end
+```
+:::
+
+**Step 0: read "dark".** The prior is uniform. As in the "Try it" above, each tunnel stop gets $0.9/5.9 = 0.153$ and each open stop gets $0.2/5.9 = 0.034$.
+
+**Step 1: predict.** The tram drives one step. Take stop 6, which is open and just past the tunnel run 3–5. It can be reached from stop 5 (advance 1, probability 0.8), from stop 6 (stay, 0.1), or from stop 4 (skip 2, 0.1):
+
+$$
+b_p(6) = 0.8\,(0.153) + 0.1\,(0.034) + 0.1\,(0.153) = 0.141
+$$
+
+So stop 6 is now fairly likely, because the tunnel belief *shifted forward* by one stop.
+
+**Step 1: correct.** Suppose the sensor now reads "light". Every open stop is multiplied by 0.8 and every tunnel stop by 0.1, and then the belief is normalized. @tbl-tram-steps shows all 12 stops.
+
+```{julia}
+#| label: tbl-tram-steps
+#| tbl-cap: "Hand example: uniform prior, read 'dark', drive one stop, read 'light'. The belief moves to the stops just after a tunnel run."
+#| output: asis
+let b0 = correct_discrete(fill(1 / n, n), O, 1, 2)
+    bp = predict_discrete(b0, T, 1)
+    b1 = correct_discrete(bp, O, 1, 1)
+    f(x) = string(round(x, digits = 3))
+    md_table(["Stop", "Tunnel?", "After 'dark'", "Predicted", "After 'light'"],
+             [[string(s), s in tunnels ? "yes" : "", f(b0[s]), f(bp[s]), f(b1[s])] for s in 1:n])
+end
+```
+
+Stop 6 comes out on top, and stops 10 and 12 tie for second. All three are open stops right after a tunnel, which is exactly the pattern "dark, then light" suggests. Stop 6 wins because the tunnel before it is three stops long, so more of the "dark" belief flows into it.
+
+### A Kalman step by hand
+
+A kayaker paddles downriver about 2 m per step. The position after one step is $s' = s + 2 + \text{noise}$, with noise variance $\Sigma_s = 1$. A GPS reads the position with noise variance $\Sigma_o = 4$. The starting belief is $\mathcal{N}(0, 9)$. Everything is 1D, so every matrix is a number: $T_s = T_a = O_s = 1$.
+
+- **Predict** (@eq-kalman-predict): $\mu_p = 0 + 2 = 2$ and $\Sigma_p = 9 + 1 = 10$.
+- **Gain:** $K = 10 / (10 + 4) = 0.714$. The prediction is shakier than the GPS, so the filter leans toward the GPS.
+- **Correct** (@eq-kalman-correct) with a GPS reading $o = 3.5$. The innovation is $3.5 - 2 = 1.5$, so $\mu_b = 2 + 0.714 \times 1.5 = 3.07$ and $\Sigma_b = (1 - 0.714) \times 10 = 2.86$.
+
+The new variance, 2.86, is smaller than both the prediction's (10) and the GPS's (4). Combining two independent sources of information beats either one alone.
+
+::: {.panel-tabset group="lang"}
+## Python
+```{.python .snippet}
+# Arrays are 1×1 so the matrix formulas work unchanged.
+kayak = dict(Ts=np.eye(1), Ta=np.eye(1), Sigma_s=np.eye(1), Os=np.eye(1), Sigma_o=4 * np.eye(1))
+```
+## Julia
+```{julia}
+#| echo: true
+#| output: false
+# Fields in order: Ts, Ta, Σs, Os, Σo. In 1D they can be plain numbers.
+kayak = LinearGaussianModel(1.0, 1.0, 1.0, 1.0, 4.0)
+```
+:::
+
+## Interactive
+
+### Step through the tram's filter
+
+Move through time and switch between the belief *after predicting* and *after observing*. Watch the predict step blur the belief and shift it forward, and the observation sharpen it again. Gray columns are tunnel stops; the orange triangle is where the tram really is.
+
+```{julia}
+#| include: false
+write_json(Dict(
+    "n" => n, "tunnels" => tunnels,
+    "steps" => [Dict("t" => h.t, "stop" => h.stop, "dark" => h.obs == 2,
+                     "pred" => round.(h.pred, digits = 4), "post" => round.(h.post, digits = 4)) for h in tram],
+    "style" => Dict("blue" => blue, "orange" => orange, "tunnel" => "#f0efec", "ink" => ADM.INK, "surface" => ADM.SURFACE),
+), "data/ch19-tram.json")
+```
+
+```{ojs}
+tram = FileAttachment("data/ch19-tram.json").json()
+viewof t = Inputs.range([0, tram.steps.length - 1], {step: 1, value: 0, label: "Time step t"})
+viewof phase = Inputs.radio(["after predicting", "after observing"], {value: "after observing", label: "Show belief"})
+```
+
+```{ojs}
+md`**Step ${t}.** ${t === 0 ? "No move yet; the prior is uniform." : "The tram drove one step."} The sensor read **${tram.steps[t].dark ? "dark" : "light"}**. The tram is really at stop ${tram.steps[t].stop}.`
+```
+
+```{ojs}
+//| label: fig-tram-stepper
+//| fig-cap: "The discrete filter on the tram, one step at a time. Bars show the belief over the 12 stops."
+//| fig-alt: "Interactive bar chart of belief over stops 1 to 12, with a slider for the time step and a toggle between the belief after predicting and after observing. Tunnel stops have gray backgrounds and an orange triangle marks the true stop."
+{
+  const step = tram.steps[t];
+  const b = phase === "after predicting" ? step.pred : step.post;
+  const bars = b.map((p, i) => ({stop: i + 1, p}));
+  return Plot.plot({
+    width: 640, height: 300, marginBottom: 40,
+    style: {background: tram.style.surface, color: tram.style.ink},
+    x: {domain: d3.range(1, tram.n + 1), label: "Stop", padding: 0.15},
+    y: {domain: [0, 1], label: "Belief b(s)", grid: true},
+    marks: [
+      Plot.barY(tram.tunnels, {x: d => d, y: 1, fill: tram.style.tunnel, insetTop: 0}),
+      Plot.barY(bars, {x: "stop", y: "p", fill: tram.style.blue, rx: 3, tip: true}),
+      Plot.dot([step.stop], {x: d => d, y: 0.95, symbol: "triangle", r: 7, fill: tram.style.orange,
+                             rotate: 180}),
+      Plot.ruleY([0])
+    ]
+  });
+}
+```
+
+### How much should you trust the sensor?
+
+This runs the Kalman filter on 25 steps of the kayak, with the GPS readings fixed. You choose the variances the *filter assumes*. With a small assumed GPS noise $\Sigma_o$, the estimate chases every reading. With a small assumed process noise $\Sigma_s$, it trusts its own prediction and smooths the readings away. The data were generated with $\Sigma_s = 1$ and $\Sigma_o = 4$.
+
+```{julia}
+#| include: false
+let rng = MersenneTwister(11)
+    s, truth, readings = 0.0, Float64[], Float64[]
+    for _ in 1:25
+        s = s + 2 + randn(rng)
+        push!(truth, s)
+        push!(readings, s + 2 * randn(rng))
+    end
+    write_json(Dict("a" => 2.0, "mu0" => 0.0, "var0" => 9.0,
+                    "truth" => round.(truth, digits = 3), "obs" => round.(readings, digits = 3),
+                    "style" => Dict("blue" => blue, "ink" => ADM.INK, "muted" => ADM.MUTED, "surface" => ADM.SURFACE)),
+               "data/ch19-kayak.json")
+end
+```
+
+```{ojs}
+kayak = FileAttachment("data/ch19-kayak.json").json()
+viewof logQ = Inputs.range([-2, 2], {step: 0.1, value: 0, label: "log₁₀ Σs (process noise)"})
+viewof logR = Inputs.range([-2, 2], {step: 0.1, value: Math.log10(4), label: "log₁₀ Σo (GPS noise)"})
+```
+
+```{ojs}
+kf = {
+  const q = 10 ** logQ, r = 10 ** logR;
+  let mu = kayak.mu0, v = kayak.var0;
+  return kayak.obs.map((o, i) => {
+    const mp = mu + kayak.a, vp = v + q;       // predict
+    const K = vp / (vp + r);                   // gain
+    mu = mp + K * (o - mp); v = (1 - K) * vp;  // correct
+    return {t: i + 1, mu, lo: mu - 2 * Math.sqrt(v), hi: mu + 2 * Math.sqrt(v), K};
+  });
+}
+```
+
+```{ojs}
+md`Assumed Σs = ${(10 ** logQ).toFixed(2)}, Σo = ${(10 ** logR).toFixed(2)}. The gain settles at **K = ${kf[kf.length - 1].K.toFixed(2)}**: each GPS reading moves the estimate ${Math.round(100 * kf[kf.length - 1].K)}% of the way from the prediction toward the reading.`
+```
+
+```{ojs}
+//| label: fig-kalman-explorer
+//| fig-cap: "Kalman filter on the kayak with adjustable assumed noise. The band is the filter's ±2σ uncertainty."
+//| fig-alt: "Interactive line chart of position over 25 time steps with two sliders for the assumed process and sensor noise. A dark line shows the true position, gray dots the GPS readings, and a blue line with a shaded band the Kalman estimate and its uncertainty."
+Plot.plot({
+  width: 640, height: 320,
+  style: {background: kayak.style.surface, color: kayak.style.ink},
+  x: {label: "Time step t"}, y: {label: "Position (m)", grid: true},
+  color: {legend: true, domain: ["True position", "GPS reading", "Kalman estimate"],
+          range: [kayak.style.ink, kayak.style.muted, kayak.style.blue]},
+  marks: [
+    Plot.areaY(kf, {x: "t", y1: "lo", y2: "hi", fill: kayak.style.blue, fillOpacity: 0.18}),
+    Plot.line(kayak.truth, {x: (d, i) => i + 1, y: d => d, stroke: () => "True position", strokeWidth: 2}),
+    Plot.dot(kayak.obs, {x: (d, i) => i + 1, y: d => d, fill: () => "GPS reading", r: 3}),
+    Plot.line(kf, {x: "t", y: "mu", stroke: () => "Kalman estimate", strokeWidth: 2})
+  ]
+})
+```
+
+## Algorithms & code
+
+Each tab shows the complete implementation. The Julia code is exactly what produced this page's figures.
+
+### Discrete state filter
+
+This implements @eq-belief-update, split into its predict and correct halves.
+
+::: {.panel-tabset group="lang"}
+## Python
+```{.python .snippet}
+# b[s] is the belief; T[s, a, s2] = T(s2 | s, a); O[a, s2, o] = O(o | a, s2).
+def predict_discrete(b, T, a):
+    return b @ T[:, a, :]    # sum over s of b(s) T(s2 | s, a)
+
+def correct_discrete(b_pred, O, a, o):
+    b_new = O[a, :, o] * b_pred
+    total = b_new.sum()
+    if total == 0:
+        raise ValueError(f"observation {o} is impossible under this belief")
+    return b_new / total
+
+def update_discrete(b, T, O, a, o):
+    return correct_discrete(predict_discrete(b, T, a), O, a, o)
+```
+## Julia
+```{julia}
+#| output: asis
+show_source("beliefs/discrete_filter.jl")
+```
+:::
+
+### Kalman filter
+
+This implements @eq-kalman-predict and @eq-kalman-correct.
+
+::: {.panel-tabset group="lang"}
+## Python
+```{.python .snippet}
+def kalman_predict(mu_b, Sigma_b, a, m):
+    mu_p = m["Ts"] @ mu_b + m["Ta"] @ a
+    Sigma_p = m["Ts"] @ Sigma_b @ m["Ts"].T + m["Sigma_s"]
+    return mu_p, Sigma_p
+
+def kalman_correct(mu_p, Sigma_p, o, m):
+    Os = m["Os"]
+    K = Sigma_p @ Os.T @ np.linalg.inv(Os @ Sigma_p @ Os.T + m["Sigma_o"])
+    mu_b = mu_p + K @ (o - Os @ mu_p)
+    Sigma_b = Sigma_p - K @ Os @ Sigma_p
+    return mu_b, Sigma_b, K
+
+def kalman_update(mu_b, Sigma_b, a, o, m):
+    mu_p, Sigma_p = kalman_predict(mu_b, Sigma_b, a, m)
+    mu_b, Sigma_b, _ = kalman_correct(mu_p, Sigma_p, o, m)
+    return mu_b, Sigma_b
+```
+## Julia
+```{julia}
+#| output: asis
+show_source("beliefs/kalman_filter.jl")
+```
+:::
+
+### Particle filter
+
+This implements @eq-particles. The model enters only through two functions you supply: one that *samples* a next state, and one that *scores* an observation.
+
+::: {.panel-tabset group="lang"}
+## Python
+```{.python .snippet}
+# sample_next(rng, s, a) draws s2 ~ T(. | s, a); likelihood(o, a, s2) returns O(o | a, s2).
+def update_particles(particles, a, o, sample_next, likelihood, rng):
+    moved = np.array([sample_next(rng, s, a) for s in particles])   # predict
+    w = np.array([likelihood(o, a, s2) for s2 in moved])            # weight
+    if w.sum() == 0:
+        raise ValueError("every particle has zero weight")
+    keep = rng.choice(len(moved), size=len(moved), p=w / w.sum())
+    return moved[keep]                                              # resample
+```
+## Julia
+```{julia}
+#| output: asis
+show_source("beliefs/particle_filter.jl")
+```
+:::
+
+### Run them on the worked examples
+
+::: {.panel-tabset group="lang"}
+## Python
+```{.python .snippet}
+b0 = correct_discrete(np.full(n, 1 / n), O, 0, 1)             # uniform prior, read "dark"
+b1 = update_discrete(b0, T, O, 0, 0)                           # drive, read "light"
+mu_p, Sigma_p = kalman_predict(np.zeros(1), 9 * np.eye(1), np.full(1, 2.0), kayak)
+mu_b, Sigma_b, K = kalman_correct(mu_p, Sigma_p, np.full(1, 3.5), kayak)
+assert np.isclose(b0[2], 0.9 / 5.9) and b1.argmax() == 5       # stop 6 in 1-based numbering
+assert np.allclose([K[0, 0], mu_b[0], Sigma_b[0, 0]], [10 / 14, 2 + 15 / 14, 20 / 7])
+```
+## Julia
+```{julia}
+#| echo: true
+#| output: false
+b0 = correct_discrete(fill(1 / n, n), O, 1, 2)                 # uniform prior, read "dark"
+b1 = update_discrete(b0, T, O, 1, 1)                           # drive, read "light"
+μp, Σp = kalman_predict(0.0, 9.0, 2.0, kayak)
+μb, Σb, K = kalman_correct(μp, Σp, 3.5, kayak)
+```
+:::
+
+```{julia}
+println("Tram: after 'dark' then 'light', the most likely stop is $(argmax(b1)) (b = $(round(maximum(b1), digits = 3))).")
+println("Kayak: K = $(round(K, digits = 3)), posterior mean = $(round(μb, digits = 3)), variance = $(round(Σb, digits = 3)).")
+```
+
+::: {.callout-note collapse="true" title="Reading the Julia code (for Python programmers)"}
+- **`mod1(s + step, n)`** wraps around a loop with 1-based numbering: it returns a value in `1:n`, where `mod` would return `0:n-1`.
+- **`struct LinearGaussianModel`** is like a Python dataclass. Fields without type annotations accept anything, which is why the same code works with numbers in 1D and with matrices in 2D.
+- **`Σp * m.Os' / (…)`**: `'` is the transpose, and `A / B` means $A B^{-1}$, computed without forming the inverse.
+- **`rand(rng, Categorical(w), N)`** draws $N$ indices with probabilities `w`, like `rng.choice(len(w), N, p=w)` in NumPy.
+- **`[f(x) for x in xs]`** comprehensions read just like Python's. `for s in 1:n, (step, p) in pairs` is a nested loop on one line.
+:::
+
+### Results
+
+#### Kalman filter: tracking a drifting buoy
+
+A buoy drifts on the sea with a roughly constant velocity. Its state is position and velocity, $s = (x, y, \dot x, \dot y)$, and GPS reports only the position, with 2 m of noise in each direction. The filter never measures velocity directly, yet it learns it from how the positions change. As the velocity estimate improves, each prediction gets better and the uncertainty shrinks (@fig-buoy). By step 30 the position's standard deviation is 0.9 m, less than half the GPS noise.
+
+```{julia}
+#| include: false
+buoy = LinearGaussianModel([1 0 1 0; 0 1 0 1; 0 0 1 0; 0 0 0 1], zeros(4, 2),
+                           Diagonal([0.01, 0.01, 0.002, 0.002]), [1 0 0 0; 0 1 0 0], 4.0 * I(2))
+function track_buoy(steps; seed = 5)
+    rng = MersenneTwister(seed)
+    s = [0.0, 0.0, 1.0, 0.5]
+    μ, Σ = zeros(4), 10.0 * Matrix(I, 4, 4)
+    truth, fixes, means, covs = [s[1:2]], Vector{Float64}[], [μ[1:2]], [Σ[1:2, 1:2]]
+    for _ in 1:steps
+        s = buoy.Ts * s .+ sqrt.(diag(buoy.Σs)) .* randn(rng, 4)
+        o = s[1:2] .+ 2 .* randn(rng, 2)
+        μ, Σ = kalman_update(μ, Σ, zeros(2), o, buoy)
+        push!(truth, s[1:2]); push!(fixes, o); push!(means, μ[1:2]); push!(covs, Σ[1:2, 1:2])
+    end
+    return truth, fixes, means, covs
+end
+buoy_truth, buoy_fixes, buoy_means, buoy_covs = track_buoy(30)
+```
+
+```{julia}
+#| label: fig-buoy
+#| fig-cap: "Kalman filter tracking a buoy from noisy GPS fixes. Shaded ellipses are 95% regions of the position belief, drawn every third step; they start large and shrink as the filter learns the buoy's velocity."
+#| fig-alt: "Plot of east versus north position. A dark line shows the buoy's true path running up and to the right. Gray dots scattered around it are the GPS fixes. A blue line close to the true path is the Kalman estimate, with blue ellipses along it that are large at the start and small afterwards."
+let fig = Figure(size = (640, 420))
+    ax = Axis(fig[1, 1], xlabel = "East (m)", ylabel = "North (m)", aspect = DataAspect())
+    for k in 2:3:length(buoy_means)   # skip k = 1, the wide prior before any GPS fix
+        poly!(ax, ellipse(buoy_means[k], buoy_covs[k]), color = (blue, 0.12), strokecolor = (blue, 0.6), strokewidth = 1)
+    end
+    lines!(ax, Point2f.(buoy_truth), color = ADM.INK, label = "True path")
+    scatter!(ax, Point2f.(buoy_fixes), color = ADM.MUTED, markersize = 6, label = "GPS fixes")
+    lines!(ax, Point2f.(buoy_means), color = blue, label = "Kalman estimate")
+    axislegend(ax, position = :lt)
+    fig
+end
+```
+
+#### Particle filter: a range-only sensor
+
+A rover can measure only its **distance** to a single beacon, with 0.5 m of noise, and it knows how it drove. One distance reading puts the rover anywhere on a ring around the beacon. No Gaussian can represent a ring, but a particle cloud can (@fig-particles).
+
+While the rover drives straight east, the readings can't tell *north* of the beacon from *south*: both would produce the same sequence of distances. So the cloud splits into two mirror-image clusters. At step 7 the rover turns north. The mirror-image cluster now predicts distances that don't match, so it dies out.
+
+```{julia}
+#| include: false
+function localize(; seed = 3, N = 2000)
+    rng = MersenneTwister(seed)
+    σm, σr = 0.3, 0.5
+    sample_next(rng, s, a) = s .+ a .+ σm .* randn(rng, 2)
+    stay(rng, s, a) = s
+    likelihood(o, a, s′) = exp(-(o - norm(s′))^2 / (2σr^2))
+    truth = [-4.0, 3.0]
+    particles = [20 .* rand(rng, 2) .- 10 for _ in 1:N]
+    actions = [[[1.0, 0.0] for _ in 1:6]; [[0.0, 1.0] for _ in 1:6]]
+    frames = Dict{Int, Any}()
+    o = norm(truth) + σr * randn(rng)
+    particles = update_particles(particles, [0.0, 0.0], o, stay, likelihood, rng)
+    frames[0] = (truth = copy(truth), particles = copy(particles))
+    for (t, a) in enumerate(actions)
+        truth = truth .+ a .+ σm .* randn(rng, 2)
+        o = norm(truth) + σr * randn(rng)
+        particles = update_particles(particles, a, o, sample_next, likelihood, rng)
+        frames[t] = (truth = copy(truth), particles = copy(particles))
+    end
+    return frames
+end
+frames = localize()
+```
+
+```{julia}
+#| label: fig-particles
+#| fig-cap: "Particle filter with a range-only sensor. The star is the beacon, gray dots are particles, and the orange diamond is the true position. After one reading the belief is a ring. Driving east leaves two mirror-image clusters; the turn north at step 7 removes the wrong one."
+#| fig-alt: "Four square panels at steps 0, 3, 6 and 9. At step 0 the particles form a ring around a star at the center. At step 3 they form a C-shaped arc to the left of the star, reaching both above and below it. At step 6 they form two compact clusters mirrored across the horizontal line through the star, and the true position is in the upper one. At step 9 a single cluster remains around the true position."
+let fig = Figure(size = (660, 200))
+    for (col, t) in enumerate((0, 3, 6, 9))
+        ax = Axis(fig[1, col], title = "Step $t", aspect = DataAspect(), limits = (-10, 10, -10, 10),
+                  xticks = [-10, 0, 10], yticks = [-10, 0, 10], yticklabelsvisible = col == 1)
+        scatter!(ax, Point2f.(frames[t].particles), color = (ADM.INK_SECONDARY, 0.25), markersize = 3)
+        scatter!(ax, [Point2f(0, 0)], marker = :star5, color = ADM.INK, markersize = 14)
+        scatter!(ax, [Point2f(frames[t].truth...)], marker = :diamond, color = orange,
+                 markersize = 12, strokecolor = :white, strokewidth = 1)
+    end
+    fig
+end
+```
+
+## Solved problems
+
+**Problem 1: a discrete update by hand.** A cat is in one of three rooms, A, B or C. Your belief is $(0.5, 0.3, 0.2)$. Each minute the cat stays put with probability 0.6, or moves to the next room in the cycle A → B → C → A with probability 0.4. You then hear a meow, which you would hear with probability 0.9 if the cat is in A, 0.5 if in B, and 0.1 if in C. What is your new belief?
+
+::: {.callout-tip collapse="true" title="Solution"}
+**Predict.** Each room can be reached by staying, or by moving from the previous room in the cycle:
+
+- $b_p(A) = 0.6(0.5) + 0.4(0.2) = 0.38$ (stay in A, or move C → A)
+- $b_p(B) = 0.6(0.3) + 0.4(0.5) = 0.38$
+- $b_p(C) = 0.6(0.2) + 0.4(0.3) = 0.24$
+
+**Correct.** Multiply by the meow likelihoods: $0.9(0.38) = 0.342$, $0.5(0.38) = 0.190$, $0.1(0.24) = 0.024$. These sum to $0.556$, so
+
+$$
+b' = (0.615,\ 0.342,\ 0.043).
+$$
+
+The prediction made A and B equally likely. The meow, much likelier near A, broke the tie.
+:::
+
+**Problem 2: the Kalman gain at the extremes.** In 1D with $O_s = 1$, the prediction is $\mathcal{N}(10, 4)$ and the sensor variance is $\Sigma_o = 1$. You observe $o = 12$. Find $K$, the new mean and the new variance. Then describe what happens as $\Sigma_o \to 0$ and as $\Sigma_o \to \infty$.
+
+::: {.callout-tip collapse="true" title="Solution"}
+$K = 4 / (4 + 1) = 0.8$, so the mean is $10 + 0.8(12 - 10) = 11.6$ and the variance is $(1 - 0.8) \times 4 = 0.8$.
+
+- $\Sigma_o \to 0$ (perfect sensor): $K \to 1$, the mean jumps to $o$, and the variance goes to 0. You believe the sensor completely.
+- $\Sigma_o \to \infty$ (useless sensor): $K \to 0$, and the mean and variance stay at the prediction. The observation is ignored.
+
+The filter is always a compromise between these two extremes, and $K$ says where on that line it sits.
+:::
+
+**Problem 3: steady state.** Keep running the kayak's filter from the worked example, with $\Sigma_s = 1$ and $\Sigma_o = 4$. The posterior variance settles to a fixed value $\Sigma_\infty$. Find it.
+
+::: {.callout-tip collapse="true" title="Solution"}
+At steady state, one predict-and-correct cycle returns the same variance. Predicting gives $\Sigma_\infty + 1$. Correcting gives
+
+$$
+\Sigma_\infty = \frac{(\Sigma_\infty + 1) \cdot 4}{(\Sigma_\infty + 1) + 4}
+\;\Longrightarrow\;
+\Sigma_\infty^2 + \Sigma_\infty - 4 = 0
+\;\Longrightarrow\;
+\Sigma_\infty = \frac{\sqrt{17} - 1}{2} \approx 1.56.
+$$
+
+The steady-state gain is $K_\infty = 2.56 / 6.56 \approx 0.39$, the value the kayak slider settles to at the true noise levels. The variance doesn't depend on the observations at all, only on the noise levels. That's a special property of linear-Gaussian models: you can compute a Kalman filter's accuracy before collecting any data.
+:::
+
+**Problem 4: when particles fail.** A robot on a 20 m track uses 500 particles spread evenly over the track. Its position sensor is very precise, with noise standard deviation 1 cm. About how many particles land within ±3 cm (three standard deviations) of the true position? What goes wrong, and what are two fixes?
+
+::: {.callout-tip collapse="true" title="Solution"}
+The ±3 cm window covers $0.06 / 20 = 0.3\%$ of the track, so about $500 \times 0.003 = 1.5$ particles land in it. Nearly all the weight goes to one or two particles, and resampling fills the cloud with copies of them. This is **particle degeneracy**: the cloud has collapsed, so it can no longer represent uncertainty, and a single bad draw loses track of the robot.
+
+Some fixes:
+
+- Use many more particles, which works but is costly.
+- Inflate the likelihood's variance when computing weights. This throws away some precision to keep the cloud diverse.
+- Add random new particles each step (**particle injection**, ADM §19.7), so the filter can recover when it loses track.
+:::
+
+## Recap
+
+1. **When the state is hidden, the agent acts on a belief: a probability distribution over states (@eq-belief).**
+   *Why it matters:* this turns a problem with a hidden state into one with a fully known "state" (the belief), which is the key move for all of Part IV.
+2. **Every filter repeats predict (@eq-belief-update's sum, where uncertainty grows) then correct (Bayes' rule, where uncertainty shrinks).**
+   *Why it matters:* the same two moves appear in robot localization, object tracking, speech recognition and medical monitoring. Recognizing them makes the variants easy to learn.
+3. **The discrete filter stores the full table.** It is exact, costs $O(|\mathcal{S}|^2)$ per step, and suits small state spaces.
+   *Why it matters:* it is the reference answer that the approximations try to match, and the belief update used by the exact planners in [Ch 20](ch20-exact-belief-state-planning.qmd).
+4. **The Kalman filter is exact for linear-Gaussian models, where the belief is just a mean and covariance (@eq-kalman-predict, @eq-kalman-correct).** The gain $K$ trades off trust in the prediction against trust in the sensor.
+   *Why it matters:* it is cheap and optimal, which is why it runs inside nearly every navigation system. Its variants (EKF, UKF) stretch it to mild nonlinearity.
+5. **The particle filter represents any belief shape with samples (@eq-particles),** including rings and multiple peaks. It needs only a simulator, not a formula, for the dynamics.
+   *Why it matters:* it is the workhorse when models are nonlinear or multimodal, and it is how online POMDP planners represent beliefs ([Ch 22](ch22-online-belief-state-planning.qmd)).
+
+## Cheat sheet & connections
+
+| Name | Formula | Ref | Cost per step |
+|---|---|---|---|
+| Belief | $b(s) = P(s_t = s \mid a_{1:t}, o_{1:t})$ | @eq-belief | — |
+| ★ Bayes' rule | $P(s \mid o) \propto P(o \mid s)\, P(s)$ | @eq-bayes | — |
+| ★ Belief update (Bayes filter) | $b'(s') \propto O(o \mid a, s') \sum_s T(s' \mid s, a)\, b(s)$ | @eq-belief-update | $O(\lvert\mathcal{S}\rvert^2)$ |
+| ★ Kalman predict | $\boldsymbol\mu_p = \mathbf{T}_s \boldsymbol\mu_b + \mathbf{T}_a a,\ \ \boldsymbol\Sigma_p = \mathbf{T}_s \boldsymbol\Sigma_b \mathbf{T}_s^\top + \boldsymbol\Sigma_s$ | @eq-kalman-predict | $O(d^3)$ |
+| ★ Kalman gain and correct | $\mathbf{K} = \boldsymbol\Sigma_p \mathbf{O}_s^\top (\mathbf{O}_s \boldsymbol\Sigma_p \mathbf{O}_s^\top + \boldsymbol\Sigma_o)^{-1}$, $\ \boldsymbol\mu_b' = \boldsymbol\mu_p + \mathbf{K}(o - \mathbf{O}_s \boldsymbol\mu_p)$ | @eq-kalman-correct | $O(d^3)$ |
+| Particle weights | $w^{(i)} \propto O(o \mid a, s'^{(i)})$, $s'^{(i)} \sim T(\cdot \mid s^{(i)}, a)$ | @eq-particles | $O(N)$ |
+
+: Key equations from this page (★ = well-known by name). $d$ is the dimension of the continuous state; $N$ is the number of particles. {#tbl-cheatsheet}
+
+**Which filter?** Use the discrete filter for small, finite state spaces. Use the Kalman filter when the dynamics and sensor are (close to) linear with Gaussian noise. Use the particle filter when the belief can have several peaks or odd shapes, or when you can simulate the model but not write it down.
+
+**Common pitfalls**
+
+- **Forgetting to normalize** after the correct step. The unnormalized numbers look plausible but aren't probabilities.
+- **An observation the model says is impossible.** The normalizer becomes 0 and the belief is undefined. The code on this page raises an error instead of silently returning NaNs. Real systems avoid it with a small floor on every likelihood.
+- **Assuming the wrong noise levels.** Too little assumed noise makes a Kalman filter overconfident and slow to react. Try it in the kayak slider by making $\Sigma_s$ tiny.
+- **Too few particles for a sharp sensor.** See Problem 4.
+
+**Connections**
+
+- [Ch 3 · Inference](../part1/ch03-inference.qmd) develops Bayes' rule and inference in Bayesian networks; a belief update is inference on a chain.
+- [Ch 7 · Exact Solution Methods](../part2/ch07-exact-solution-methods.qmd) covers the MDP model that this chapter extends with an observation model.
+- [Ch 20 · Exact Belief State Planning](ch20-exact-belief-state-planning.qmd) treats the belief as the state of a new MDP and plans over it.
+- [Ch 22 · Online Belief State Planning](ch22-online-belief-state-planning.qmd) plans from the current belief, often represented by particles.
+- [Appendix B · Probability Distributions](../appendices/b-probability-distributions.qmd) covers the Gaussian and other distributions used above.

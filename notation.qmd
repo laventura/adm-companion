@@ -20,3 +20,13 @@ This site uses the book's notation. Symbols are added here as chapters are writt
 | $\mathbf{T}^\pi$, $\mathbf{R}^\pi$ | Transition matrix and reward vector with the policy's action fixed in each state | Ch 7 |
 | $\lVert U \rVert_\infty$ | Largest absolute entry, $\max_s \lvert U(s) \rvert$ | Ch 7 |
 | $\delta$, $\epsilon$ | Bellman-residual threshold and target accuracy in value iteration | Ch 7 |
+| $o$ | An observation | Ch 19 |
+| $O(o \mid a, s')$ | Observation model: probability of observing $o$ after taking $a$ and landing in $s'$ | Ch 19 |
+| $b(s)$ | Belief: probability that the current state is $s$, given the history | Ch 19 |
+| $\mathcal{N}(x \mid \mu, \Sigma)$ | Gaussian density at $x$ with mean $\mu$ and covariance $\Sigma$ | Ch 19 |
+| $\mathbf{T}_s$, $\mathbf{T}_a$, $\boldsymbol{\Sigma}_s$ | Linear-Gaussian dynamics: state matrix, action matrix, process-noise covariance | Ch 19 |
+| $\mathbf{O}_s$, $\boldsymbol{\Sigma}_o$ | Linear-Gaussian sensor: observation matrix, sensor-noise covariance | Ch 19 |
+| $\boldsymbol{\mu}_b$, $\boldsymbol{\Sigma}_b$ | Mean and covariance of a Gaussian belief | Ch 19 |
+| $\boldsymbol{\mu}_p$, $\boldsymbol{\Sigma}_p$ | Mean and covariance after the predict step | Ch 19 |
+| $\mathbf{K}$ | Kalman gain | Ch 19 |
+| $s^{(i)}$, $w^{(i)}$ | The $i$-th particle and its weight | Ch 19 |

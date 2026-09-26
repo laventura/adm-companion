@@ -1,0 +1,3 @@
+# Julia pages in this folder use the julia/ environment (CLAUDE.md §6.1).
+julia:
+  exeflags: ["--project=../julia"]

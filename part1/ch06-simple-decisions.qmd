@@ -1,8 +1,755 @@
 ---
 title: "6 · Simple Decisions"
 subtitle: "Part I — Probabilistic Reasoning"
+jupyter: python3
+execute:
+  echo: false
 ---
 
 ::: {.callout-note appearance="minimal"}
-**In progress.** This page will cover ADM Ch. 6, *Simple Decisions*.
+**Executed in:** Python · **Book:** ADM Ch. 6 · **Lecture:** to be added
 :::
+<!-- TODO(video): link the official Stanford AA228 lecture on simple decisions / utility theory. -->
+
+```{python}
+#| include: false
+from itertools import product
+
+import numpy as np
+import matplotlib.pyplot as plt
+from IPython.display import Markdown
+
+from adm import style
+from adm.decisions import (
+    action_utilities, best_action, certainty_equivalent, expected_utility,
+    exponential_utility, value_of_information,
+)
+from adm.inference import exact_inference
+from adm.io import write_json
+from adm.page import show_source
+from adm.problems.commute import ACTIONS, COMMUTE_DECISION as BN, COMMUTE_UTILITY as U
+
+style.apply()
+blue, orange, green = style.CATEGORICAL[:3]
+EU = lambda ev: action_utilities(BN, "D", ("L",), U, ev)
+VOI = lambda ev, o, util=U: value_of_information(BN, "D", ("L",), util, ev, o)
+
+
+def utility_table(late_cost, early_cost=2.0, home_cost=6.0):
+    """U[D, L] for other costs: -late_cost if late, minus the cost of the action itself."""
+    action_cost = np.array([0.0, early_cost, home_cost])
+    return -action_cost[:, None] - late_cost * np.array([0.0, 1.0])[None, :]
+
+
+def normalized_exponential(x, lam):
+    """Exponential utility rescaled so U(0) = 0 and U(100) = 1 (a straight line when lam = 0).
+    Rescaling a utility by a positive constant never changes a decision."""
+    x = np.asarray(x, dtype=float)
+    return x / 100 if abs(lam) < 1e-9 else (1 - np.exp(-lam * x)) / (1 - np.exp(-lam * 100))
+```
+
+## Big picture
+
+### Where this chapter fits
+
+Chapters 2–5 were about *belief*: representing uncertainty, reasoning with it, and learning it from data. But the book is about *decisions*, and a belief alone doesn't tell you what to do. This chapter adds the missing ingredient, **preferences**, and combines them with beliefs to choose actions. It's the smallest complete decision problem: one choice, made once. Part II ([Chapter 7](../part2/ch07-exact-solution-methods.qmd) onward) chains such choices over time, Part III learns the model while deciding, and Part IV decides without knowing the state. Every one of them rests on the principle introduced here: **choose the action with the highest expected utility.**
+
+**The question:** when the outcome of each choice is uncertain, how should a rational agent choose, and how much should it pay to learn more before choosing?
+
+The short answer: **assign each outcome a number, its utility, that captures how much you want it. Then pick the action whose probability-weighted average utility is highest. Information is worth exactly how much it improves that average, by letting you pick better.**
+
+```{dot}
+//| label: fig-ch06-map
+//| fig-width: 7
+//| fig-height: 3.0
+//| fig-cap: "Map of this chapter. Rational preferences imply utilities; utilities plus beliefs give expected utility; maximizing it picks the action. Decision networks organize the calculation, value of information prices extra observations, and real people deviate in systematic ways."
+//| fig-alt: "Flow diagram. Preferences (four axioms) lead to Utility (a number per outcome, whose shape encodes attitude to risk). Utility and Beliefs from Chapters 2 to 5 both feed a blue box, Maximum expected utility (pick the best average). That leads to Decision networks (chance, decision and utility nodes) and to Value of information (what an observation is worth). A separate box, Irrationality, notes how people deviate."
+digraph ch06 {
+  rankdir=TB; bgcolor="#fcfcfb"; pad=0.25; nodesep=0.35; ranksep=0.4;
+  node [shape=box, style="rounded,filled", fillcolor="white", color="#c3c2b7", penwidth=1.2,
+        fontname="Helvetica", fontsize=13, fontcolor="#0b0b0b", margin="0.14,0.07"];
+  edge [color="#52514e", penwidth=1.2, arrowsize=0.7, fontname="Helvetica", fontsize=11, fontcolor="#52514e"];
+  pref [label=<<B>Preferences</B><BR/><FONT POINT-SIZE="11">four axioms</FONT>>];
+  util [label=<<B>Utility</B><BR/><FONT POINT-SIZE="11">a number per outcome;<BR/>shape = risk attitude</FONT>>];
+  belief [label=<<B>Beliefs</B><BR/><FONT POINT-SIZE="11">Chapters 2–5</FONT>>];
+  meu [label=<<B>Maximum expected utility</B><BR/><FONT POINT-SIZE="11">pick the best average</FONT>>, fillcolor="#cde2fb", color="#2a78d6"];
+  dn [label=<<B>Decision networks</B><BR/><FONT POINT-SIZE="11">chance, decision, utility</FONT>>];
+  voi [label=<<B>Value of information</B><BR/><FONT POINT-SIZE="11">what a look is worth</FONT>>];
+  irr [label=<<B>Irrationality</B><BR/><FONT POINT-SIZE="11">how people deviate</FONT>>];
+  pref -> util [label="imply"]; util -> meu; belief -> meu;
+  meu -> dn [label="organize"]; meu -> voi [label="price"];
+  meu -> irr [label="vs. people", style=dashed];
+  { rank=same; pref; util; belief; }
+}
+```
+
+### The key ideas at a glance
+
+1. **Rational preferences can be written as numbers.** Suppose your preferences between outcomes, and between gambles over outcomes, obey four common-sense rules:
+   - you can always compare two options (**completeness**);
+   - you're consistent (**transitivity**: if you prefer A to B and B to C, you prefer A to C);
+   - no outcome is infinitely good or bad (**continuity**);
+   - mixing both options with the same third one doesn't flip your choice (**independence**).
+
+   Then there is a number, a **utility**, for each outcome, such that you prefer one gamble to another exactly when its average utility is higher. This is the von Neumann–Morgenstern theorem.
+
+2. **The shape of your utility is your attitude to risk.** Money isn't utility. If an extra $100 means less to you once you already have $100, your utility curve bends downward (**concave**), and you'll take a sure $40 over a coin flip for $0 or $100. You're **risk averse**. A straight line is **risk neutral**; an upward bend is **risk seeking**. The **certainty equivalent** of a gamble is the sure amount you'd trade it for.
+
+3. **Utilities can be measured by asking about gambles.** Fix your worst outcome at utility 0 and your best at 1. Any other outcome's utility is the probability $p$ at which you'd be indifferent between getting it for sure and a gamble with a $p$ chance of the best outcome (and otherwise the worst).
+
+4. **Choose the action with the maximum expected utility (MEU).** For each action, average the utility of its possible outcomes, weighted by their probabilities given what you know. Pick the largest. That's the whole decision rule, and a **decision network** organizes it: a Bayesian network plus a decision node and a utility node, solved with the inference of [Chapter 3](ch03-inference.qmd).
+
+5. **Information is worth what it changes.** The **value of information** of an observation is how much better, on average, your best decision becomes once you see it before deciding. It's never negative, and it's exactly zero when no possible result would change your choice. A traffic app that shows the jam is worth more than a radio that only hints at storms, because it speaks more directly to what matters.
+
+6. **Real people aren't always rational.** People systematically violate the axioms. They overvalue certainty, and they flip choices depending on whether the same options are described as gains or losses. Maximum expected utility is a standard for *good* decisions, not a description of how people actually decide.
+
+### Vocabulary
+
+| Term | Plain meaning |
+|:---|:---|
+| Lottery $[S_1: p_1; \ldots; S_n: p_n]$ | A gamble with outcome $S_i$ at probability $p_i$ |
+| Preference $A \succ B$, $A \sim B$ | $A$ is preferred to $B$; indifferent between them |
+| Utility $U$ | A number per outcome such that higher average utility means preferred |
+| Expected utility $EU$ | The probability-weighted average of utility |
+| Risk averse / neutral / seeking | Concave / straight / convex utility of money |
+| Certainty equivalent | The sure amount worth the same as a gamble |
+| Decision network | Chance nodes, decision nodes, and a utility node |
+| Maximum expected utility (MEU) | Choose the action with the highest expected utility |
+| Value of information (VOI) | How much seeing something before deciding improves expected utility |
+
+: Terms used on this page. {#tbl-vocab}
+
+### After this chapter you can
+
+- State the rationality axioms, and explain what a utility function is and why it exists.
+- Read risk attitudes off a utility curve, and compute a certainty equivalent.
+- Solve a decision network for the best action given any evidence.
+- Compute the value of an observation, and predict when it will be zero.
+- Recognize common ways human choices violate expected utility.
+
+## Intuition
+
+::: {.callout-tip title="Analogy"}
+Every morning you decide how to commute: leave at the usual time, leave 30 minutes early, or stay home and work remotely. None of these guarantees a good outcome, because a traffic jam may or may not happen. A sensible commuter does three things without thinking of them as math:
+
+- **puts a price on each outcome**: being late is bad (10 points), losing sleep is mildly bad (2), a lost workday is worse (6);
+- **weighs each option by how likely each outcome is**, given what they know;
+- **picks the option with the best weighted average.**
+
+Sometimes it's worth first checking the radio or a traffic app, but only if what they might see could change the plan.
+:::
+
+@fig-decision-network draws the commute decision. It's the commute network from [Chapter 2](ch02-representation.qmd), plus a decision (what to do) and a utility (how good the result is).
+
+```{dot}
+//| label: fig-decision-network
+//| fig-width: 4.9
+//| fig-height: 3.6
+//| fig-cap: "The commute decision network. Ovals are chance variables, the rectangle is the decision, and the diamond is the utility. Being late depends on the jam and on what you decide; the utility depends on being late and on the decision itself."
+//| fig-alt: "Diagram. Oval chance nodes Storm and Roadwork point to Traffic jam; Storm also points to Radio alert. A rectangular decision node, Leave when, and Traffic jam both point to the oval Late. Late and the decision both point to a diamond utility node."
+digraph dn {
+  bgcolor="#fcfcfb"; pad=0.2; nodesep=0.35; ranksep=0.4;
+  node [fontname="Helvetica", fontsize=12, fontcolor="#0b0b0b", color="#52514e", style=filled, fillcolor="white", penwidth=1.2];
+  edge [color="#52514e", arrowsize=0.6];
+  S [label="Storm", shape=ellipse]; R [label="Roadwork", shape=ellipse]; J [label="Traffic jam", shape=ellipse];
+  A [label="Radio alert", shape=ellipse]; L [label="Late", shape=ellipse];
+  D [label="Leave when?", shape=box, fillcolor="#cde2fb", color="#2a78d6"];
+  Ut [label="Utility", shape=diamond, fillcolor="#f0efec"];
+  S -> J; R -> J; S -> A; J -> L; D -> L; L -> Ut; D -> Ut;
+  { rank=same; D; J; }
+}
+```
+
+### Why numbers at all?
+
+If your preferences are consistent, they can be summarized by numbers. Consistency rules out, for example, preferring on time to early, early to home, and home to on time. Someone with those circular tastes could be charged a small fee to switch at each step and would happily go around the circle forever, paying each time. That's the "money pump" argument for transitivity. The four axioms together guarantee a utility scale, which is why "assign points, maximize the average" is a principled rule and not just a convenient one. See @eq-vnm and @eq-lottery.
+
+### Risk attitude is curvature
+
+Offer a coin flip: $0 or $100. Its average is $50. Many people would rather have a sure $40. That's rational if the second $50 matters less to them than the first. On a utility curve that bends downward (@fig-utility-shapes), the gamble's average *utility* lands below the utility of $50, and the sure amount worth the same (the certainty equivalent) is about $38 for one common curve. See @eq-certainty-equivalent.
+
+### Measuring a utility
+
+To find how much you value "arriving 10 minutes late", compare it with a gamble: "arrive on time with probability $p$, or an hour late otherwise". Raise $p$ until you're torn. If that happens at $p = 0.7$, then on a scale where "on time" is 1 and "an hour late" is 0, "10 minutes late" is worth 0.7. See @eq-elicitation.
+
+### Maximizing expected utility
+
+With no information, a jam happens 25.4% of the time:
+- **Leave on time:** you're late 16.4% of the time, costing $10 \times 0.164 = 1.64$ points on average.
+- **Leave early:** you pay 2 points for sure, plus a small lateness risk, for 2.25.
+- **Stay home:** 6.
+
+So you leave on time. If the radio issues a storm alert, a jam becomes 65% likely. Leaving on time now costs 3.44 on average, and leaving early only 2.65, so you leave early. The rule didn't change; the probabilities did. See @eq-meu and @fig-eu-vs-jam.
+
+### What a look is worth
+
+Before deciding, you could check the radio. It changes your decision only when it reports an alert (11% of mornings), and even then the gain is modest: it's worth about 0.09 points on average. A traffic app that shows the jam itself is worth about 0.51, over five times as much, because it tells you exactly the thing your choice depends on. If you already know there's a jam, the radio is worth nothing: no alert could change your mind. See @eq-voi.
+
+### When people aren't rational
+
+In a famous experiment, most people prefer a sure \$1 million to a gamble that is 89% \$1M, 10% \$5M and 1% \$0. The same people then prefer "10% \$5M" to "11% \$1M" when neither is certain. No utility function makes both choices. The first choice says the 1% risk of nothing outweighs the extra 10% chance at \$5M, and the second says the reverse, even though the second pair of options is just the first pair with the same 89% chunk removed. The pull of *certainty* is stronger than expected utility allows. See [Irrationality](#irrationality).
+
+## Formalism
+
+### Rational preferences
+
+Outcomes and gambles are compared with **lotteries**: $[S_1 : p_1; \ldots; S_n : p_n]$ yields outcome $S_i$ with probability $p_i$. Write $A \succ B$ for "$A$ is preferred to $B$", $A \sim B$ for indifference, and $A \succeq B$ for "at least as good" (ADM §6.1).
+
+::: {.key-equation .famous data-name="Axioms of rational preference (von Neumann–Morgenstern)"}
+$$
+\begin{aligned}
+&\textbf{Completeness:} && \text{exactly one of } A \succ B,\ B \succ A,\ A \sim B \\
+&\textbf{Transitivity:} && A \succeq B \text{ and } B \succeq C \implies A \succeq C \\
+&\textbf{Continuity:} && A \succeq C \succeq B \implies \exists\, p:\ [A : p;\ B : 1-p] \sim C \\
+&\textbf{Independence:} && A \succ B \implies [A : p;\ C : 1-p] \succeq [B : p;\ C : 1-p]
+\end{aligned}
+$$ {#eq-vnm}
+:::
+
+**In words.** You can compare any two options. Your preferences don't go in circles. Anything between two options can be matched by a gamble between them. And mixing two options with the same third one, in the same proportion, doesn't reverse your preference.
+
+**Term by term.**
+
+- **Completeness** rules out "I can't compare these".
+- **Transitivity** rules out cycles, which would let someone "money pump" you.
+- **Continuity** says no outcome is infinitely better or worse than another, so some probability always balances them.
+- **Independence** says a common ingredient, $C$ with probability $1-p$ in both lotteries, shouldn't affect the choice.
+
+These axioms imply a utility function exists (von Neumann and Morgenstern, *Theory of Games and Economic Behavior*, 1944).
+
+### Utility
+
+A **utility function** $U$ assigns each outcome a number such that $A \succeq B$ exactly when $U(A) \ge U(B)$ (ADM §6.2). For lotteries:
+
+::: {.key-equation .famous data-name="Expected utility of a lottery"}
+$$
+U\big([S_1 : p_1;\ \ldots;\ S_n : p_n]\big) = \sum_{i=1}^{n} p_i\, U(S_i)
+$$ {#eq-lottery}
+:::
+
+**In words.** A gamble is worth the probability-weighted average of its outcomes' utilities.
+
+**Term by term.** $p_i$ is the probability of outcome $S_i$, and $U(S_i)$ is that outcome's utility. Any positive rescaling, $aU + b$ with $a > 0$, represents the same preferences. Only the *differences* between utilities matter, and only up to scale.
+
+Applied to money, the curve's shape describes your attitude to risk:
+
+::: {.key-equation data-name="Certainty equivalent"}
+$$
+U(x_{\text{ce}}) = \mathbb{E}\big[U(x)\big]
+\qquad\Longrightarrow\qquad
+x_{\text{ce}} = U^{-1}\big(\mathbb{E}[U(x)]\big)
+$$ {#eq-certainty-equivalent}
+:::
+
+**In words.** The certainty equivalent is the sure amount whose utility equals the gamble's expected utility: the price at which you'd swap the gamble for cash.
+
+**Term by term.**
+
+- $\mathbb{E}[U(x)]$ is the expected utility of the gamble's money outcomes.
+- For a **concave** (risk-averse) $U$, $x_{\text{ce}} < \mathbb{E}[x]$. The gap $\mathbb{E}[x] - x_{\text{ce}}$ is the **risk premium**, what you'd pay to avoid the gamble.
+- For a linear $U$ (risk neutral), $x_{\text{ce}} = \mathbb{E}[x]$. For a convex $U$ (risk seeking), $x_{\text{ce}} > \mathbb{E}[x]$.
+
+A common choice for money is the exponential utility:
+
+::: {.key-equation data-name="Exponential utility"}
+$$
+U(x) = 1 - e^{-\lambda x}
+\qquad
+x_{\text{ce}} = -\frac{1}{\lambda} \ln \mathbb{E}\big[e^{-\lambda x}\big]
+$$ {#eq-exponential-utility}
+:::
+
+**In words.** A curve that rises quickly at first and then flattens, with $\lambda$ setting how fast it flattens, which is how risk averse you are.
+
+**Term by term.** $\lambda > 0$ gives risk aversion, larger $\lambda$ meaning more. The certainty-equivalent formula comes from solving $1 - e^{-\lambda x_{\text{ce}}} = \mathbb{E}[1 - e^{-\lambda x}]$. For the $0 or $100 coin flip with $\lambda = 0.01$: $\mathbb{E}[e^{-0.01x}] = \frac{1}{2}(1 + e^{-1}) = 0.684$, so $x_{\text{ce}} = -100 \ln 0.684 = \$38$. Other common forms are the quadratic and power utilities (ADM §6.2).
+
+### Measuring utility
+
+Fix the worst outcome $S_\bot$ at utility 0 and the best $S_\top$ at 1 (ADM §6.3). For any other outcome $S$:
+
+::: {.key-equation data-name="Utility elicitation"}
+$$
+S \sim [S_\top : p;\ S_\bot : 1 - p]
+\quad\Longrightarrow\quad
+U(S) = p
+$$ {#eq-elicitation}
+:::
+
+**In words.** Find the gamble between the best and worst outcomes that you like exactly as much as $S$. Its winning probability *is* $S$'s utility.
+
+**Term by term.** Continuity (@eq-vnm) guarantees that such a $p$ exists. By @eq-lottery, the gamble's utility is $p \cdot 1 + (1-p) \cdot 0 = p$, and indifference means equal utilities.
+
+### Maximum expected utility
+
+With an observation $o$, actions $a$, and outcome states $s'$ (ADM §6.4):
+
+::: {.key-equation .famous data-name="Maximum expected utility principle"}
+$$
+EU(a \mid o) = \sum_{s'} P(s' \mid a, o)\, U(s')
+\qquad
+a^* = \mathop{\mathrm{arg\,max}}_{a} EU(a \mid o)
+$$ {#eq-meu}
+:::
+
+**In words.** For each action, average the utility of the outcomes it might lead to, using their probabilities given what you've observed. Choose the action with the largest average.
+
+**Term by term.**
+
+- $P(s' \mid a, o)$ is a belief about outcomes, computed by inference ([Ch 3](ch03-inference.qmd)).
+- $U(s')$ is the utility of outcome $s'$. It may also depend on the action itself, like the lost sleep from leaving early.
+- $a^*$ is the rational choice. Write $EU^*(o) = \max_a EU(a \mid o)$ for its value.
+
+A **decision network** (ADM §6.5) packages such a problem: chance nodes (a Bayesian network), decision nodes whose values you choose, and utility nodes. To solve it, fix the decision to each action in turn, run inference for the variables the utility depends on, and apply @eq-meu.
+
+### Value of information
+
+Suppose you could observe some variable $O'$ before deciding (ADM §6.6):
+
+::: {.key-equation .famous data-name="Value of information"}
+$$
+\mathrm{VOI}(O' \mid o) = \left( \sum_{o'} P(o' \mid o)\, EU^*(o, o') \right) - EU^*(o)
+$$ {#eq-voi}
+:::
+
+**In words.** Look before you leap, on average: the expected best utility after seeing $O'$, minus the best utility if you decide now.
+
+**Term by term.**
+
+- $P(o' \mid o)$ says how likely each thing you might see is, given what you already know.
+- $EU^*(o, o')$ is the best expected utility once you've also seen $o'$: you get to *react* to it.
+- $\mathrm{VOI} \ge 0$ always. You could ignore what you see and do what you'd have done anyway, so looking can't hurt on average.
+- It's zero when every possible $o'$ leads to the same best action. That's why information about things you can't act on, or that can't change your mind, is worthless for this decision.
+
+### Irrationality {#irrationality}
+
+People systematically violate the axioms (ADM §6.7). In Allais's experiment (M. Allais, *Econometrica*, 1953), most people choose:
+
+- **1A** (\$1M for sure) over **1B** (89% \$1M, 10% \$5M, 1% \$0);
+- **2B** (10% \$5M, 90% \$0) over **2A** (11% \$1M, 89% \$0).
+
+Write $u_0, u_1, u_5$ for the utilities of \$0, \$1M and \$5M. Preferring 1A means $u_1 > 0.89u_1 + 0.10u_5 + 0.01u_0$, that is, $0.11u_1 > 0.10u_5 + 0.01u_0$. Preferring 2B means $0.10u_5 + 0.90u_0 > 0.11u_1 + 0.89u_0$, that is, $0.10u_5 + 0.01u_0 > 0.11u_1$. The two inequalities contradict each other, so no utility function fits both choices. It violates independence: the second pair is the first with a common 89% chunk changed from \$1M to \$0. Other documented effects include **framing**: people choose differently when identical outcomes are described as lives saved rather than lives lost (Tversky and Kahneman, *Science*, 1981).
+
+## Worked example
+
+### The commute decision by hand
+
+The utility table (in points; being late costs 10, leaving early 2, staying home 6):
+
+| | on time | late |
+|---|---|---|
+| **Leave on time** | 0 | −10 |
+| **Leave early** | −2 | −12 |
+| **Stay home** | −6 | (can't happen) |
+
+: The commute utility U(decision, late). {#tbl-utility}
+
+$P(\text{late} \mid \text{jam}, \text{action})$ is 0.5 on time, 0.1 early, and 0 at home. Without a jam it's 0.05 on time, and 0 otherwise.
+
+**No information.** $P(\text{jam}) = 0.254$ (from [Ch 2](ch02-representation.qmd)).
+
+- On time: $P(\text{late}) = 0.254(0.5) + 0.746(0.05) = 0.164$, so $EU = -10 \times 0.164 = -1.64$.
+- Early: $P(\text{late}) = 0.254 \times 0.1 = 0.025$, so $EU = -2 - 10 \times 0.025 = -2.25$.
+- Home: $EU = -6$.
+
+**Best: leave on time**, with $EU^* = -1.64$.
+
+**After a radio alert.** $P(\text{jam} \mid \text{alert}) = 0.654$ (from [Ch 3](ch03-inference.qmd)).
+
+- On time: $P(\text{late}) = 0.654(0.5) + 0.346(0.05) = 0.344$, so $EU = -3.44$.
+- Early: $EU = -2 - 10(0.0654) = -2.65$.
+
+**Best: leave early.**
+
+**The value of listening to the radio.** An alert comes 11.3% of mornings; otherwise, $P(\text{jam} \mid \text{no alert}) = 0.203$ and leaving on time is best, with $EU = -1.41$. So
+$$
+\mathrm{VOI}(\text{radio}) = 0.113(-2.65) + 0.887(-1.41) - (-1.64) \approx 0.09.
+$$
+
+```{python}
+#| label: tbl-eu-evidence
+#| tbl-cap: "Expected utility of each action under different evidence, computed by the code. Bold marks the best action."
+cases = [("Nothing observed", {}), ("Radio alert", {"A": 1}), ("No radio alert", {"A": 0}),
+         ("App shows a jam", {"J": 1}), ("App shows no jam", {"J": 0})]
+rows = ["| Evidence | " + " | ".join(a.capitalize() for a in ACTIONS) + " |", "|---|---|---|---|"]
+for name, ev in cases:
+    eu = EU(ev)
+    best = int(np.argmax(eu))
+    cells = [f"**{v:.3f}**" if i == best else f"{v:.3f}" for i, v in enumerate(eu)]
+    rows.append(f"| {name} | " + " | ".join(cells) + " |")
+Markdown("\n".join(rows))
+```
+
+### A certainty equivalent
+
+With exponential utility and $\lambda = 0.01$, a coin flip for \$0 or \$100 has certainty equivalent $x_{\text{ce}} = \$38$ (@eq-exponential-utility), so the risk premium is \$50 − \$38 = \$12. With $\lambda = 0.02$, $x_{\text{ce}}$ drops to \$28: a more risk-averse person demands a bigger discount to take the gamble.
+
+## Interactive
+
+### What should I do this morning?
+
+Set what you've observed and what the outcomes cost you. The explorer shows each action's expected utility, the best choice, and what it would be worth to check the radio or the traffic app first. Try raising the cost of being late: the app becomes more valuable, and at some point leaving early wins even with no information.
+
+```{python}
+#| include: false
+# Exact probabilities for every combination of evidence on the radio (A) and the jam (J),
+# so the browser only has to do the utility arithmetic. Keys look like "A1Ju" (u = unknown).
+tables = {}
+for a, j in product(["u", 0, 1], repeat=2):
+    ev = {k: v for k, v in (("A", a), ("J", j)) if v != "u"}
+    key = f"A{a}J{j}"
+    tables[key] = {
+        "pLate": [float(exact_inference(BN, ("L",), {**ev, "D": d}).table[1]) for d in range(3)],
+        "pAlert": None if a != "u" else float(exact_inference(BN, ("A",), ev).table[1]),
+        "pJam": None if j != "u" else float(exact_inference(BN, ("J",), ev).table[1]),
+    }
+write_json({"actions": list(ACTIONS), "tables": tables,
+            "style": {"blue": blue, "muted": style.MUTED, "ink": style.INK, "surface": style.SURFACE}},
+           "data/ch06-decision.json")
+```
+
+```{ojs}
+dec = FileAttachment("data/ch06-decision.json").json()
+viewof alert = Inputs.radio(["unknown", "yes", "no"], {label: "Radio alert", value: "unknown"})
+viewof jam = Inputs.radio(["unknown", "yes", "no"], {label: "Traffic app shows a jam", value: "unknown"})
+viewof lateCost = Inputs.range([0, 40], {step: 1, value: 10, label: "Cost of being late"})
+viewof earlyCost = Inputs.range([0, 10], {step: 0.5, value: 2, label: "Cost of leaving early"})
+viewof homeCost = Inputs.range([0, 20], {step: 0.5, value: 6, label: "Cost of staying home"})
+```
+
+```{ojs}
+choice = {
+  const code = v => v === "unknown" ? "u" : v === "yes" ? 1 : 0;
+  // EU of each action under evidence key k: minus the expected lateness cost, minus the action's own cost.
+  const eu = k => dec.tables[k].pLate.map((p, d) => -lateCost * p - [0, earlyCost, homeCost][d]);
+  const best = k => d3.max(eu(k));
+  const key = (a, j) => `A${a}J${j}`;
+  const a = code(alert), j = code(jam), here = key(a, j);
+  // VOI (@eq-voi): average best EU after seeing the variable, minus the best EU now.
+  const voiAlert = a !== "u" ? 0 : dec.tables[here].pAlert * best(key(1, j)) + (1 - dec.tables[here].pAlert) * best(key(0, j)) - best(here);
+  const voiJam = j !== "u" ? 0 : dec.tables[here].pJam * best(key(a, 1)) + (1 - dec.tables[here].pJam) * best(key(a, 0)) - best(here);
+  const values = eu(here);
+  return {values, bestIndex: values.indexOf(d3.max(values)), voiAlert, voiJam, known: {alert: a !== "u", jam: j !== "u"}};
+}
+```
+
+```{ojs}
+md`**Best: ${dec.actions[choice.bestIndex]}.** Checking the radio first is worth ${choice.known.alert ? "nothing more (already known)" : "**" + choice.voiAlert.toFixed(3) + "**"}; checking the traffic app is worth ${choice.known.jam ? "nothing more (already known)" : "**" + choice.voiJam.toFixed(3) + "**"} points.`
+```
+
+```{ojs}
+//| label: fig-decision-explorer
+//| fig-cap: "Expected utility of each action given the evidence and costs you chose. The best action is highlighted."
+//| fig-alt: "Interactive horizontal bar chart of expected utility for leave on time, leave early, and stay home, with the best one in blue and the others gray. Radio buttons set the radio alert and traffic app observations, and sliders set the costs of being late, leaving early and staying home."
+Plot.plot({
+  width: 640, height: 160, marginLeft: 110,
+  style: {background: dec.style.surface, color: dec.style.ink},
+  x: {label: "Expected utility (points)", grid: true},
+  y: {domain: dec.actions, label: null},
+  marks: [
+    Plot.barX(choice.values.map((v, i) => ({action: dec.actions[i], v, best: i === choice.bestIndex})),
+      {x: "v", y: "action", fill: d => d.best ? dec.style.blue : dec.style.muted, rx: 3}),
+    // Bars run left from 0 to v, so a label starting just right of v sits inside the bar.
+    // Skip labels on bars too short to hold them.
+    Plot.text(choice.values.map((v, i) => ({action: dec.actions[i], v}))
+        .filter(d => d.v < -0.15 * Math.abs(d3.min(choice.values))),
+      {x: "v", y: "action", text: d => d.v.toFixed(2), dx: 6, textAnchor: "start", fill: "white"}),
+    Plot.ruleX([0])
+  ]
+})
+```
+
+### Would you take the gamble?
+
+A coin flip pays \$100 with the chance you set, and \$0 otherwise. The alternative is a sure amount. Set your risk attitude: $\lambda > 0$ is risk averse, $\lambda < 0$ risk seeking, and $\lambda = 0$ risk neutral. The curve is your utility of money; the certainty equivalent is where its height equals the gamble's expected utility.
+
+```{ojs}
+viewof lam = Inputs.range([-0.04, 0.06], {step: 0.005, value: 0.01, label: "Risk aversion λ"})
+viewof pWin = Inputs.range([0, 1], {step: 0.05, value: 0.5, label: "Chance of winning $100"})
+viewof sure = Inputs.range([0, 100], {step: 1, value: 40, label: "Sure amount ($)"})
+```
+
+```{ojs}
+risk = {
+  // Exponential utility rescaled so U(0) = 0 and U(100) = 1; a straight line at λ = 0.
+  const U = x => Math.abs(lam) < 1e-9 ? x / 100 : (1 - Math.exp(-lam * x)) / (1 - Math.exp(-lam * 100));
+  const Uinv = u => Math.abs(lam) < 1e-9 ? 100 * u : -Math.log(1 - u * (1 - Math.exp(-lam * 100))) / lam;
+  const eu = pWin * U(100);                 // U(0) = 0, so only the win contributes
+  const ce = Uinv(eu);
+  const curve = d3.range(0, 100.5, 1).map(x => ({x, u: U(x)}));
+  return {U, eu, ce, curve, takeSure: U(sure) > eu};
+}
+```
+
+```{ojs}
+md`Gamble: expected value **$${(100 * pWin).toFixed(0)}**, expected utility ${risk.eu.toFixed(3)}, certainty equivalent **$${risk.ce.toFixed(1)}**. ${risk.takeSure ? "Take the **sure $" + sure + "**." : "Take the **gamble**."}`
+```
+
+```{ojs}
+//| label: fig-risk-explorer
+//| fig-cap: "Your utility of money. The dashed line is the gamble's expected utility; where it meets the curve is the certainty equivalent (orange). The blue dot is the sure amount."
+//| fig-alt: "Interactive chart of a utility curve over dollars from 0 to 100, with sliders for risk aversion, win probability and sure amount. A horizontal dashed line marks the gamble's expected utility and meets the curve at an orange point, the certainty equivalent. A blue point marks the sure amount on the curve."
+Plot.plot({
+  width: 640, height: 300,
+  style: {background: "#fcfcfb", color: "#0b0b0b"},
+  x: {domain: [0, 100], label: "Money ($)", grid: true}, y: {domain: [0, 1], label: "Utility", grid: true},
+  marks: [
+    Plot.line(risk.curve, {x: "x", y: "u", stroke: "#52514e", strokeWidth: 2}),
+    Plot.ruleY([risk.eu], {stroke: "#eb6834", strokeDasharray: "4,3"}),
+    Plot.dot([{x: risk.ce, u: risk.eu}], {x: "x", y: "u", r: 6, fill: "#eb6834"}),
+    Plot.dot([{x: sure, u: risk.U(sure)}], {x: "x", y: "u", r: 6, fill: "#2a78d6"}),
+    Plot.text([{x: risk.ce, u: risk.eu}], {x: "x", y: "u", text: d => `certainty equivalent $${d.x.toFixed(0)}`,
+      dx: 8, dy: 16, textAnchor: "start", fill: "#eb6834"})
+  ]
+})
+```
+
+## Algorithms & code
+
+### Utility and risk
+
+::: {.panel-tabset group="lang"}
+## Python
+```{python}
+#| output: asis
+show_source(expected_utility, exponential_utility, certainty_equivalent)
+```
+## Julia
+```{.julia .snippet}
+using ADM
+
+# Utility of a lottery: the probability-weighted average of its outcomes' utilities.
+expected_utility(p, u) = sum(p .* u)
+
+# U(x) = 1 - exp(-λx): concave, i.e. risk averse, for λ > 0.
+exponential_utility(x, λ) = 1 - exp(-λ * x)
+
+# Sure amount with the same utility as the lottery: invert U(ce) = EU.
+certainty_equivalent(xs, ps, λ) = -log(1 - expected_utility(ps, exponential_utility.(xs, λ))) / λ
+```
+:::
+
+### Solving a decision network, and the value of information
+
+`action_utilities` fixes the decision to each action in turn and asks inference (Chapter 3) for the probabilities of the outcomes the utility depends on.
+
+::: {.panel-tabset group="lang"}
+## Python
+```{python}
+#| output: asis
+show_source(action_utilities, best_action, value_of_information)
+```
+## Julia
+```{.julia .snippet}
+# P(query = each value | evidence): sum the chain rule over every completion of the other
+# variables, then normalize. Brute force, fine for small networks.
+function posterior(bn, query, evidence)
+    hidden = [x for x in keys(bn.parents) if x != query && !haskey(evidence, x)]
+    p = zeros(bn.card[query])
+    for q in 1:bn.card[query], vals in Iterators.product((1:bn.card[h] for h in hidden)...)
+        p[q] += probability(bn, merge(evidence, Dict(query => q), Dict(zip(hidden, vals))))
+    end
+    return p ./ sum(p)
+end
+
+# EU(a | evidence) for each action a, for the commute network: the decision is :D and
+# the utility depends on :L (late) and the action, U[a, late].
+action_utilities(bn, U, evidence) =
+    [sum(posterior(bn, :L, merge(evidence, Dict(:D => a))) .* U[a, :]) for a in 1:bn.card[:D]]
+
+function best_action(bn, U, evidence)
+    eu = action_utilities(bn, U, evidence)
+    a = argmax(eu)
+    return a, eu[a]
+end
+
+# VOI: expected best EU after seeing `observe`, minus the best EU now.
+function value_of_information(bn, U, evidence, observe)
+    _, now = best_action(bn, U, evidence)
+    p = posterior(bn, observe, evidence)          # seen before deciding, so the decision can't affect it
+    later = sum(p[o] * best_action(bn, U, merge(evidence, Dict(observe => o)))[2]
+                for o in eachindex(p) if p[o] > 0)
+    return later - now
+end
+```
+:::
+
+### Run them on the commute decision
+
+::: {.panel-tabset group="lang"}
+## Python
+```{python}
+#| echo: true
+from adm.problems.commute import COMMUTE_DECISION as bn, COMMUTE_UTILITY as U
+now = action_utilities(bn, "D", ("L",), U, {})                  # nothing observed
+after_alert = best_action(bn, "D", ("L",), U, {"A": 1})         # radio alert heard
+voi = {o: value_of_information(bn, "D", ("L",), U, {}, o) for o in ("S", "R", "A", "J")}
+ce = certainty_equivalent([0, 100], [0.5, 0.5], lam=0.01)
+```
+## Julia
+```{.julia .snippet}
+bn, U = commute_decision_network(), COMMUTE_UTILITY
+nothing_seen = Dict{Symbol, Int}()
+@assert action_utilities(bn, U, nothing_seen) ≈ [-1.643, -2.254, -6.0]
+@assert best_action(bn, U, Dict(:A => 2))[1] == 2      # after an alert (2 = yes): leave early
+@assert isapprox(value_of_information(bn, U, nothing_seen, :J), 0.508; atol = 1e-9)
+@assert isapprox(value_of_information(bn, U, nothing_seen, :A), 0.0892; atol = 1e-4)
+@assert isapprox(certainty_equivalent([0, 100], [0.5, 0.5], 0.01), 37.99; atol = 0.01)
+```
+:::
+
+```{python}
+print("Expected utility, nothing observed:", dict(zip(ACTIONS, np.round(now, 3))))
+print(f"After a radio alert: {ACTIONS[after_alert[0]]} (EU {after_alert[1]:.3f})")
+print("Value of observing, before deciding:", {k: round(v, 3) for k, v in voi.items()})
+print(f"Certainty equivalent of a $0/$100 coin flip, lambda = 0.01: ${ce:.2f}")
+```
+
+::: {.callout-note collapse="true" title="Reading the Julia code (for Python programmers)"}
+- **`exponential_utility.(xs, λ)`**: the dot applies the function to every element of `xs`, like a NumPy ufunc.
+- **`merge(d1, d2, d3)`** combines several dictionaries, with later ones winning, like `{**d1, **d2, **d3}`.
+- **`Iterators.product(...)`** with `...` splatting lists every combination of the hidden variables' values, like `itertools.product(*ranges)`.
+- **`argmax(eu)`** gives the *index* of the largest value, like `np.argmax`. Indices start at 1, so action 2 is "leave early".
+:::
+
+### Results
+
+#### Risk attitude is curvature
+
+```{python}
+#| label: fig-utility-shapes
+#| fig-cap: "Three utilities of money, rescaled so U($0) = 0 and U($100) = 1. For a coin flip between $0 and $100 the expected utility is 0.5 for all three (dashed line); where each curve reaches 0.5 is its certainty equivalent."
+#| fig-alt: "Line chart of utility against money from 0 to 100 dollars. A concave curve (risk averse, lambda 0.01) reaches utility 0.5 at about 38 dollars; a straight line (risk neutral) at 50 dollars; a convex curve (risk seeking, lambda minus 0.01) at about 62 dollars. A dashed horizontal line marks utility 0.5."
+x = np.linspace(0, 100, 201)
+fig, ax = plt.subplots(figsize=(6.4, 3.8))
+ax.axhline(0.5, color=style.MUTED, linestyle="--", linewidth=1)
+for lam, color, name in [(0.01, blue, "risk averse"), (0.0, style.INK_SECONDARY, "risk neutral"),
+                         (-0.01, orange, "risk seeking")]:
+    ax.plot(x, normalized_exponential(x, lam), color=color, label=f"{name} (λ = {lam:g})")
+    # Normalizing doesn't move the certainty equivalent, so use the plain formula (λ = 0: the mean).
+    ce = 50.0 if lam == 0 else certainty_equivalent([0, 100], [0.5, 0.5], lam)
+    ax.plot([ce], [0.5], "o", color=color, markersize=7)
+    ax.annotate(f"${ce:.0f}", (ce, 0.5), xytext=(4, -16), textcoords="offset points", fontsize=9,
+                color=style.INK_SECONDARY)
+ax.set(xlabel="Money ($)", ylabel="Utility", xlim=(0, 100), ylim=(0, 1.02))
+ax.legend(loc="upper left")
+plt.show()
+```
+
+The risk-averse curve reaches the gamble's expected utility at \$38, so that person would sell the \$50-average gamble for \$38. The risk seeker would demand \$62 before giving it up.
+
+#### How the best action depends on belief
+
+The only thing the evidence changes is the probability of a jam. @fig-eu-vs-jam plots each action's expected utility against that probability. Leaving early overtakes leaving on time once a jam is more than about 43% likely. Each piece of evidence moves you along this axis.
+
+```{python}
+#| label: fig-eu-vs-jam
+#| fig-cap: "Expected utility of each action as a function of P(jam). The actions trade places where the lines cross (about 43%). Vertical lines mark P(jam) with no information, after no radio alert, and after an alert."
+#| fig-alt: "Line chart with P(jam) from 0 to 1 across and expected utility up the side. Leave on time starts highest at minus 0.5 and falls steeply to minus 5; leave early falls gently from minus 2 to minus 3; stay home is flat at minus 6. The on-time and early lines cross at about 0.43. Dashed vertical lines at 0.20 (no alert) and 0.25 (no information) lie left of the crossing, where leaving on time is best; one at 0.65 (alert) lies right of it, where leaving early is best."
+q = np.linspace(0, 1, 101)
+# With a jam probability q, P(late | action) is linear in q (see the CPT for late).
+p_late = {0: 0.05 + 0.45 * q, 1: 0.1 * q, 2: 0 * q}
+fig, ax = plt.subplots(figsize=(6.4, 3.6))
+for d, color in zip(range(3), [blue, orange, green]):
+    ax.plot(q, U[d, 0] * (1 - p_late[d]) + U[d, 1] * p_late[d], color=color, label=ACTIONS[d])
+# "no alert" (0.20) and "no information" (0.25) are close, so label one on each side of its line.
+for label, ev, side in [("no alert", {"A": 0}, "right"), ("no information", {}, "left"),
+                        ("alert", {"A": 1}, "left")]:
+    pj = exact_inference(BN, ("J",), ev).table[1]
+    ax.axvline(pj, color=style.MUTED, linestyle="--", linewidth=1)
+    ax.text(pj + (0.01 if side == "left" else -0.01), -5.2, f"{label}\n{pj:.2f}", ha=side,
+            fontsize=8, color=style.INK_SECONDARY)
+ax.set(xlabel="P(jam)", ylabel="Expected utility", ylim=(-6.3, 0))
+ax.legend(loc="upper right")
+plt.show()
+```
+
+#### What information is worth
+
+@fig-voi compares the value of observing each variable before deciding, and shows how the traffic app's value depends on how much you mind being late. Information matters most when the decision is a close call. Both curves peak at a lateness cost of about 14, exactly where the no-information choice flips from on time to early. When lateness barely matters (below about 5), you'd leave on time whatever you saw. When it matters a lot (near 40), you'd leave early whatever you saw. The radio's value is zero outside a narrow band of costs, because an alert shifts P(jam) less than the app does.
+
+```{python}
+#| label: fig-voi
+#| fig-cap: "Left: value of observing each variable before deciding (costs as in the worked example). Right: value of checking the traffic app, and the radio, as the cost of being late varies; information is worth most when the choice is borderline."
+#| fig-alt: "Two panels. The left is a bar chart of the value of information: traffic jam about 0.51 is highest, then roadwork about 0.14, storm about 0.11, and radio alert about 0.09. The right is a line chart against the cost of being late from 0 to 40: the traffic-app line is zero below a cost of about 5, rises to a peak of about 0.95 at a cost of about 14, then falls back to zero at 40; the radio line is nonzero only between costs of about 7 and 16, peaking near 0.23 at the same place."
+names = {"J": "Traffic jam\n(app)", "R": "Roadwork", "S": "Storm", "A": "Radio alert"}
+fig, axes = plt.subplots(1, 2, figsize=(10, 3.4))
+values = [VOI({}, o) for o in names]
+axes[0].bar(list(names.values()), values, color=[blue, style.MUTED, style.MUTED, orange], width=0.6)
+axes[0].set(ylabel="Value of information (points)", title="Worth observing?")
+costs = np.linspace(0, 40, 81)
+for o, color, label in [("J", blue, "Traffic app"), ("A", orange, "Radio")]:
+    axes[1].plot(costs, [VOI({}, o, utility_table(c)) for c in costs], color=color, label=label)
+axes[1].set(xlabel="Cost of being late", ylabel="Value of information", title="It depends on the stakes")
+axes[1].legend()
+fig.tight_layout()
+plt.show()
+```
+
+## Solved problems
+
+**Problem 1: the money pump.** Someone prefers on time ≻ early, early ≻ home, and home ≻ on time. Show how they could be made to lose money.
+
+::: {.callout-tip collapse="true" title="Solution"}
+Start them with "home". They prefer "early", so they'll pay a small fee, say 1 cent, to switch to it. They prefer "on time" to "early", so they pay another cent to switch. They prefer "home" to "on time", so they pay another cent, and they're back where they started, 3 cents poorer. Repeat forever. Transitivity (@eq-vnm) rules this out, and any utility function automatically satisfies it, since numbers can't go in circles.
+:::
+
+**Problem 2: reading a utility off a gamble.** On a scale with $U(\$0) = 0$ and $U(\$100) = 1$, you're indifferent between \$40 for sure and a 50% chance at \$100. What is $U(\$40)$, and are you risk averse?
+
+::: {.callout-tip collapse="true" title="Solution"}
+By @eq-elicitation, $U(\$40) = 0.5$. The gamble's expected money is \$50, but you'd accept \$40 for it: the certainty equivalent is below the expected value, so you're **risk averse**, with a risk premium of \$10. Your utility curve passes through $(40, 0.5)$, above the straight line from $(0, 0)$ to $(100, 1)$, which would give $0.4$ at \$40. That's what concave means.
+:::
+
+**Problem 3: when is information worthless?** You already know the app shows a jam. Why is checking the radio now worth exactly 0? Give a second, different reason information can be worthless.
+
+::: {.callout-tip collapse="true" title="Solution"}
+Given a jam, leaving early is best (EU −3 vs −5 for on time). The radio only tells you about storms, and once the jam is known, the storm doesn't affect lateness (it's blocked by the jam; [Ch 2](ch02-representation.qmd)). So every radio result leaves the same best action, and @eq-voi gives 0.
+
+A second reason: the observation *could* shift your beliefs, but not enough to cross a decision threshold. If lateness cost only 1 point, you'd leave on time whatever the radio or the app said, so both would be worth 0 (@fig-voi, right panel, near cost 0).
+:::
+
+**Problem 4: the Allais choices.** Show directly that someone who prefers 1A to 1B *and* 2B to 2A cannot have any utility function.
+
+::: {.callout-tip collapse="true" title="Solution"}
+As in [Irrationality](#irrationality): 1A ≻ 1B gives $0.11u_1 > 0.10u_5 + 0.01u_0$, and 2B ≻ 2A gives $0.10u_5 + 0.01u_0 > 0.11u_1$. Both can't be true. The pair 2A/2B is the pair 1A/1B with an 89% chance of \$1M replaced by an 89% chance of \$0 *in both*. Independence says such a common change can't flip the preference, so the flip is exactly a violation of independence.
+:::
+
+## Recap
+
+1. **Rational preferences (@eq-vnm) imply a utility function,** and gambles are valued by expected utility (@eq-lottery).
+   *Why it matters:* it justifies "maximize expected utility", and with it the reward-maximizing objective of every later chapter, as the consequence of consistency rather than an arbitrary choice.
+2. **The curvature of a utility function is its attitude to risk,** summarized by the certainty equivalent (@eq-certainty-equivalent, @eq-exponential-utility).
+   *Why it matters:* the same expected money can be a good or a bad deal depending on the decision maker, which matters for any agent acting for a person.
+3. **Utilities can be elicited by comparing outcomes with gambles (@eq-elicitation).**
+   *Why it matters:* utilities are measurable, not guessed, and that's how rewards are designed in practice.
+4. **Choose the action with the maximum expected utility (@eq-meu),** computed with inference over a decision network.
+   *Why it matters:* this is one-step decision making, and [Chapter 7](../part2/ch07-exact-solution-methods.qmd)'s Bellman equation is exactly this rule applied at every step, with future value as part of the utility.
+5. **The value of information (@eq-voi) is never negative, and zero unless the observation could change the decision.**
+   *Why it matters:* it tells an agent what to measure and what to ignore, which is the core of exploration (Ch 15) and of information gathering under partial observability (Part IV).
+
+## Cheat sheet & connections
+
+| Name | Formula | Ref |
+|---|---|---|
+| ★ Rational preference axioms | completeness, transitivity, continuity, independence | @eq-vnm |
+| ★ Expected utility of a lottery | $U([S_1{:}\,p_1; \ldots]) = \sum_i p_i U(S_i)$ | @eq-lottery |
+| Certainty equivalent | $U(x_{\text{ce}}) = \mathbb{E}[U(x)]$ | @eq-certainty-equivalent |
+| Exponential utility | $U(x) = 1 - e^{-\lambda x}$, $\ x_{\text{ce}} = -\frac1\lambda \ln \mathbb{E}[e^{-\lambda x}]$ | @eq-exponential-utility |
+| Elicitation | $S \sim [S_\top{:}\,p; S_\bot{:}\,1-p] \Rightarrow U(S) = p$ | @eq-elicitation |
+| ★ Maximum expected utility | $a^* = \arg\max_a \sum_{s'} P(s' \mid a, o) U(s')$ | @eq-meu |
+| ★ Value of information | $\sum_{o'} P(o' \mid o) EU^*(o, o') - EU^*(o)$ | @eq-voi |
+
+: Key equations from this page (★ = well-known by name). {#tbl-cheatsheet}
+
+**Common pitfalls**
+
+- **Maximizing expected *money*.** Money isn't utility. For a risk-averse decision maker, the higher-average gamble can be the wrong choice.
+- **Paying for information that can't change the decision.** Check whether any possible result would flip the best action. If none would, its value is 0.
+- **Letting the decision influence your beliefs about its inputs.** In a decision network, choosing an action doesn't make a storm more likely. Condition on the decision only for its *consequences*.
+- **Treating human choices as data about rational utilities.** People show the certainty effect and framing effects. Elicit carefully, and expect inconsistencies.
+
+**Connections**
+
+- [Ch 3 · Inference](ch03-inference.qmd) computes every probability used in a decision network.
+- [Ch 7 · Exact Solution Methods](../part2/ch07-exact-solution-methods.qmd) chains this one-step rule into sequential decisions.
+- [Ch 15 · Exploration and Exploitation](../part3/ch15-exploration-and-exploitation.qmd) is about deciding when information is worth its cost.
+- [Ch 20 · Exact Belief State Planning](../part4/ch20-exact-belief-state-planning.qmd) chooses actions for their information value as well as their reward.

@@ -38,6 +38,14 @@ This site uses the book's notation. Symbols are added here as chapters are writt
 | $w$ | Likelihood weight of a sample | Ch 3 |
 | $x_{-i}$ | All variables except $x_i$ | Ch 3 |
 | $\boldsymbol{\mu}_{a \mid b}$, $\boldsymbol{\Sigma}_{a \mid b}$ | Mean and covariance of Gaussian block $\mathbf{a}$ given block $\mathbf{b}$ | Ch 3 |
+| $A \succ B$, $A \sim B$, $A \succeq B$ | $A$ preferred to $B$; indifferent; at least as good | Ch 6 |
+| $[S_1 : p_1; \ldots; S_n : p_n]$ | Lottery: outcome $S_i$ with probability $p_i$ | Ch 6 |
+| $U(S)$ | Utility of outcome $S$ | Ch 6 |
+| $S_\top$, $S_\bot$ | Best and worst outcomes, used to scale utility to $[0, 1]$ | Ch 6 |
+| $x_{\text{ce}}$ | Certainty equivalent: the sure amount worth the same as a gamble | Ch 6 |
+| $\lambda$ | Risk-aversion parameter of exponential utility $1 - e^{-\lambda x}$ | Ch 6 |
+| $EU(a \mid o)$, $EU^*(o)$ | Expected utility of action $a$ given observation $o$; its maximum over actions | Ch 6 |
+| $\mathrm{VOI}(O' \mid o)$ | Value of information of observing $O'$, given $o$ | Ch 6 |
 | $\mathcal{S}$ | State space | Ch 7 |
 | $\mathcal{A}$ | Action space | Ch 7 |
 | $T(s' \mid s, a)$ | Transition model: probability of reaching $s'$ from $s$ after action $a$ | Ch 7 |

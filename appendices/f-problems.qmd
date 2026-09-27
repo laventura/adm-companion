@@ -64,7 +64,7 @@ This page collects every problem used on the site, implemented in both Python (`
 | F.1 Hex World | MDP, discrete | ✅ [below](#hex-world) |
 | F.2 2048 | MDP, discrete (huge) | added when first used |
 | F.3 Cart-Pole | MDP, continuous state | added when first used |
-| F.4 Mountain Car | MDP, continuous state | added when first used |
+| F.4 Mountain Car | MDP, continuous state | ✅ [below](#mountain-car) |
 | F.5 Simple Regulator | MDP, linear-quadratic | added when first used |
 | F.6 Aircraft Collision Avoidance | MDP, discrete | added when first used |
 | F.7 Crying Baby | POMDP | added when first used |
@@ -195,6 +195,38 @@ plt.show()
 ```
 
 **Where it's used.** No page on this site uses Hex World yet. The book uses it as a running example, so it will appear as later chapters are written.
+
+## Mountain car {#mountain-car}
+
+**The story.** A car sits in a valley between two hills and must reach the top of the right one. Its engine is too weak to drive straight up, so it has to rock back and forth, using gravity to build speed. It is the classic example of a *delayed reward*: every step costs the same, and the only way to do well is to first drive *away* from the goal. The problem goes back to A. Moore's 1990 PhD thesis; this discrete-action version is from S. Singh and R. Sutton, "Reinforcement Learning with Replacing Eligibility Traces," *Machine Learning*, 1996.
+
+| Part | Definition |
+|---|---|
+| State | position $x \in [-1.2, 0.6]$ and speed $v \in [-0.07, 0.07]$ |
+| Actions | accelerate left ($a = -1$), coast ($0$), accelerate right ($+1$) |
+| Transition (deterministic) | $v' = v + 0.001a - 0.0025\cos(3x)$, then $x' = x + v'$; both clamped to their ranges |
+| Reward | $-1$ per step; the episode ends when $x$ reaches $0.6$ |
+| Discount | $\gamma = 1$ on this site, so a state's value is minus the number of steps to the goal |
+
+: Mountain car. The cos(3x) term is gravity along a valley shaped like sin(3x). {#tbl-mountain-car}
+
+::: {.panel-tabset group="lang"}
+## Python
+```{python}
+#| echo: true
+from adm.problems import mountain_car as mc
+s = mc.step([-0.5, 0.0], 1)          # one step accelerating right from rest at x = -0.5
+# mc.step also works on arrays of states: s[..., 0] is x and s[..., 1] is v
+```
+## Julia
+```{.julia .snippet}
+using ADM
+s = mountain_car_step([-0.5, 0.0], 1)          # s = [x, v]
+@assert s[2] ≈ 0.001 - 0.0025cos(-1.5) && !mountain_car_goal(s)
+```
+:::
+
+**Where it's used.** [Ch 8](../part2/ch08-approximate-value-functions.qmd): approximate value iteration with seven kinds of value function approximation. From rest at $x = -0.5$, a policy from a fine 201 × 201 grid takes 106 steps: right, then left, then right.
 
 ## Problems made for this site
 

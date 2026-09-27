@@ -1,8 +1,1143 @@
 ---
 title: "8 · Approximate Value Functions"
 subtitle: "Part II — Sequential Problems"
+jupyter: python3
+execute:
+  echo: false
 ---
 
 ::: {.callout-note appearance="minimal"}
-**In progress.** This page will cover ADM Ch. 8, *Approximate Value Functions*.
+**Executed in:** Python · **Book:** ADM Ch. 8 · **Lecture:** to be added
 :::
+<!-- TODO(video): link the official Stanford AA228 lecture on approximate value functions. -->
+
+```{python}
+#| include: false
+from itertools import groupby
+
+import numpy as np
+import matplotlib.pyplot as plt
+from IPython.display import Markdown
+from matplotlib.colors import ListedColormap
+
+from adm import style
+from adm.io import write_json
+from adm.page import show_source
+from adm.problems import mountain_car as mc
+from adm.value_approx import (
+    KernelValue, LinearRegressionValue, MultilinearValue, NearestNeighborValue,
+    NeuralNetValue, SimplexValue, approximate_value_iteration, fourier_basis,
+    gaussian, greedy_actions, inverse_distance, polynomial_basis,
+)
+
+style.apply()
+blue, orange, green = style.CATEGORICAL[:3]
+LO = np.array([mc.X_BOUNDS[0], mc.V_BOUNDS[0]])    # lower corner (x, v)
+HI = np.array([mc.X_BOUNDS[1], mc.V_BOUNDS[1]])    # upper corner
+START = np.array([-0.5, 0.0])                      # at rest near the valley floor
+MAX_STEPS = 1000                                   # a car that needs more never gets there
+
+
+def solve(U, S, k_max=400):
+    """Approximate value iteration on mountain car (gamma = 1, reward -1 per step).
+    Returns U, the targets after every iteration (one row each), and the greedy policy."""
+    history = []
+    approximate_value_iteration(U, S, mc.step, mc.ACTIONS, -1.0, 1.0, mc.is_goal, k_max, history)
+    policy = lambda s: greedy_actions(U, s, mc.step, mc.ACTIONS, -1.0, 1.0, mc.is_goal)
+    return U, np.array(history), policy
+
+
+class Rescaled:
+    """Wrap a distance-based approximator so both axes are rescaled to [0, 1] before
+    measuring distance. Otherwise speed (range 0.14) would count for almost nothing
+    next to position (range 1.8)."""
+
+    def __init__(self, inner):
+        self.inner = inner
+
+    def fit(self, S, u):
+        self.inner.fit(self.z(S), u)
+        return self
+
+    def __call__(self, s):
+        return self.inner(self.z(s))
+
+    @staticmethod
+    def z(s):
+        return (np.asarray(s, float) - LO) / (HI - LO)
+
+
+# A very fine grid (201 x 201 = 40,401 sample states) serves as the reference solution.
+fine = MultilinearValue(LO, HI, (201, 201))
+U_ref, _, policy_ref = solve(fine, fine.points(), k_max=600)
+
+# 225 start states spread over the whole state space (short of the goal line).
+STARTS = np.array([(x, v) for x in np.linspace(-1.2, 0.55, 15) for v in np.linspace(-0.07, 0.07, 15)])
+ref_steps = mc.steps_to_goal(policy_ref, STARTS, MAX_STEPS)
+ref_start = int(mc.steps_to_goal(policy_ref, [START], MAX_STEPS)[0])
+
+
+def score(policy):
+    """Share of the 225 starts that reach the goal, and the average extra steps
+    (compared with the reference) among those that do."""
+    steps = mc.steps_to_goal(policy, STARTS, MAX_STEPS)
+    ok = steps <= MAX_STEPS
+    return ok.mean(), float(np.mean(steps[ok] - ref_steps[ok])) if ok.any() else np.nan
+```
+
+```{python}
+#| include: false
+# Grid interpolation at several resolutions (the 41 x 41 grid is the page's main example).
+resolution = {}
+for n in (11, 21, 41, 81):
+    for name, cls in (("multilinear", MultilinearValue), ("simplex", SimplexValue)):
+        grid = cls(LO, HI, (n, n))
+        U, hist, pol = solve(grid, grid.points())
+        reach, extra = score(pol)
+        resolution[name, n] = dict(U=U, hist=hist, policy=pol, reach=reach, extra=extra,
+                                   start=int(mc.steps_to_goal(pol, [START], MAX_STEPS)[0]))
+main = resolution["multilinear", 41]
+U41, pol41 = main["U"], main["policy"]
+path41 = mc.rollout(lambda s: pol41(s[None])[0], START)
+# Runs of the same action along the path, e.g. [(1, 22), (-1, 39), (1, 46), ...].
+runs41 = [(int(a), len(list(g))) for a, g in groupby(pol41(path41[:-1]))]
+# Biggest change in each iteration; entry i compares iteration i + 2 with iteration i + 1.
+change41 = np.abs(np.diff(main["hist"], axis=0)).max(axis=1)
+heard41 = int(np.argmax(change41 < 1)) + 2       # no value drops by a full step any more
+settle41 = int(np.argmax(change41 < 0.01)) + 2   # no value moves by more than 0.01
+
+# Every approximator on the same 21 x 21 = 441 sample states.
+G21 = MultilinearValue(LO, HI, (21, 21)).points()
+methods = {
+    "Nearest neighbor": ("average", Rescaled(NearestNeighborValue(Rescaled.z(G21), 1))),
+    "4 nearest neighbors": ("average", Rescaled(NearestNeighborValue(Rescaled.z(G21), 4))),
+    r"Gaussian kernel, $\sigma$ = 0.03": ("average", Rescaled(KernelValue(Rescaled.z(G21), gaussian(0.03)))),
+    r"Gaussian kernel, $\sigma$ = 0.05": ("average", Rescaled(KernelValue(Rescaled.z(G21), gaussian(0.05)))),
+    "Multilinear": ("interpolate", MultilinearValue(LO, HI, (21, 21))),
+    "Simplex": ("interpolate", SimplexValue(LO, HI, (21, 21))),
+    "Polynomial, degree 4": ("regress", LinearRegressionValue(polynomial_basis(4, LO, HI))),
+    "Polynomial, degree 6": ("regress", LinearRegressionValue(polynomial_basis(6, LO, HI))),
+    "Fourier, order 2": ("regress", LinearRegressionValue(fourier_basis(2, LO, HI))),
+    "Fourier, order 3": ("regress", LinearRegressionValue(fourier_basis(3, LO, HI))),
+}
+results = {}
+for name, (family, U) in methods.items():
+    U, hist, pol = solve(U, G21)
+    reach, extra = score(pol)
+    change = np.abs(np.diff(hist, axis=0)).max(axis=1)     # biggest update in each iteration
+    results[name] = dict(family=family, U=U, hist=hist, reach=reach, extra=extra, change=change)
+r = results   # short name for inline numbers
+narrow, wide = r[r"Gaussian kernel, $\sigma$ = 0.03"], r[r"Gaussian kernel, $\sigma$ = 0.05"]
+nn_drift = int(np.sum(r["Nearest neighbor"]["hist"][-1] <= -399))
+
+
+def nearest_sample(s):
+    """Index of the closest 21 x 21 sample state (distances on rescaled axes)."""
+    d = np.linalg.norm(Rescaled.z(s)[:, None, :] - Rescaled.z(G21)[None, :, :], axis=-1)
+    return d.argmin(axis=1)
+
+
+# Self-trapped samples: not at the goal, and every action lands closest to the sample itself.
+trapped = ~mc.is_goal(G21)
+for a in mc.ACTIONS:
+    S2 = mc.step(G21, a)
+    trapped &= (nearest_sample(S2) == np.arange(len(G21))) & ~mc.is_goal(S2)
+nn_trapped = int(trapped.sum())
+
+
+def pct(p):
+    return f"{100 * p:.0f}%"
+
+
+def cliff(x):
+    """Steps the reference policy needs from rest at position x."""
+    return int(mc.steps_to_goal(policy_ref, [[x, 0.0]], MAX_STEPS)[0])
+```
+
+## Big picture
+
+### Where this chapter fits
+
+[Chapter 7](ch07-exact-solution-methods.qmd) solved MDPs by storing **one value per state in a table** and improving the table with Bellman backups. That works for a rover on a 20-cell grid. It fails when the state is continuous, like a car's position and speed, or when there are more states than atoms in the universe, like a board game. This chapter keeps the idea of value iteration but replaces the table with a **function** $U_\theta(s)$, described by a modest number of parameters $\theta$, that can be evaluated at *any* state. Nearly every method in the rest of the book leans on this idea: online planning (Chapter 9) uses value estimates at its leaves, model-free learning (Chapter 17) fits value functions from experience, and planning with beliefs (Part IV) works in a continuous space of probability distributions.
+
+**The question:** how do you run value iteration when there are infinitely many states?
+
+The short answer: **pick a finite set of sample states. Do Bellman backups only there. Fit a function through the results to fill in every other state. Repeat.** How you fill in the gaps — by copying nearby values, interpolating between them, or fitting a global formula — decides how accurate and how stable the result is.
+
+```{dot}
+//| label: fig-ch08-map
+//| fig-width: 7
+//| fig-height: 4.0
+//| fig-cap: "Map of this chapter. Approximate value iteration alternates between backups at a finite set of sample states and fitting a function through them. The function can be local (built from nearby samples) or global (a formula fitted to all samples); either way, a one-step lookahead turns it into a policy."
+//| fig-alt: "Flow diagram. Huge or continuous state space leads to Sample states. Sample states feed a blue box, Approximate value iteration, which contains a loop: Bellman backup at the samples, then Fit U theta, then back to the backup. The fit step branches to two boxes: Local approximation (nearest neighbor, kernel smoothing, multilinear and simplex interpolation) and Global approximation (linear regression on features, neural networks). Approximate value iteration leads to Greedy policy (one-step lookahead)."
+digraph ch08 {
+  rankdir=TB; bgcolor="#fcfcfb"; pad=0.25; nodesep=0.35; ranksep=0.4;
+  node [shape=box, style="rounded,filled", fillcolor="white", color="#c3c2b7", penwidth=1.2,
+        fontname="Helvetica", fontsize=13, fontcolor="#0b0b0b", margin="0.14,0.07"];
+  edge [color="#52514e", penwidth=1.2, arrowsize=0.7, fontname="Helvetica", fontsize=11, fontcolor="#52514e"];
+  space [label=<<B>Huge or continuous state space</B><BR/><FONT POINT-SIZE="11">no table fits</FONT>>];
+  samples [label=<<B>Sample states</B><BR/><FONT POINT-SIZE="11">a grid, or random draws</FONT>>];
+  backup [label=<<B>Bellman backup</B><BR/><FONT POINT-SIZE="11">at the samples only</FONT>>, fillcolor="#cde2fb", color="#2a78d6"];
+  fit [label=<<B>Fit U<FONT POINT-SIZE="11">θ</FONT></B><BR/><FONT POINT-SIZE="11">fill in every other state</FONT>>, fillcolor="#cde2fb", color="#2a78d6"];
+  local [label=<<B>Local</B><BR/><FONT POINT-SIZE="11">nearest neighbor, kernels,<BR/>multilinear, simplex</FONT>>];
+  global [label=<<B>Global</B><BR/><FONT POINT-SIZE="11">regression on features,<BR/>neural networks</FONT>>];
+  policy [label=<<B>Greedy policy</B><BR/><FONT POINT-SIZE="11">one-step lookahead</FONT>>];
+  space -> samples [label="pick"]; samples -> backup;
+  backup -> fit [label="targets"]; fit -> backup [label="repeat"];
+  fit -> local [label="how?"]; fit -> global [label="how?"];
+  fit -> policy [label="use"];
+  { rank=same; backup; fit; }
+  { rank=same; local; global; policy; }
+}
+```
+
+### The key ideas at a glance
+
+1. **Tables don't scale, so approximate.** The running example is **mountain car** (@fig-mountain-car): a weak car in a valley must rock back and forth to build enough speed to climb out. Its state is a position and a speed, two real numbers, so there are infinitely many states. Instead of a table, use a **parametric value function** $U_\theta(s)$: a function with adjustable numbers $\theta$ that returns a value for any state. Here every step costs 1 and there's no discounting, so a state's value is minus the number of steps the best driver needs to get out.
+
+2. **Approximate value iteration: back up at samples, then fit.** Choose a finite set of **sample states**. At each, do the Bellman backup of Chapter 7, using the current $U_\theta$ wherever the next state isn't a sample. Then adjust $\theta$ so $U_\theta$ matches those backed-up values, and repeat. To act, look one step ahead: pick the action whose next state has the best value.
+
+3. **Local approximation: ask the neighbors.** A **local** method stores one value per sample state and estimates any other state from nearby samples:
+   - **nearest neighbor** copies the closest sample's value;
+   - **kernel smoothing** takes a weighted average, with closer samples weighted more;
+   - **multilinear interpolation** on a grid blends the $2^d$ corners of the grid cell the state falls in ($d$ is the number of state variables);
+   - **simplex interpolation** blends just $d + 1$ corners, which matters in higher dimensions.
+
+4. **Global approximation: fit one formula everywhere.** A **global** method writes the value as a combination of **features** of the state, such as $x$, $v$, $x^2$, $xv$ or $\sin(2\pi x)$, and chooses the weights by **least squares**. A **neural network** goes further and learns its own features. Every parameter affects every state, so a global fit can generalize from few samples, but it can also smear out sharp features.
+
+5. **The choice changes the answer, and even whether there is one.** On mountain car, with the same 441 sample states:
+   - interpolation reaches the goal from every one of 225 starting states, on average only about 1 step slower than a very fine grid;
+   - nearest neighbor never settles: its values keep falling by 1 every iteration;
+   - some global fits oscillate forever or blow up.
+
+   Methods that only take **weighted averages** of stored values (weights nonnegative, summing to 1) keep value iteration stable. Interpolation is one of them. Regression isn't.
+
+6. **True value functions have cliffs.** One more swing can cost dozens of steps, so the true value jumps sharply between nearby states. Methods that smooth or fit global curves blur these cliffs. Fine grids capture them, but the number of grid points grows exponentially with the number of state variables. That's the **curse of dimensionality**, and it's why later chapters turn to other tools.
+
+### Vocabulary
+
+| Term | Plain meaning |
+|:---|:---|
+| Parametric value function $U_\theta(s)$ | A formula with adjustable numbers $\theta$ that returns a value for any state |
+| Sample states $S = s_{1:m}$ | The finite set of states where backups are actually done |
+| Approximate value iteration | Alternate backups at the samples with refitting $U_\theta$ |
+| Local approximation | Value at $s$ built from the stored values of nearby samples |
+| Global approximation | Value from a formula whose parameters affect every state |
+| Kernel $k(s, s')$ | How much sample $s'$ counts when estimating $s$; larger when closer |
+| Multilinear / simplex interpolation | Blend the corners of the grid cell (all $2^d$, or just $d+1$) |
+| Features (basis functions) $\beta(s)$ | Numbers computed from the state that a linear model weights |
+| Least squares | Choose $\theta$ to minimize the sum of squared errors at the samples |
+| Neural network regression | A value function whose features are learned too, fitted by gradient descent |
+| Curse of dimensionality | Grid sizes grow exponentially with the number of state variables |
+
+: Terms used on this page. {#tbl-vocab}
+
+### After this chapter you can
+
+- Explain why tables fail for continuous states, and run approximate value iteration.
+- Evaluate nearest-neighbor, kernel, multilinear and simplex approximations by hand.
+- Fit a value function by least squares on features, and describe neural network regression.
+- Predict when approximate value iteration is stable, and diagnose drift, oscillation, and blur.
+- Choose an approximator by weighing accuracy, stability, and the number of state variables.
+
+## Intuition
+
+::: {.callout-tip title="Analogy"}
+A weather service measures temperature at a few hundred stations but has to draw a map of the whole country. It can:
+
+- **copy the nearest station** (a map of flat patches);
+- **average nearby stations**, weighting closer ones more (a smooth map, but a hot valley bleeds into the cold hills around it);
+- **interpolate within each triangle or square of stations** (accurate if stations are dense);
+- **fit one formula to all stations**, such as a smooth surface over the country (a few numbers, but local detail gets lost).
+
+Approximate value iteration draws the same kind of map, with one twist: each station's "measurement" is a Bellman backup that *reads the map itself*, at the place the car will be next. So mapping errors feed back into the next round of measurements. A good method keeps those errors from snowballing.
+:::
+
+```{python}
+#| label: fig-mountain-car
+#| fig-cap: "Mountain car. Left: the valley (height is sin 3x) with the car's position every 4 steps, from rest at x = −0.5 to the goal at x = 0.6, following the policy from a 41 × 41 grid. Right: the same trip in the state space of position and speed. The car swings back and forth, each swing wider, spiraling out to the goal."
+#| fig-alt: "Two panels. The left panel shows a valley curve with a flag at the right rim; dots mark the car's positions, first rocking a little to the right, then far up the left slope, then all the way up the right slope to the flag. The right panel plots speed against position: the path starts at the center, swings right, left and right in widening loops, and exits at position 0.6."
+fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(10, 3.4))
+xx = np.linspace(-1.2, 0.6, 300)
+ax1.plot(xx, np.sin(3 * xx), color=style.INK_SECONDARY)
+t = np.arange(len(path41))
+ax1.scatter(path41[::4, 0], np.sin(3 * path41[::4, 0]), c=t[::4], cmap=style.sequential_cmap(), s=22, zorder=3,
+            edgecolors=style.INK_SECONDARY, linewidths=0.4)
+ax1.plot([0.6, 0.6], [np.sin(1.8), np.sin(1.8) + 0.4], color=style.INK)            # the flag pole
+ax1.fill([0.6, 0.6, 0.45], [np.sin(1.8) + 0.4, np.sin(1.8) + 0.25, np.sin(1.8) + 0.325], color=blue)
+ax1.set(xlabel="Position x", ylabel="Height", title="In the valley")
+sc = ax2.scatter(path41[:, 0], path41[:, 1], c=t, cmap=style.sequential_cmap(), s=10)
+ax2.plot(path41[:, 0], path41[:, 1], color=style.MUTED, linewidth=0.8, zorder=0)
+ax2.axvline(0.6, color=blue, linestyle="--", linewidth=1)
+ax2.set(xlabel="Position x", ylabel="Speed v", title="In the state space", xlim=(-1.25, 0.65))
+fig.colorbar(sc, ax=ax2, label="Time step")
+fig.tight_layout()
+plt.show()
+```
+
+### Why a table fails
+
+The car's state is its position $x$ (between −1.2 and 0.6) and speed $v$ (between −0.07 and 0.07). Every step costs 1 point, and the trip ends at $x = 0.6$. So the value of a state is minus the number of steps the best driver needs from there. From rest at $x = -0.5$, the best driver needs `{python} ref_start` steps. The engine is too weak to climb straight out, so the car rocks: `{python} runs41[0][1]` steps accelerating right, `{python} runs41[1][1]` left, then `{python} runs41[2][1]` right (@fig-mountain-car). There's a value for *every* pair of real numbers $(x, v)$, so no table can hold them all. See @eq-greedy-approx.
+
+### Value iteration on a grid of samples
+
+Lay a 41 × 41 grid over the state space: 1,681 sample states. Start all values at 0. In each round, every sample asks: "if I take each action, where do I land, and what's the value there?" The landing spot is almost never a grid point, so its value is read off the current approximation. Then the new values are stored at the grid points. Near the goal the values become correct first, and correct values spread outward round by round, as in the value iteration of Chapter 7. Until a sample "hears" about the goal, its value simply drops by 1 each round. After `{python} heard41` rounds every sample has heard, and after `{python} settle41` rounds no value changes by more than 0.01. The greedy policy then takes `{python} main["start"]` steps from rest at $x = -0.5$, against `{python} ref_start` on a 201 × 201 grid. See @eq-avi.
+
+### Local methods: ask the neighbors
+
+Suppose three sample states on a line, at $s = 0$, $1$ and $3$, have values 5, 7 and 9. What's the value at $s = 0.5$?
+
+- **Nearest neighbor:** the closest sample is 0, so the answer is 5.
+- **Kernel smoothing** with weights proportional to 1/distance: the distances are 0.5, 0.5 and 2.5, giving weights 2, 2 and 0.4, which normalize to 0.455, 0.455 and 0.091. The answer is $0.455 \times 5 + 0.455 \times 7 + 0.091 \times 9 = 6.27$.
+- **Linear interpolation** between the two samples on either side, 0 and 1: halfway between 5 and 7 gives 6.
+
+@fig-slice-1d shows these methods on a real slice of the mountain car value function (the car at rest, $v = 0$, with only 9 samples along $x$). Nearest neighbor gives flat steps, the kernel blurs, and interpolation draws straight lines between samples. See @eq-knn, @eq-kernel and @eq-bilinear.
+
+### Global methods: fit one formula
+
+Instead of looking up neighbors, fit a formula to all the samples at once. For points $(0, 1)$, $(1, 3)$ and $(2, 4)$, the best straight line in the least-squares sense is $1.17 + 1.5s$. It misses each point a little but uses only 2 numbers. With richer features, such as higher powers of $x$ and $v$ or sines and cosines, a formula can bend more. But every parameter affects every state, so fixing the fit in one place can spoil it somewhere else (@fig-slice-1d, bottom right). See @eq-linear-approx and @eq-least-squares.
+
+### Stability and cliffs
+
+Two things go wrong in practice.
+
+- **Drift.** With nearest neighbor, a sample state whose every next state is still "nearest" to itself backs up "−1 plus my own value" every round, forever. On the 21 × 21 grid, `{python} nn_trapped` of the 441 sample states are caught in this loop. Their values fall by 1 per round without end, and so do the values of `{python} nn_drift - nn_trapped` more states whose moves lead into them. Interpolation avoids this, because a state never puts all its weight on itself.
+- **Cliffs.** A car at rest at $x = 0.35$ needs `{python} cliff(0.35)` steps, but at $x = 0.40$ only `{python} cliff(0.40)`: from there it can reach the top with one fewer swing. Methods that smooth or fit global curves blur such cliffs, and a slightly wrong value near a cliff flips which action looks best.
+
+@fig-method-comparison shows the consequences: interpolation works reliably, averaging with too wide a kernel loses cars, and global fits range from good to divergent.
+
+```{python}
+#| include: false
+# 1-D slice of the value function: the car at rest (v = 0), sampled at m points along x.
+# Positions are rescaled to [-1, 1] for the distance-based methods and the network.
+xf = np.linspace(-1.2, 0.6, 181)
+truth = U_ref(np.c_[xf, 0 * xf])
+zx = lambda x: (2 * (np.asarray(x) + 1.2) / 1.8 - 1)[:, None]
+slice_fits, slice_rms = {}, {}
+for m in (5, 9, 17, 33):
+    xs = np.linspace(-1.2, 0.6, m)
+    u = U_ref(np.c_[xs, 0 * xs])
+    S, h = zx(xs), 2 / (m - 1)                                   # h = sample spacing
+    fits = {
+        "nearest neighbor": NearestNeighborValue(S, 1).fit(S, u),
+        "3 nearest neighbors": NearestNeighborValue(S, 3).fit(S, u),
+        "Gaussian kernel": KernelValue(S, gaussian(h)).fit(S, u),
+        "linear interpolation": MultilinearValue([-1], [1], (m,)).fit(S, u),
+        "polynomial, degree 3": LinearRegressionValue(polynomial_basis(3, [-1], [1])).fit(S, u),
+        "polynomial, degree 6": LinearRegressionValue(polynomial_basis(min(6, m - 1), [-1], [1])).fit(S, u),
+        # Networks train better on targets near 1, so fit u / 100 and scale back.
+        "neural network": NeuralNetValue(1, hidden=16, steps=4000, lr=0.02).fit(S, u / 100),
+    }
+    for name, f in fits.items():
+        pred = f(zx(xf)) * (100 if name == "neural network" else 1)
+        slice_fits[name, m] = pred
+        slice_rms[name, m] = float(np.sqrt(np.mean((pred - truth) ** 2)))
+write_json({
+    "x": xf.round(4), "truth": truth.round(2),
+    "samples": {m: np.linspace(-1.2, 0.6, m).round(4) for m in (5, 9, 17, 33)},
+    "sampleValues": {m: U_ref(np.c_[np.linspace(-1.2, 0.6, m), np.zeros(m)]).round(2) for m in (5, 9, 17, 33)},
+    "fits": {f"{name}|{m}": v.round(2) for (name, m), v in slice_fits.items()},
+    "rms": {f"{name}|{m}": round(v, 2) for (name, m), v in slice_rms.items()},
+    "style": {"blue": blue, "orange": orange, "ink": style.INK, "muted": style.MUTED, "surface": style.SURFACE},
+}, "data/ch08-slice.json")
+```
+
+```{python}
+#| label: fig-slice-1d
+#| fig-cap: "Four ways to fill in a value function from 9 samples (dots). The gray curve is the true value of a car at rest, as a function of its position; it has cliffs where one fewer swing becomes enough. Linear interpolation tracks it best; the kernel blurs, nearest neighbor is blocky, and the polynomial wiggles."
+#| fig-alt: "Four small line charts sharing axes: position from minus 1.2 to 0.6 across, value (minus steps to the goal) from about minus 110 to 0 up the side. Each shows the same gray true curve, which drops steeply near position minus 0.8, stays near minus 80 to minus 107 across the middle, and jumps up near 0.35 and again at 0.6. Nine dots mark the samples. Nearest neighbor draws flat steps; the Gaussian kernel draws a smooth curve that rounds off the cliffs; linear interpolation connects the dots with straight segments; the degree-6 polynomial curves through the dots but overshoots between them."
+fig, axes = plt.subplots(2, 2, figsize=(9, 5.2), sharex=True, sharey=True)
+xs9 = np.linspace(-1.2, 0.6, 9)
+for ax, name in zip(axes.flat, ["nearest neighbor", "Gaussian kernel", "linear interpolation", "polynomial, degree 6"]):
+    ax.plot(xf, truth, color=style.MUTED, linewidth=2.5, label="true value")
+    ax.plot(xf, slice_fits[name, 9], color=blue, label="approximation")
+    ax.plot(xs9, U_ref(np.c_[xs9, 0 * xs9]), "o", color=orange, markersize=6, zorder=3, label="samples")
+    ax.set_title(f"{name.capitalize()} (RMS error {slice_rms[name, 9]:.0f})", fontsize=10)
+for ax in axes[1]:
+    ax.set_xlabel("Position x (car at rest)")
+for ax in axes[:, 0]:
+    ax.set_ylabel("Value")
+fig.legend(*axes[0, 0].get_legend_handles_labels(), loc="upper center", ncol=3, fontsize=9, frameon=False)
+fig.tight_layout(rect=(0, 0, 1, 0.94))              # leave room for the legend on top
+plt.show()
+```
+
+## Formalism
+
+### Parametric value functions and the greedy policy
+
+A **parametric value function** $U_\theta(s)$ returns a value for any state, where $\theta$ is a vector of parameters (ADM §8.1). Given one, act greedily by looking one step ahead:
+
+::: {.key-equation data-name="Greedy policy from an approximate value function"}
+$$
+\pi(s) = \mathop{\mathrm{arg\,max}}_{a} \left( R(s, a) + \gamma \sum_{s'} T(s' \mid s, a)\, U_\theta(s') \right)
+$$ {#eq-greedy-approx}
+:::
+
+**In words.** For each action, add the immediate reward to the discounted value of where you might land, as estimated by $U_\theta$. Take the best.
+
+**Term by term.**
+
+- $R(s, a)$ is the immediate reward, here −1 per step.
+- $T(s' \mid s, a)$ is the transition model. For continuous states the sum becomes an integral, usually estimated from sampled next states. Mountain car is deterministic, so there's a single next state.
+- $U_\theta(s')$ is the approximation, evaluated at a state that generally wasn't a sample.
+- With an approximate **action value function** $Q_\theta(s, a)$ instead, the policy is simply $\pi(s) = \arg\max_a Q_\theta(s, a)$, with no model needed at decision time.
+
+**Why it holds.** This is the greedy policy of [Chapter 7](ch07-exact-solution-methods.qmd), the same one-step lookahead, with the table lookup $U(s')$ replaced by a function evaluation. If $U_\theta$ were exact, it would give an optimal policy.
+
+### Approximate value iteration
+
+Choose $m$ sample states $S = \{s_1, \ldots, s_m\}$, on a grid or drawn at random, perhaps from states that simulations actually visit (ADM §8.1). Then repeat:
+
+::: {.key-equation data-name="Approximate value iteration"}
+$$
+\begin{aligned}
+u_i &\leftarrow \max_{a} \left( R(s_i, a) + \gamma \sum_{s'} T(s' \mid s_i, a)\, U_\theta(s') \right)
+\quad \text{for } i = 1, \ldots, m \\[2pt]
+\theta &\leftarrow \operatorname{fit}\big(S,\ u_{1:m}\big)
+\end{aligned}
+$$ {#eq-avi}
+:::
+
+**In words.** Do a Bellman backup at each sample state, using the current approximation for the values of next states. Then refit the approximation to the backed-up values. Repeat until the values stop changing, or for a fixed number of rounds.
+
+**Term by term.**
+
+- $u_i$ is the backed-up value, the **target**, at sample $s_i$.
+- $\operatorname{fit}$ adjusts $\theta$ so that $U_\theta(s_i) \approx u_i$. For local methods it just stores $\theta_i = u_i$. For regression it solves a least-squares problem.
+- Terminal states (the goal) keep the value 0.
+
+**Why it holds (and when it doesn't).** In Chapter 7 the backup is a contraction, which guarantees convergence. Fitting can break that guarantee. It is preserved when the fit is an **averager**: each $U_\theta(s)$ is a weighted average of the stored values, with nonnegative weights that sum to 1. Nearest neighbor, kernel smoothing and both interpolation schemes are averagers. Approximate value iteration with an averager behaves like exact value iteration on a modified MDP, whose "transitions" jump to the sample states with the interpolation weights as probabilities (G. Gordon, "Stable Function Approximation in Dynamic Programming," *ICML*, 1995). With $\gamma < 1$ it always converges. With $\gamma = 1$, as here, it also needs every sample state to have a way out: the nearest-neighbor drift in @fig-convergence is a state that can only reach itself. Least-squares regression is *not* an averager, since its weights can be negative, and it can oscillate or diverge (J. Boyan and A. Moore, "Generalization in Reinforcement Learning: Safely Approximating the Value Function," *NIPS*, 1995).
+
+### Linear approximations
+
+Most of the approximators below are linear in their parameters (ADM §8.1):
+
+::: {.key-equation data-name="Linear value function approximation"}
+$$
+U_\theta(s) = \theta^\top \beta(s) = \sum_{i} \theta_i\, \beta_i(s)
+$$ {#eq-linear-approx}
+:::
+
+**In words.** The value is a weighted sum. The weights $\theta$ are what's fitted; the $\beta_i(s)$ are fixed functions of the state.
+
+**Term by term.**
+
+- In **local** methods, $\theta_i$ is the stored value at sample $s_i$, and $\beta_i(s)$ is how much sample $i$ counts at state $s$. These weights are nonnegative and sum to 1.
+- In **global** methods, the $\beta_i(s)$ are **features**, such as $1$, $x$, $v$, $x^2$, $xv$, and $\theta$ has no direct link to any sample.
+- The model is linear in $\theta$ but can be very nonlinear in $s$, because the features are.
+
+### Nearest neighbor and kernel smoothing
+
+With a distance $d(s, s')$ between states (ADM §8.2):
+
+::: {.key-equation data-name="k-nearest-neighbor value"}
+$$
+U_\theta(s) = \frac{1}{k} \sum_{i \in N_k(s)} \theta_i
+$$ {#eq-knn}
+:::
+
+**In words.** Average the stored values of the $k$ sample states closest to $s$.
+
+**Term by term.** $N_k(s)$ is the set of the $k$ closest samples. With $k = 1$ the function is piecewise constant: flat patches with jumps between them. Larger $k$ is smoother but blurrier. The distance must treat the state variables on comparable scales. On this page both axes are first rescaled to $[0, 1]$.
+
+Kernel smoothing replaces the hard cutoff with smooth weights (ADM §8.3):
+
+::: {.key-equation data-name="Kernel smoothing"}
+$$
+U_\theta(s) = \sum_{i=1}^m \theta_i\, \beta_i(s),
+\qquad
+\beta_i(s) = \frac{k(s, s_i)}{\sum_{j=1}^m k(s, s_j)},
+\qquad
+k(s, s') = \frac{1}{\max\big(d(s, s'), \epsilon\big)}
+\ \text{ or } \
+\exp\!\left(-\frac{d(s, s')^2}{2\sigma^2}\right)
+$$ {#eq-kernel}
+:::
+
+**In words.** Every sample votes, and closer samples get louder votes. The votes are normalized so they sum to 1.
+
+**Term by term.**
+
+- The **kernel** $k(s, s')$ is large when $s$ and $s'$ are close.
+- The inverse-distance kernel uses a small $\epsilon$ so it doesn't divide by zero at a sample.
+- The Gaussian kernel's width $\sigma$ sets how far a sample's influence reaches. Too small gives nearest-neighbor-like patches (and gaps where no sample is near). Too large blurs everything together.
+- The normalization makes this an averager.
+
+**Why it holds.** For the example in the Intuition, 1/distance kernels at $s = 0.5$ are $2, 2, 0.4$. Normalized, they are $0.455, 0.455, 0.091$, giving $U = 6.27$.
+
+### Linear interpolation
+
+On a grid, interpolate along each axis in turn (ADM §8.4). In one dimension, between samples $s_1 < s < s_2$:
+$U_\theta(s) = \alpha\,\theta_1 + (1 - \alpha)\,\theta_2$ with $\alpha = (s_2 - s)/(s_2 - s_1)$. In two dimensions, within a cell with corners $(x_1, y_1)$, $(x_1, y_2)$, $(x_2, y_1)$ and $(x_2, y_2)$:
+
+::: {.key-equation data-name="Bilinear interpolation"}
+$$
+U_\theta(x, y) = \frac{(x_2 - x)(y_2 - y)\,\theta_{11} + (x_2 - x)(y - y_1)\,\theta_{12} + (x - x_1)(y_2 - y)\,\theta_{21} + (x - x_1)(y - y_1)\,\theta_{22}}{(x_2 - x_1)(y_2 - y_1)}
+$$ {#eq-bilinear}
+:::
+
+**In words.** Each corner's value is weighted by the area of the rectangle on the *opposite* side of the point. The closer you are to a corner, the bigger its opposite rectangle.
+
+**Term by term.**
+
+- $\theta_{jk}$ is the value at corner $(x_j, y_k)$.
+- The four weights are nonnegative and sum to 1 (the four rectangles tile the cell), so this is an averager.
+- In $d$ dimensions, **multilinear** interpolation blends all $2^d$ corners, each weighted by the volume of the opposite box.
+
+**Why it holds.** Interpolating along $x$ on the bottom edge and on the top edge, and then along $y$ between those two results, gives exactly these products of fractions. Doing $y$ first gives the same answer. The formula reproduces any function of the form $a + bx + cy + dxy$ exactly.
+
+### Simplex interpolation
+
+Multilinear interpolation needs $2^d$ corners: 64 in six dimensions. **Simplex interpolation** splits each cell into $d!$ simplexes (triangles in 2-D, tetrahedra in 3-D) and blends only the $d + 1$ corners of the one containing the state (ADM §8.5). Write $f_j \in [0, 1]$ for how far the state is across the cell along axis $j$, and sort these fractions from largest to smallest: $f_{(1)} \ge f_{(2)} \ge \cdots \ge f_{(d)}$.
+
+::: {.key-equation data-name="Simplex interpolation (Freudenthal triangulation)"}
+$$
+U_\theta(s) = \sum_{j=0}^{d} \big(f_{(j)} - f_{(j+1)}\big)\, \theta(v_j),
+\qquad f_{(0)} = 1,\ f_{(d+1)} = 0
+$$ {#eq-simplex}
+:::
+
+**In words.** Walk from the cell's lower corner $v_0$ to its upper corner, stepping up one axis at a time, the axis with the largest fraction first. The $d + 1$ corners visited form the simplex containing the state. Each corner's weight is the gap between successive sorted fractions.
+
+**Term by term.**
+
+- $v_j$ is the corner reached after stepping up the $j$ axes with the largest fractions.
+- The weights are nonnegative (the fractions are sorted) and telescope to $f_{(0)} - f_{(d+1)} = 1$, so this is an averager.
+- Sorting costs $O(d \log d)$ and there are only $d + 1$ terms, versus $2^d$ for multilinear interpolation.
+
+**Why it holds.** The weights reproduce the state's own position: along axis $j$, only the corners after the step up that axis have coordinate 1, and their weights add up to $f_j$. So the formula is exact for any linear function, and neighboring simplexes agree along shared faces, so the result is continuous.
+
+### Linear regression
+
+A global approximation picks features $\beta(s)$ and fits $\theta$ by least squares (ADM §8.6). Stack the features of the samples as rows of a matrix $X$, so row $i$ is $\beta(s_i)^\top$:
+
+::: {.key-equation .famous data-name="Least squares (normal equations)"}
+$$
+\theta^* = \mathop{\mathrm{arg\,min}}_\theta \sum_{i=1}^m \big(\theta^\top \beta(s_i) - u_i\big)^2
+= \big(X^\top X\big)^{-1} X^\top u_{1:m}
+= X^+ u_{1:m}
+$$ {#eq-least-squares}
+:::
+
+**In words.** Choose the weights that make the squared prediction errors at the samples as small as possible. There's a closed-form answer.
+
+**Term by term.**
+
+- $X$ has one row per sample and one column per feature.
+- $X^+$ is the **pseudoinverse**. It equals $(X^\top X)^{-1} X^\top$ when the features are linearly independent, and still gives the smallest-norm best fit when they aren't. Code uses a numerically stable solver (`np.linalg.lstsq`, or `X \ u` in Julia) rather than forming the inverse.
+- Common features are **polynomials** (all products $x^i v^j$ up to some total degree) and **Fourier** terms (products of $\sin$ and $\cos$ of multiples of $2\pi x$ and $2\pi v$ over the state range).
+
+**Why it holds.** At the minimum, the gradient of the squared error is zero: $2X^\top(X\theta - u) = 0$. So $X^\top X \theta = X^\top u$, the **normal equations**. For the points $(0, 1)$, $(1, 3)$, $(2, 4)$ with features $[1, s]$: $X^\top X = \begin{pmatrix} 3 & 3 \\ 3 & 5 \end{pmatrix}$ and $X^\top u = \begin{pmatrix} 8 \\ 11 \end{pmatrix}$, giving $\theta = (7/6, 3/2)$.
+
+### Neural network regression
+
+A neural network learns its features instead of having them chosen (ADM §8.7; Appendix D). With one hidden layer:
+
+::: {.key-equation data-name="One-hidden-layer network, fitted by gradient descent"}
+$$
+U_\theta(s) = w_2^\top \tanh(W_1 s + b_1) + b_2,
+\qquad
+\theta \leftarrow \theta - \alpha\, \nabla_\theta \frac{1}{m}\sum_{i=1}^m \big(U_\theta(s_i) - u_i\big)^2
+$$ {#eq-neural-net}
+:::
+
+**In words.** Each hidden unit computes a smooth S-shaped feature of the state. The output is a weighted sum of those features. All the weights are adjusted in small steps downhill on the squared error.
+
+**Term by term.**
+
+- $W_1, b_1$ create the hidden features, $\tanh$ bends them, and $w_2, b_2$ combine them.
+- $\alpha$ is the step size.
+- The gradient comes from the chain rule, applied layer by layer (backpropagation).
+- There's no closed-form answer: the result depends on the starting weights and on how long it trains, and it isn't an averager.
+
+## Worked example
+
+### Interpolating in one grid cell
+
+Take a unit cell with corner values $\theta(0,0) = 10$, $\theta(1,0) = 20$, $\theta(0,1) = 30$ and $\theta(1,1) = 60$, and the state $s = (0.25, 0.6)$.
+
+**Bilinear** (@eq-bilinear): the weights are the opposite areas.
+
+| Corner | Opposite area | Weight × value |
+|---|---|---|
+| (0, 0) | $0.75 \times 0.4 = 0.30$ | $3.0$ |
+| (1, 0) | $0.25 \times 0.4 = 0.10$ | $2.0$ |
+| (0, 1) | $0.75 \times 0.6 = 0.45$ | $13.5$ |
+| (1, 1) | $0.25 \times 0.6 = 0.15$ | $9.0$ |
+| **Total** | 1.00 | **27.5** |
+
+: Bilinear weights at s = (0.25, 0.6). {#tbl-bilinear}
+
+**Simplex** (@eq-simplex): the fractions are $f_x = 0.25$ and $f_v = 0.6$. The larger is $v$, so walk $(0,0) \to (0,1) \to (1,1)$. The weights are $1 - 0.6 = 0.4$, $0.6 - 0.25 = 0.35$ and $0.25$, so
+
+$$
+U = 0.4 \times 10 + 0.35 \times 30 + 0.25 \times 60 = 29.5.
+$$
+
+The two methods differ because the corner values aren't linear: $10 + 60 \ne 20 + 30$. For a linear function they would agree (Problem 3).
+
+### One backup on mountain car
+
+With the converged 41 × 41 approximation, here is the Bellman backup at the start state $(x, v) = (-0.5, 0)$. Each action gives one next state; its value is interpolated, since it isn't a grid point.
+
+```{python}
+#| label: tbl-backup
+#| tbl-cap: "The backup at (−0.5, 0) with the converged 41 × 41 multilinear approximation. The best action (bold) gives the new value of the sample state."
+rows = ["| Action | Next position | Next speed | $U_\\theta$(next) | $-1 + U_\\theta$(next) |", "|---|---|---|---|---|"]
+q = []
+for a, name in zip(mc.ACTIONS, mc.ACTION_NAMES):
+    s2 = mc.step(START, a)
+    q.append(-1 + U41(s2[None])[0])
+    rows.append(f"| {name} | {s2[0]:.4f} | {s2[1]:.5f} | {U41(s2[None])[0]:.2f} | {q[-1]:.2f} |")
+best = int(np.argmax(q))
+rows[2 + best] = rows[2 + best].replace(f"{q[best]:.2f} |", f"**{q[best]:.2f}** |")
+Markdown("\n".join(rows))
+```
+
+The three next states are very close together: one step moves the car only slightly. So the choice depends on small differences in the approximation, which is why a smooth but slightly wrong approximation can flip actions.
+
+### Least squares by hand
+
+Fit $U_\theta(s) = \theta_0 + \theta_1 s$ to $(0, 1)$, $(1, 3)$ and $(2, 4)$. From @eq-least-squares, $\theta = (7/6, 3/2) \approx (1.17, 1.5)$. The predictions are $1.17, 2.67, 4.17$, and the errors $-0.17, +0.33, -0.17$ sum to zero, as they must when a constant feature is included.
+
+## Interactive
+
+### Fill in the gaps
+
+Choose how many samples to take along the value of a car at rest, and how to fill in between them. Watch the cliffs: which methods keep them sharp, and which blur them? The RMS error is measured against the true curve.
+
+```{ojs}
+valueSlice = FileAttachment("data/ch08-slice.json").json()
+viewof method = Inputs.radio(["nearest neighbor", "3 nearest neighbors", "Gaussian kernel", "linear interpolation",
+  "polynomial, degree 3", "polynomial, degree 6", "neural network"], {label: "Method", value: "linear interpolation"})
+viewof m = Inputs.radio([5, 9, 17, 33], {label: "Samples", value: 9})
+```
+
+```{ojs}
+md`RMS error of **${method}** with ${m} samples: **${valueSlice.rms[`${method}|${m}`].toFixed(1)}** steps.`
+```
+
+```{ojs}
+//| label: fig-slice-explorer
+//| fig-cap: "The value of a car at rest (gray) and its approximation (blue) from the chosen samples (orange)."
+//| fig-alt: "Interactive line chart of value against position for a car at rest. A gray curve is the true value; a blue curve is the approximation from the chosen method; orange dots are the samples. Radio buttons choose the method and the number of samples."
+Plot.plot({
+  width: 640, height: 300,
+  style: {background: valueSlice.style.surface, color: valueSlice.style.ink},
+  x: {label: "Position x (car at rest)", domain: [-1.2, 0.6]},
+  y: {label: "Value (minus steps to go)", domain: [-130, 5], grid: true},
+  marks: [
+    Plot.line(valueSlice.x.map((x, i) => ({x, u: valueSlice.truth[i]})), {x: "x", y: "u", stroke: valueSlice.style.muted, strokeWidth: 3}),
+    // Clip extreme polynomial swings so the true curve stays readable.
+    Plot.line(valueSlice.x.map((x, i) => ({x, u: Math.max(-130, Math.min(5, valueSlice.fits[`${method}|${m}`][i]))})),
+      {x: "x", y: "u", stroke: valueSlice.style.blue, strokeWidth: 2}),
+    Plot.dot(valueSlice.samples[m].map((x, i) => ({x, u: valueSlice.sampleValues[m][i]})), {x: "x", y: "u", fill: valueSlice.style.orange, r: 5})
+  ]
+})
+```
+
+### Watch approximate value iteration
+
+Pick a grid size and scrub through the iterations. The heat map is the approximate number of steps to the goal (minus the value) at each grid point. The path is what the greedy policy does from the start you choose, computed live from the grid shown. Early on the values are wrong almost everywhere, and cars wander. Watch the correct values spread outward from the goal as the iterations proceed, and compare the coarse and fine grids.
+
+```{python}
+#| include: false
+# Snapshots of approximate value iteration for the explorer: grid values after selected iterations.
+SNAPSHOTS = [1, 5, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100, 120, 150, 200, 400]
+write_json({
+    "snapshots": SNAPSHOTS,
+    # values[n][k] is the flattened n x n grid (x outer, v inner) after SNAPSHOTS[k] iterations.
+    "values": {n: [resolution["multilinear", n]["hist"][k - 1].round(1) for k in SNAPSHOTS] for n in (11, 21, 41)},
+    "style": {"blue": blue, "orange": orange, "ink": style.INK, "surface": style.SURFACE},
+}, "data/ch08-avi.json")
+```
+
+```{ojs}
+avi = FileAttachment("data/ch08-avi.json").json()
+viewof n = Inputs.radio([11, 21, 41], {label: "Grid points per axis", value: 21})
+viewof k = Inputs.select(avi.snapshots, {label: "After iteration", value: 400})
+viewof x0 = Inputs.range([-1.2, 0.5], {step: 0.01, value: -0.5, label: "Start position"})
+viewof v0 = Inputs.range([-0.07, 0.07], {step: 0.005, value: 0, label: "Start speed"})
+```
+
+```{ojs}
+car = {
+  const vals = avi.values[n][avi.snapshots.indexOf(k)];
+  const clamp = (z, lo, hi) => Math.min(hi, Math.max(lo, z));
+  // Mountain car dynamics (same as adm/problems/mountain_car.py).
+  const step = ([x, v], a) => {
+    const v2 = clamp(v + 0.001 * a - 0.0025 * Math.cos(3 * x), -0.07, 0.07);
+    return [clamp(x + v2, -1.2, 0.6), v2];
+  };
+  // Bilinear interpolation on the n x n grid: vals[i * n + j] is x index i, v index j.
+  const U = ([x, v]) => {
+    const zx = (x + 1.2) / 1.8 * (n - 1), zv = (v + 0.07) / 0.14 * (n - 1);
+    const i = clamp(Math.floor(zx), 0, n - 2), j = clamp(Math.floor(zv), 0, n - 2);
+    const fx = clamp(zx - i, 0, 1), fv = clamp(zv - j, 0, 1);
+    return (1 - fx) * (1 - fv) * vals[i * n + j] + (1 - fx) * fv * vals[i * n + j + 1]
+         + fx * (1 - fv) * vals[(i + 1) * n + j] + fx * fv * vals[(i + 1) * n + j + 1];
+  };
+  // Greedy policy: one-step lookahead, -1 per step, value 0 once the goal is reached.
+  const act = s => [-1, 0, 1].map(a => { const s2 = step(s, a); return {a, q: -1 + (s2[0] >= 0.6 ? 0 : U(s2))}; })
+                             .reduce((best, c) => c.q > best.q ? c : best).a;
+  const path = [[x0, v0]];
+  while (path[path.length - 1][0] < 0.6 && path.length <= 500) path.push(step(path[path.length - 1], act(path[path.length - 1])));
+  const cells = [];
+  for (let i = 0; i < n; i++) for (let j = 0; j < n; j++)
+    cells.push({x: -1.2 + 1.8 * i / (n - 1), v: -0.07 + 0.14 * j / (n - 1), steps: -vals[i * n + j]});
+  return {path, cells, reached: path[path.length - 1][0] >= 0.6};
+}
+```
+
+```{ojs}
+md`${car.reached ? `The car reaches the goal in **${car.path.length - 1} steps**.` : "The car **doesn't reach the goal** within 500 steps."} Grid: ${n} × ${n} = ${n * n} sample states, after ${k} iterations.`
+```
+
+```{ojs}
+//| label: fig-avi-explorer
+//| fig-cap: "Approximate value iteration on mountain car. Color: estimated steps to the goal at each grid point. Line: the greedy policy's path from the chosen start."
+//| fig-alt: "Interactive heat map over position (across) and speed (up), colored by the estimated number of steps to the goal, lighter for fewer. An orange line traces the car's path from the chosen start, spiraling outward to the goal at position 0.6. Controls choose the grid size, the iteration, and the start position and speed."
+Plot.plot({
+  width: 640, height: 360, marginLeft: 55,
+  style: {background: avi.style.surface, color: avi.style.ink},
+  x: {label: "Position x", domain: [-1.2 - 0.9 / (n - 1), 0.6 + 0.9 / (n - 1)]},
+  y: {label: "Speed v", domain: [-0.07 - 0.07 / (n - 1), 0.07 + 0.07 / (n - 1)]},
+  color: {scheme: "blues", domain: [0, 130], legend: true, label: "Estimated steps to go"},
+  marks: [
+    // One rectangle per grid point, centered on it.
+    Plot.rect(car.cells, {x1: d => d.x - 0.9 / (n - 1), x2: d => d.x + 0.9 / (n - 1),
+                          y1: d => d.v - 0.07 / (n - 1), y2: d => d.v + 0.07 / (n - 1), fill: "steps"}),
+    Plot.line(car.path, {x: d => d[0], y: d => d[1], stroke: avi.style.orange, strokeWidth: 2}),
+    Plot.dot([car.path[0]], {x: d => d[0], y: d => d[1], fill: avi.style.orange, r: 5})
+  ]
+})
+```
+
+## Algorithms & code
+
+### Local approximators
+
+::: {.panel-tabset group="lang"}
+## Python
+```{python}
+#| output: asis
+show_source(NearestNeighborValue, KernelValue, inverse_distance, gaussian)
+```
+## Julia
+```{.julia .snippet}
+using ADM, LinearAlgebra
+
+# Each approximator is a mutable struct holding its parameters θ. Calling it
+# like a function, U(s), evaluates the value at state s (a vector).
+mutable struct NearestNeighborValue
+    S::Vector{Vector{Float64}}   # sample states
+    k::Int                       # how many neighbors to average
+    θ::Vector{Float64}           # stored value at each sample
+end
+function (U::NearestNeighborValue)(s)
+    nearest = sortperm([norm(s - s′) for s′ in U.S])[1:U.k]   # indices of the k closest
+    return sum(U.θ[nearest]) / U.k
+end
+
+mutable struct KernelValue
+    S::Vector{Vector{Float64}}
+    kernel::Function             # kernel(distance) -> weight
+    θ::Vector{Float64}
+end
+function (U::KernelValue)(s)
+    w = [U.kernel(norm(s - s′)) for s′ in U.S]
+    return dot(w, U.θ) / sum(w)  # normalized weights: an average of stored values
+end
+inverse_distance(ϵ = 1e-6) = d -> 1 / max(d, ϵ)
+gaussian(σ) = d -> exp(-d^2 / (2σ^2))
+
+# Local methods "fit" by storing the targets.
+fit!(U, S, u) = (U.θ = copy(u); U)
+
+S = [[0.0], [1.0], [3.0]]
+@assert NearestNeighborValue(S, 1, [5.0, 7, 9])([0.4]) == 5
+@assert KernelValue(S, inverse_distance(), [5.0, 7, 9])([0.5]) ≈ 27.6 / 4.4   # 6.27
+```
+:::
+
+### Grid interpolation
+
+::: {.panel-tabset group="lang"}
+## Python
+```{python}
+#| output: asis
+from adm.value_approx import _Grid
+show_source(_Grid, MultilinearValue, SimplexValue)
+```
+## Julia
+```{.julia .snippet}
+# A regular grid: lower corner lo, cell widths δ, and θ shaped like the grid
+# (θ[i, j] is the value at lo + δ .* ([i, j] .- 1), since Julia counts from 1).
+mutable struct MultilinearValue
+    lo::Vector{Float64}
+    δ::Vector{Float64}
+    θ::Array{Float64}
+end
+mutable struct SimplexValue
+    lo::Vector{Float64}
+    δ::Vector{Float64}
+    θ::Array{Float64}
+end
+const GridValue = Union{MultilinearValue, SimplexValue}
+
+# The cell containing s: 1-based index of its lower corner, and the position
+# inside the cell as a fraction (0 to 1) along each axis.
+function cell(U::GridValue, s)
+    z = (s .- U.lo) ./ U.δ
+    i = clamp.(floor.(Int, z), 0, size(U.θ) .- 2)   # 0-based; the last cell includes the upper edge
+    return i .+ 1, clamp.(z .- i, 0, 1)
+end
+
+function (U::MultilinearValue)(s)
+    i, f = cell(U, s)
+    u = 0.0
+    # corner runs over all 2^d combinations of 0 (lower) and 1 (upper) per axis.
+    for corner in Iterators.product(ntuple(_ -> (0, 1), length(s))...)
+        c = collect(corner)
+        weight = prod(ifelse.(c .== 1, f, 1 .- f))  # volume of the opposite box
+        u += weight * U.θ[(i .+ c)...]
+    end
+    return u
+end
+
+function (U::SimplexValue)(s)
+    i, f = cell(U, s)
+    order = sortperm(f, rev = true)        # step up the largest fraction first
+    fs = [1.0; f[order]; 0.0]
+    vertex = copy(i)                       # start at the lower corner
+    u = (fs[1] - fs[2]) * U.θ[vertex...]
+    for j in eachindex(order)
+        vertex[order[j]] += 1              # step up one axis
+        u += (fs[j+1] - fs[j+2]) * U.θ[vertex...]
+    end
+    return u
+end
+
+# Grid points in the same (column-major) order as θ, so fit! can reshape.
+grid_points(U::GridValue) = vec([U.lo .+ U.δ .* (Tuple(I) .- 1) for I in CartesianIndices(U.θ)])
+fit!(U::GridValue, S, u) = (U.θ = reshape(u, size(U.θ)); U)
+
+# The worked example: corners (0,0) = 10, (1,0) = 20, (0,1) = 30, (1,1) = 60.
+θ = [10.0 30.0; 20.0 60.0]                 # θ[i, j]: i indexes x, j indexes v
+@assert MultilinearValue([0.0, 0], [1.0, 1], θ)([0.25, 0.6]) ≈ 27.5
+@assert SimplexValue([0.0, 0], [1.0, 1], θ)([0.25, 0.6]) ≈ 29.5
+```
+:::
+
+### Global approximators
+
+::: {.panel-tabset group="lang"}
+## Python
+```{python}
+#| output: asis
+show_source(LinearRegressionValue, polynomial_basis, fourier_basis, NeuralNetValue)
+```
+## Julia
+```{.julia .snippet}
+mutable struct LinearRegressionValue
+    basis::Function              # basis(s) -> feature vector β(s)
+    θ::Vector{Float64}
+end
+(U::LinearRegressionValue)(s) = dot(U.basis(s), U.θ)
+function fit!(U::LinearRegressionValue, S, u)
+    X = reduce(vcat, (U.basis(s)' for s in S))   # row i is β(s_i)ᵀ
+    U.θ = X \ u                  # least squares via QR; same answer as pinv(X) * u
+    return U
+end
+
+# All monomials z1^i z2^j with i + j <= degree, after rescaling s to [-1, 1].
+function polynomial_basis(degree, lo, hi)
+    return s -> begin
+        z = 2 .* (s .- lo) ./ (hi .- lo) .- 1
+        [z[1]^i * z[2]^j for i in 0:degree for j in 0:degree if i + j <= degree]
+    end
+end
+
+# A cubic in two variables is fitted exactly by a degree-3 basis.
+lo, hi = [-1.2, -0.07], [0.6, 0.07]
+f(s) = 3 + s[1]^3 - 50s[1] * s[2]
+S = [lo .+ rand(2) .* (hi .- lo) for _ in 1:60]
+U = fit!(LinearRegressionValue(polynomial_basis(3, lo, hi), Float64[]), S, f.(S))
+@assert U([0.1, 0.02]) ≈ f([0.1, 0.02])
+# Neural network regression would normally use a package such as Flux.jl,
+# which this site doesn't depend on; see the Python tab for a from-scratch version.
+```
+:::
+
+### Approximate value iteration on mountain car
+
+::: {.panel-tabset group="lang"}
+## Python
+```{python}
+#| output: asis
+show_source(mc.step, approximate_value_iteration, greedy_actions)
+```
+## Julia
+```{.julia .snippet}
+# One-step lookahead on mountain car: -1 per step; no future cost once at the goal.
+function lookahead(U, s, a)
+    s′ = mountain_car_step(s, a)
+    return -1 + (mountain_car_goal(s′) ? 0.0 : U(s′))
+end
+backup(U, s) = mountain_car_goal(s) ? 0.0 : maximum(lookahead(U, s, a) for a in MOUNTAIN_CAR_ACTIONS)
+greedy(U, s) = MOUNTAIN_CAR_ACTIONS[argmax([lookahead(U, s, a) for a in MOUNTAIN_CAR_ACTIONS])]
+
+# Back up at every sample state, then refit; repeat.
+function approximate_value_iteration!(U, S, k_max)
+    for _ in 1:k_max
+        fit!(U, S, [backup(U, s) for s in S])
+    end
+    return U
+end
+
+function steps_to_goal(U, s; max_steps = 1000)
+    t = 0
+    while !mountain_car_goal(s) && t < max_steps
+        s = mountain_car_step(s, greedy(U, s))
+        t += 1
+    end
+    return t
+end
+```
+:::
+
+### Run it
+
+::: {.panel-tabset group="lang"}
+## Python
+```{python}
+#| echo: true
+grid = MultilinearValue(LO, HI, (41, 41))    # 41 x 41 = 1,681 sample states
+approximate_value_iteration(grid, grid.points(), mc.step, mc.ACTIONS, reward=-1.0,
+                            gamma=1.0, is_terminal=mc.is_goal, k_max=400)
+policy = lambda s: greedy_actions(grid, s, mc.step, mc.ACTIONS, -1.0, 1.0, mc.is_goal)
+steps = mc.steps_to_goal(policy, [[-0.5, 0.0]])[0]
+```
+## Julia
+```{.julia .snippet}
+n = 41
+lo, hi = [MOUNTAIN_CAR_X[1], MOUNTAIN_CAR_V[1]], [MOUNTAIN_CAR_X[2], MOUNTAIN_CAR_V[2]]
+grid = MultilinearValue(lo, (hi .- lo) ./ (n - 1), zeros(n, n))
+approximate_value_iteration!(grid, grid_points(grid), 400)
+steps = steps_to_goal(grid, [-0.5, 0.0])
+@assert steps == 108
+println("From rest at x = -0.5: $steps steps")
+```
+:::
+
+```{python}
+print(f"From rest at x = -0.5: {steps} steps; estimated value there {grid(START[None])[0]:.1f}")
+```
+
+::: {.callout-note collapse="true" title="Reading the Julia code (for Python programmers)"}
+- **`(U::MultilinearValue)(s) = ...`** makes a struct callable, like Python's `__call__`.
+- **`fit!`**: the `!` is a naming convention for functions that modify their argument. Julia picks the right `fit!` method from the argument's type (multiple dispatch), like a method on each class.
+- **`Iterators.product(ntuple(_ -> (0, 1), d)...)`** lists all $2^d$ corners, like `itertools.product((0, 1), repeat=d)`.
+- **`U.θ[(i .+ c)...]`** splats a vector of indices into `θ[i1, i2]`. Julia indices start at 1, so the lower corner of the first cell is index 1.
+- **`X \ u`** solves the least-squares problem, like `np.linalg.lstsq(X, u)`.
+- **`reshape(u, size(θ))`** fills the grid column by column (Julia is column-major), which is why `grid_points` lists points in `CartesianIndices` order.
+:::
+
+### Results
+
+#### The value function and the policy
+
+```{python}
+#| label: fig-value-policy
+#| fig-cap: "The converged 41 × 41 approximation. Left: estimated steps to the goal, highest for a car at rest near the valley floor. Right: the greedy action at each state, with the path from rest at x = −0.5. Roughly, accelerate in the direction you're already moving; the boundary between the regions curls around the valley floor. Where every action leads to the same place (at top speed, or one step from the goal), the tie goes to the first action, accelerate left, which explains the thin orange strips along the top and right edges."
+#| fig-alt: "Two panels over position (across) and speed (up). The left heat map shows estimated steps to the goal: lightest (few steps) at the right edge and at high rightward speed, darkest (about 110) in a blob around position minus 0.55, speed 0. The right panel colors each state by the greedy action: accelerate right (blue) over most of the upper half and the lower left corner, accelerate left (orange) in a large region below and to the right of the valley floor that curls up around it. A black path starts at position minus 0.5, speed 0, loops a little right, swings left along the bottom, and then circles up and right to the goal."
+xg, vg = np.linspace(-1.2, 0.6, 181), np.linspace(-0.07, 0.07, 141)
+XX, VV = np.meshgrid(xg, vg)
+states = np.c_[XX.ravel(), VV.ravel()]
+fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(10, 3.6), sharey=True)
+im = ax1.pcolormesh(XX, VV, -U41(states).reshape(XX.shape), cmap=style.sequential_cmap(), vmin=0, vmax=120, shading="auto")
+fig.colorbar(im, ax=ax1, label="Estimated steps to go")
+acts = pol41(states).reshape(XX.shape)
+cmap = ListedColormap([orange, "#e1e0d9", blue])      # left, coast, right
+ax2.pcolormesh(XX, VV, acts, cmap=cmap, vmin=-1.5, vmax=1.5, shading="auto")
+ax2.plot(path41[:, 0], path41[:, 1], color=style.INK, linewidth=1.5)
+ax2.plot(*START, "o", color=style.INK)
+handles = [plt.Rectangle((0, 0), 1, 1, color=c) for c in (orange, "#e1e0d9", blue)]
+ax2.legend(handles, ["accelerate left", "coast", "accelerate right"], loc="lower right", fontsize=8)
+ax1.set(xlabel="Position x", ylabel="Speed v", title="Value")
+ax2.set(xlabel="Position x", title="Greedy action and path")
+fig.tight_layout()
+plt.show()
+```
+
+#### Every approximator on the same samples
+
+@fig-method-gallery shows what six approximators learn from the same 21 × 21 = 441 sample states, and @fig-method-comparison scores the resulting policies from 225 start states spread over the state space.
+
+- The two interpolation schemes get every car out, on average `{python} f"{r['Multilinear']['extra']:.1f}"` steps slower than the 201 × 201 reference.
+- A narrow Gaussian kernel ($\sigma = 0.03$) also works (`{python} f"{narrow['extra']:.1f}"` extra steps). A wider one ($\sigma = 0.05$) blurs the cliffs, and `{python} pct(1 - wide['reach'])` of the cars never reach the goal.
+- Nearest neighbor drifts (only `{python} pct(r['Nearest neighbor']['reach'])` of cars get out), and averaging 4 neighbors doesn't fix it (`{python} pct(r['4 nearest neighbors']['reach'])`).
+- The degree-4 and degree-6 polynomials get every car out with about `{python} f"{r['Polynomial, degree 6']['extra']:.0f}"` extra steps. But their values never settle, as @fig-convergence shows. The order-3 Fourier basis blows up, and only `{python} pct(r['Fourier, order 3']['reach'])` of the cars get out.
+
+```{python}
+#| label: fig-method-gallery
+#| fig-cap: "Estimated steps to the goal from six approximators, all fitted on the same 21 × 21 sample states after 400 iterations. The two interpolation schemes agree with each other and keep the sharp edge near the goal. The wide kernel blurs everything. Nearest neighbor has drifted to hundreds of steps almost everywhere below top speed (the color scale stops at 150). The polynomial overestimates in the middle, and the Fourier fit underestimates almost everywhere."
+#| fig-alt: "Six heat maps of estimated steps to go over position and speed, in two rows of three. Multilinear and simplex look alike: darkest in a curl around the valley floor, lighter toward high speeds, with a sharp light edge along the right side. The Gaussian kernel with sigma 0.05 shows a smooth, blurred version, darkest in the lower right. Nearest neighbor is a solid dark block covering all speeds below about 0.045, with only a light strip along the top. The degree-6 polynomial shows a dark oval in the middle and dark corners. The order-2 Fourier fit is light almost everywhere, with one medium blob near position minus 0.6."
+show = ["Multilinear", "Simplex", r"Gaussian kernel, $\sigma$ = 0.05", "Nearest neighbor", "Polynomial, degree 6", "Fourier, order 2"]
+fig, axes = plt.subplots(2, 3, figsize=(10, 5.4), sharex=True, sharey=True)
+for ax, name in zip(axes.flat, show):
+    im = ax.pcolormesh(XX, VV, -r[name]["U"](states).reshape(XX.shape), cmap=style.sequential_cmap(),
+                       vmin=0, vmax=150, shading="auto")
+    ax.set_title(name, fontsize=10)
+for ax in axes[1]:
+    ax.set_xlabel("Position x")
+for ax in axes[:, 0]:
+    ax.set_ylabel("Speed v")
+fig.colorbar(im, ax=axes, label="Estimated steps to go", shrink=0.8)
+plt.show()
+```
+
+```{python}
+#| label: fig-method-comparison
+#| fig-cap: "How well each approximator's greedy policy drives, from 225 start states, all using the same 441 sample states. Left: share of starts that reach the goal within 1,000 steps. Right: average extra steps compared with a 201 × 201 grid, among starts that reach the goal; for methods that lose most cars, it covers only the few easy starts that got out."
+#| fig-alt: "Two horizontal bar charts with one row per method, colored by family: averagers in orange, interpolation in blue, regression in green. Left, share reaching the goal: multilinear, simplex, the narrow Gaussian kernel and both polynomials reach 100 percent; the wide kernel and Fourier order 2 about 96 to 97 percent; nearest neighbor, 4 nearest neighbors and Fourier order 3 reach only about 10 to 25 percent. Right, extra steps: interpolation about 1, the narrow kernel about 2, polynomials about 3, the wide kernel about 10, Fourier order 2 about 24."
+names = list(r)
+colors = {"average": orange, "interpolate": blue, "regress": green}
+fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(10, 4.2), sharey=True)
+y = np.arange(len(names))[::-1]
+ax1.barh(y, [100 * r[n]["reach"] for n in names], color=[colors[r[n]["family"]] for n in names], height=0.6)
+ax2.barh(y, [r[n]["extra"] for n in names], color=[colors[r[n]["family"]] for n in names], height=0.6)
+for yi, n in zip(y, names):
+    ax1.text(100 * r[n]["reach"] + 1, yi, f"{100 * r[n]['reach']:.0f}%", va="center", fontsize=8, color=style.INK_SECONDARY)
+    ax2.text(r[n]["extra"] + 0.3, yi, f"{r[n]['extra']:.1f}", va="center", fontsize=8, color=style.INK_SECONDARY)
+ax1.set(yticks=y, yticklabels=names, xlabel="Starts reaching the goal (%)", xlim=(0, 115))
+ax2.set(xlabel="Extra steps vs. the fine grid")
+handles = [plt.Rectangle((0, 0), 1, 1, color=c) for c in colors.values()]
+ax2.legend(handles, ["averagers (local)", "interpolation (local)", "regression (global)"], loc="upper right", fontsize=8)
+fig.tight_layout()
+plt.show()
+```
+
+#### Stability
+
+@fig-convergence tracks the biggest change to any sample's value in each iteration. Interpolation and the narrow kernel settle to tiny changes. Nearest neighbor's biggest change stays at exactly 1 forever: those are the drifting states. The polynomial keeps oscillating, and the order-3 Fourier fit diverges.
+
+```{python}
+#| label: fig-convergence
+#| fig-cap: "The biggest change to any sample's value in each iteration (log scale). Averagers that give every state a way out converge; nearest neighbor drifts by exactly 1 per iteration; least-squares fits can oscillate or diverge."
+#| fig-alt: "Line chart with iteration from 1 to 400 across and the largest value change on a log scale up the side. Multilinear drops steadily to below 0.001; the narrow Gaussian kernel falls more slowly to about 0.002; nearest neighbor is flat at 1; the degree-6 polynomial hovers around 0.1 without settling; Fourier order 3 grows to around 100."
+fig, ax = plt.subplots(figsize=(6.4, 3.6))
+for name, color in [("Multilinear", blue), (r"Gaussian kernel, $\sigma$ = 0.03", orange), ("Nearest neighbor", style.INK_SECONDARY),
+                    ("Polynomial, degree 6", green), ("Fourier, order 3", style.CATEGORICAL[3])]:
+    ax.semilogy(np.arange(2, len(r[name]["change"]) + 2), r[name]["change"], color=color, label=name)
+ax.set(xlabel="Iteration", ylabel="Largest change in a value")
+ax.legend(fontsize=8, loc="lower left")
+plt.show()
+```
+
+#### Resolution
+
+Finer grids give better policies, at the price of more sample states:
+
+```{python}
+#| label: tbl-resolution
+#| tbl-cap: "Grid interpolation at four resolutions: share of the 225 starts reaching the goal, average extra steps compared with the 201 × 201 reference, and steps from rest at x = −0.5 (the reference needs 106)."
+rows = ["| Grid | Sample states | Method | Reach goal | Extra steps | Steps from rest at −0.5 |", "|---|---|---|---|---|---|"]
+for n in (11, 21, 41, 81):
+    for name in ("multilinear", "simplex"):
+        d = resolution[name, n]
+        rows.append(f"| {n} × {n} | {n * n:,} | {name} | {pct(d['reach'])} | {d['extra']:.1f} | {d['start']} |")
+Markdown("\n".join(rows))
+```
+
+With two state variables, a fine grid is affordable. With six, even 21 points per axis would be $21^6 \approx 86$ million sample states, each needing $2^6 = 64$ corners for multilinear interpolation. This is the curse of dimensionality, and it's where simplex interpolation ($d + 1 = 7$ corners), sampled rather than gridded states, and global approximators earn their keep.
+
+## Solved problems
+
+**Problem 1: nearest neighbor is linear too.** Write 1-nearest-neighbor and $k$-nearest-neighbor approximations in the form $U_\theta(s) = \theta^\top\beta(s)$ of @eq-linear-approx. Is nearest neighbor an averager?
+
+::: {.callout-tip collapse="true" title="Solution"}
+With $\theta_i$ the value stored at sample $s_i$, 1-nearest-neighbor has $\beta_i(s) = 1$ if $s_i$ is the closest sample to $s$ and 0 otherwise: a one-hot vector. For $k$ neighbors, $\beta_i(s) = 1/k$ for the $k$ closest samples and 0 for the rest. The weights are nonnegative and sum to 1, so yes, both are averagers. A lookup table is the special case where every state is a sample.
+:::
+
+**Problem 2: why nearest neighbor drifts.** On mountain car with $\gamma = 1$, a sample state $s_i$ has all three next states closer to $s_i$ than to any other sample. What happens to its value over the iterations? What if $\gamma = 0.99$?
+
+::: {.callout-tip collapse="true" title="Solution"}
+Every next state reads the value $\theta_i$, so the backup is $u_i \leftarrow -1 + \theta_i$, and after fitting $\theta_i \leftarrow \theta_i - 1$. The value falls by 1 per iteration without end: after 400 iterations it's −400. That's the flat line at 1 in @fig-convergence. With $\gamma = 0.99$, the backup is $\theta_i \leftarrow -1 + 0.99\,\theta_i$, whose fixed point is $\theta_i = -1/(1 - 0.99) = -100$. That's finite, but it's the value of never leaving, not the true value. The car isn't actually stuck; it just moves too little per step for nearest neighbor to notice. Interpolation fixes this, because a next state that has moved even slightly puts some weight on a neighboring sample.
+:::
+
+**Problem 3: interpolating a linear function.** In a unit cell, let the corner values come from $U(x, v) = 10 + 20x + 40v$. Compute the bilinear and simplex interpolations at $(0.25, 0.6)$ and compare them with $U(0.25, 0.6)$.
+
+::: {.callout-tip collapse="true" title="Solution"}
+The corners are $\theta(0,0) = 10$, $\theta(1,0) = 30$, $\theta(0,1) = 50$ and $\theta(1,1) = 70$. The true value is $10 + 5 + 24 = 39$.
+
+- **Bilinear** (weights 0.30, 0.10, 0.45, 0.15, as in @tbl-bilinear): $3 + 3 + 22.5 + 10.5 = 39$.
+- **Simplex** (walk $(0,0) \to (0,1) \to (1,1)$ with weights 0.4, 0.35, 0.25): $4 + 17.5 + 17.5 = 39$.
+
+Both are exact, because both interpolation schemes reproduce linear functions. They differed in the worked example only because those corner values had an $xv$ interaction term.
+:::
+
+**Problem 4: counting corners and samples.** A problem has 4 state variables, gridded with 20 points each. How many sample states are there, and how many corners does each evaluation read with multilinear versus simplex interpolation? Repeat for 10 state variables.
+
+::: {.callout-tip collapse="true" title="Solution"}
+With $d = 4$: $20^4 = 160{,}000$ sample states. Multilinear reads $2^4 = 16$ corners per evaluation, and simplex reads $4 + 1 = 5$.
+
+With $d = 10$: $20^{10} \approx 10^{13}$ sample states, far beyond memory. Multilinear would read $2^{10} = 1{,}024$ corners per evaluation, and simplex 11.
+
+Simplex interpolation fixes the cost *per evaluation*, but not the number of grid points. For many state variables you need sampled states or a global approximator.
+:::
+
+**Problem 5: kernel weights.** Samples at $s = 0, 1, 3$ hold values $5, 7, 9$. Using a Gaussian kernel with $\sigma = 1$, estimate the value at $s = 0.5$. How does the answer compare with inverse-distance weighting?
+
+::: {.callout-tip collapse="true" title="Solution"}
+The distances are 0.5, 0.5 and 2.5. The kernels are $e^{-0.125} = 0.8825$ (for the first two) and $e^{-3.125} = 0.0439$, which sum to $1.809$. The weights are $0.488, 0.488, 0.024$, so
+$$U = 0.488 \times 5 + 0.488 \times 7 + 0.024 \times 9 = 6.07.$$
+Inverse distance gave 6.27, because it gave the far sample more weight (0.091 versus 0.024). The Gaussian kernel's influence falls off much faster with distance.
+:::
+
+## Recap
+
+1. **When states are continuous or too many, replace the value table with a parametric function $U_\theta(s)$, and act by one-step lookahead (@eq-greedy-approx).**
+   *Why it matters:* every large-scale method in the book, from online planning to deep reinforcement learning, rests on approximate values.
+2. **Approximate value iteration backs up at sample states and refits, repeatedly (@eq-avi).**
+   *Why it matters:* it's Chapter 7's value iteration with a function in place of a table, and fitted Q-iteration and deep Q-learning (Chapter 17) have the same loop.
+3. **Local methods build values from nearby samples (@eq-knn, @eq-kernel, @eq-bilinear, @eq-simplex); global methods fit features by least squares or train a network (@eq-least-squares, @eq-neural-net).**
+   *Why it matters:* local methods are accurate and stable but need samples everywhere; global methods need far fewer parameters but can blur or misbehave.
+4. **Averagers (nonnegative weights summing to 1) keep approximate value iteration stable; regression can oscillate or diverge.**
+   *Why it matters:* whether an approximation converges at all depends on its form, a theme that returns when learning values from experience (Part III).
+5. **Optimal value functions have cliffs, and grids grow exponentially with dimension.**
+   *Why it matters:* the curse of dimensionality motivates online planning (Chapter 9), which only evaluates states it actually reaches, and policy search (Chapters 10–13), which skips the value function altogether.
+
+## Cheat sheet & connections
+
+| Name | Formula | Ref |
+|---|---|---|
+| Greedy policy from $U_\theta$ | $\pi(s) = \arg\max_a R(s,a) + \gamma \sum_{s'} T(s' \mid s,a) U_\theta(s')$ | @eq-greedy-approx |
+| Approximate value iteration | back up $u_i$ at each $s_i$, then $\theta \leftarrow \operatorname{fit}(S, u)$ | @eq-avi |
+| Linear approximation | $U_\theta(s) = \theta^\top \beta(s)$ | @eq-linear-approx |
+| $k$-nearest neighbor | average of the $k$ closest stored values | @eq-knn |
+| Kernel smoothing | $\beta_i(s) = k(s, s_i) / \sum_j k(s, s_j)$ | @eq-kernel |
+| Bilinear interpolation | corner weights = opposite areas | @eq-bilinear |
+| Simplex interpolation | $d+1$ corners, weights = gaps between sorted fractions | @eq-simplex |
+| ★ Least squares | $\theta = (X^\top X)^{-1} X^\top u = X^+ u$ | @eq-least-squares |
+| Neural network regression | $\theta \leftarrow \theta - \alpha \nabla_\theta \text{MSE}$ | @eq-neural-net |
+
+: Key equations from this page (★ = well-known by name). {#tbl-cheatsheet}
+
+**Common pitfalls**
+
+- **Measuring distance on unscaled variables.** Position spans 1.8 and speed 0.14, so without rescaling, speed barely affects "nearness".
+- **Assuming convergence.** Regression-based value iteration can oscillate or diverge. Monitor the largest change per iteration.
+- **Trusting the value more than the policy.** Near cliffs, a small error in value flips the greedy action. Evaluate the policy by simulating it, not by reading off $U_\theta$.
+- **Undiscounted problems with averagers that let a state reach only itself.** Nearest neighbor with $\gamma = 1$ drifts forever.
+- **Gridding many dimensions.** $n^d$ grows fast. Past a handful of state variables, sample states from simulations and use simplex or global approximators.
+
+**Connections**
+
+- [Ch 7 · Exact Solution Methods](ch07-exact-solution-methods.qmd): value iteration with a table, which this chapter generalizes.
+- [Ch 9 · Online Planning](ch09-online-planning.qmd): plans only from the current state, often with an approximate value at the leaves.
+- [Ch 10 · Policy Search](ch10-policy-search.qmd): optimizes a parametric policy directly, with no value function.
+- [Ch 17 · Model-Free Methods](../part3/ch17-model-free-methods.qmd): learns approximate action values from experience.
+- [Ch 21 · Offline Belief State Planning](../part4/ch21-offline-belief-state-planning.qmd): approximates value functions over the continuous space of beliefs.
+- [Appendix F · Mountain car](../appendices/f-problems.qmd#mountain-car): the problem used on this page.

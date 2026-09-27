@@ -60,6 +60,12 @@ This site uses the book's notation. Symbols are added here as chapters are writt
 | $\mathbf{T}^\pi$, $\mathbf{R}^\pi$ | Transition matrix and reward vector with the policy's action fixed in each state | Ch 7 |
 | $\lVert U \rVert_\infty$ | Largest absolute entry, $\max_s \lvert U(s) \rvert$ | Ch 7 |
 | $\delta$, $\epsilon$ | Bellman-residual threshold and target accuracy in value iteration | Ch 7 |
+| $U_\theta(s)$, $Q_\theta(s, a)$ | Parametric (approximate) value and action value functions with parameters $\theta$ | Ch 8 |
+| $S = s_{1:m}$ | Sample states where approximate value iteration does backups | Ch 8 |
+| $\beta(s)$ | Basis functions (features), or local weights, so that $U_\theta(s) = \theta^\top \beta(s)$ | Ch 8 |
+| $d(s, s')$, $k(s, s')$ | Distance between states, and a kernel (larger for closer states) | Ch 8 |
+| $\sigma$ | Width of a Gaussian kernel | Ch 8 |
+| $X$, $X^+$ | Feature matrix (row $i$ is $\beta(s_i)^\top$) and its pseudoinverse | Ch 8 |
 | $o$ | An observation | Ch 19 |
 | $O(o \mid a, s')$ | Observation model: probability of observing $o$ after taking $a$ and landing in $s'$ | Ch 19 |
 | $b(s)$ | Belief: probability that the current state is $s$, given the history | Ch 19 |

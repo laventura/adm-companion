@@ -64,6 +64,37 @@ def hex_mdp(tiles, rewards, gamma=0.9, p_intended=0.7, bump_cost=1.0) -> Discret
     return DiscreteMDP(T, R, gamma, tiles + ["terminal"], list(DIRECTIONS))
 
 
+def hex_steps(tiles, target) -> dict:
+    """Fewest moves from each tile to `target`, if moves never veered
+    (breadth-first search over neighboring tiles)."""
+    tiles, steps, frontier = set(tiles), {target: 0}, [target]
+    while frontier:
+        nxt = []
+        for tile in frontier:
+            for direction in DIRECTIONS:
+                n = neighbor(tile, direction)
+                if n in tiles and n not in steps:
+                    steps[n] = steps[tile] + 1
+                    nxt.append(n)
+        frontier = nxt
+    return steps
+
+
+def optimistic_values(tiles, rewards, gamma=0.9) -> np.ndarray:
+    """An upper bound on the optimal values U*: the best positive reward,
+    discounted by the fewest moves needed to reach its tile. Real moves can
+    veer or bump, which only costs time or reward. The last entry is the
+    terminal state (value 0)."""
+    tiles = list(tiles)
+    U = np.zeros(len(tiles) + 1)
+    for target, r in rewards.items():
+        if r > 0:
+            for tile, k in hex_steps(tiles, target).items():
+                i = tiles.index(tile)
+                U[i] = max(U[i], r * gamma**k)
+    return U
+
+
 def hex_world() -> DiscreteMDP:
     """The standard 24-tile Hex World with rewards +5, -10 and +10."""
     return hex_mdp(STANDARD_TILES, STANDARD_REWARDS)

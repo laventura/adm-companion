@@ -25,6 +25,8 @@ def probability(bn: BayesNet, assignment: dict) -> float:
     """P(assignment) by the chain rule: one CPT entry per variable."""
     p = 1.0
     for x, pa in bn.parents.items():
+        # CPT axes are (parents..., x), so index with the parents' values
+        # first and x's own value last.
         index = tuple(assignment[q] for q in pa) + (assignment[x],)
         p *= bn.cpt[x][index]
     return p

@@ -23,6 +23,9 @@ seq = cgrad(ADM.SEQUENTIAL_BLUE)
 
 "95% ellipse of a 2×2 covariance, as points for `poly!`."
 function ellipse(μ, Σ; n = 60)
+    # Σ = L L' (Cholesky), so L maps the unit circle onto the shape of Σ. Scaling by
+    # sqrt(5.991), the 95% quantile of a chi-square with 2 degrees of freedom, makes
+    # the ellipse enclose 95% of the probability.
     L = cholesky(Symmetric(Matrix(Σ))).L
     return [Point2f(μ .+ sqrt(5.991) .* (L * [cos(θ), sin(θ)])) for θ in range(0, 2π, length = n)]
 end
@@ -102,15 +105,19 @@ end
 
 function simulate_tram(steps; seed = 7)
     rng = MersenneTwister(seed)
+    # The sensor reads dark (o = 2) with probability O[1, s, 2], otherwise light (o = 1).
     sense(s) = rand(rng) < O[1, s, 2] ? 2 : 1
-    s = 1
+    s = 1                                   # the true stop, hidden from the filter
     o = sense(s)
+    # Step 0: no move yet, so the uniform prior is only corrected by the first reading.
     b_pred = fill(1 / n, n)
     b = correct_discrete(b_pred, O, 1, o)
     history = [(t = 0, stop = s, obs = o, pred = b_pred, post = b)]
     for t in 1:steps
+        # The world moves: draw the next stop from row s of the transition model...
         s = rand(rng, Distributions.Categorical(T[s, 1, :]))
         o = sense(s)
+        # ...and the filter, which sees only o, predicts and then corrects.
         b_pred = predict_discrete(b, T, 1)
         b = correct_discrete(b_pred, O, 1, o)
         push!(history, (t = t, stop = s, obs = o, pred = b_pred, post = b))
@@ -129,16 +136,19 @@ let steps = length(tram) - 1
     top = Axis(fig[1, 1], height = 16, xticksvisible = false, xticklabelsvisible = false,
                yticksvisible = false, yticklabelsvisible = false, ylabel = "Sensor", ylabelrotation = 0,
                xgridvisible = false, ygridvisible = false, leftspinevisible = false, bottomspinevisible = false)
+    # The sensor strip: a one-row heatmap, pale for light (1) and dark gray for dark (2).
     heatmap!(top, 0:steps, [1], reshape([h.obs for h in tram], :, 1),
              colormap = [ADM.SEQUENTIAL_BLUE[1], ADM.INK_SECONDARY], colorrange = (1, 2))
     ax = Axis(fig[2, 1], xlabel = "Time step t", ylabel = "Stop", yticks = 1:n,
               ytickformat = ys -> [s in tunnels ? "$(Int(s)) (tunnel)" : string(Int(s)) for s in ys],
               xgridvisible = false, ygridvisible = false)
+    # hcat puts one belief vector per column (stop × time); heatmap! wants its matrix
+    # indexed [x, y] = [time, stop], so transpose it.
     post = permutedims(reduce(hcat, [h.post for h in tram]))
     hm = heatmap!(ax, 0:steps, 1:n, post, colormap = seq, colorrange = (0, 1))
     scatter!(ax, 0:steps, [h.stop for h in tram], color = orange, marker = :diamond,
              markersize = 12, strokecolor = :white, strokewidth = 1)
-    linkxaxes!(top, ax)
+    linkxaxes!(top, ax)          # the strip and the heatmap share one time axis
     rowgap!(fig.layout, 4)
     Colorbar(fig[2, 2], hm, label = "Belief b(s)")
     fig
@@ -301,6 +311,7 @@ import numpy as np
 # 12 stops on a loop (0-based here); stops 2, 3, 4, 8 and 10 are in tunnels.
 n, tunnels = 12, {2, 3, 4, 8, 10}
 # One action (0 = drive): advance 1 stop w.p. 0.8, stay w.p. 0.1, skip ahead 2 w.p. 0.1.
+# The % n wraps around the loop: after stop 11 comes stop 0.
 T = np.zeros((n, 1, n))
 for s in range(n):
     for step, p in ((0, 0.1), (1, 0.8), (2, 0.1)):
@@ -318,11 +329,13 @@ for s in range(n):
 # 12 stops on a loop; stops 3, 4, 5, 9 and 11 are in tunnels.
 n, tunnels = 12, [3, 4, 5, 9, 11]
 # One action (1 = drive): advance 1 stop w.p. 0.8, stay w.p. 0.1, skip ahead 2 w.p. 0.1.
+# mod1 wraps around the loop with 1-based numbering: after stop 12 comes stop 1.
 T = zeros(n, 1, n)
 for s in 1:n, (step, p) in ((0, 0.1), (1, 0.8), (2, 0.1))
     T[s, 1, mod1(s + step, n)] += p
 end
 # Light sensor: o = 1 "light", o = 2 "dark". Reads dark 90% of the time in a tunnel, 20% outside.
+# O[a, s′, o]: the last axis is the observation, so each O[1, s, :] sums to 1.
 O = zeros(1, n, 2)
 for s in 1:n
     p_dark = s in tunnels ? 0.9 : 0.2
@@ -416,7 +429,9 @@ md`**Step ${t}.** ${t === 0 ? "No move yet; the prior is uniform." : "The tram d
 {
   const step = tram.steps[t];
   const b = phase === "after predicting" ? step.pred : step.post;
-  const bars = b.map((p, i) => ({stop: i + 1, p}));
+  const bars = b.map((p, i) => ({stop: i + 1, p}));      // stops are numbered from 1
+  // Marks, back to front: full-height gray bars behind the tunnel stops, the belief bars,
+  // and a downward triangle (a triangle rotated 180°) above the true stop.
   return Plot.plot({
     width: 640, height: 300, marginBottom: 40,
     style: {background: tram.style.surface, color: tram.style.ink},
@@ -442,9 +457,9 @@ This runs the Kalman filter on 25 steps of the kayak, with the GPS readings fixe
 let rng = MersenneTwister(11)
     s, truth, readings = 0.0, Float64[], Float64[]
     for _ in 1:25
-        s = s + 2 + randn(rng)
+        s = s + 2 + randn(rng)                 # paddle 2 m, plus drift with variance Σs = 1
         push!(truth, s)
-        push!(readings, s + 2 * randn(rng))
+        push!(readings, s + 2 * randn(rng))    # GPS noise: standard deviation 2, so Σo = 4
     end
     write_json(Dict("a" => 2.0, "mu0" => 0.0, "var0" => 9.0,
                     "truth" => round.(truth, digits = 3), "obs" => round.(readings, digits = 3),
@@ -461,13 +476,15 @@ viewof logR = Inputs.range([-2, 2], {step: 0.1, value: Math.log10(4), label: "lo
 
 ```{ojs}
 kf = {
-  const q = 10 ** logQ, r = 10 ** logR;
+  // The 1D Kalman filter, re-run from scratch whenever a slider moves. With every
+  // matrix equal to 1, the update is just scalar arithmetic.
+  const q = 10 ** logQ, r = 10 ** logR;        // sliders are on a log scale
   let mu = kayak.mu0, v = kayak.var0;
   return kayak.obs.map((o, i) => {
-    const mp = mu + kayak.a, vp = v + q;       // predict
-    const K = vp / (vp + r);                   // gain
+    const mp = mu + kayak.a, vp = v + q;       // predict: move 2 m, variance grows by Σs
+    const K = vp / (vp + r);                   // gain: trust in the reading vs the prediction
     mu = mp + K * (o - mp); v = (1 - K) * vp;  // correct
-    return {t: i + 1, mu, lo: mu - 2 * Math.sqrt(v), hi: mu + 2 * Math.sqrt(v), K};
+    return {t: i + 1, mu, lo: mu - 2 * Math.sqrt(v), hi: mu + 2 * Math.sqrt(v), K};   // ±2σ band
   });
 }
 ```
@@ -480,6 +497,8 @@ md`Assumed Σs = ${(10 ** logQ).toFixed(2)}, Σo = ${(10 ** logR).toFixed(2)}. T
 //| label: fig-kalman-explorer
 //| fig-cap: "Kalman filter on the kayak with adjustable assumed noise. The band is the filter's ±2σ uncertainty."
 //| fig-alt: "Interactive line chart of position over 25 time steps with two sliders for the assumed process and sensor noise. A dark line shows the true position, gray dots the GPS readings, and a blue line with a shaded band the Kalman estimate and its uncertainty."
+// Each series gets a constant "name" (e.g. stroke: () => "True position"), which the
+// color scale maps to a color; that's how the legend is built.
 Plot.plot({
   width: 640, height: 320,
   style: {background: kayak.style.surface, color: kayak.style.ink},
@@ -541,9 +560,11 @@ def kalman_predict(mu_b, Sigma_b, a, m):
 
 def kalman_correct(mu_p, Sigma_p, o, m):
     Os = m["Os"]
+    # (Os Sigma_p Os^T + Sigma_o) is the covariance of the predicted observation.
+    # inv() is fine for these small matrices; np.linalg.solve is more stable for big ones.
     K = Sigma_p @ Os.T @ np.linalg.inv(Os @ Sigma_p @ Os.T + m["Sigma_o"])
-    mu_b = mu_p + K @ (o - Os @ mu_p)
-    Sigma_b = Sigma_p - K @ Os @ Sigma_p
+    mu_b = mu_p + K @ (o - Os @ mu_p)       # move toward the observation by the innovation
+    Sigma_b = Sigma_p - K @ Os @ Sigma_p    # the uncertainty always shrinks
     return mu_b, Sigma_b, K
 
 def kalman_update(mu_b, Sigma_b, a, o, m):
@@ -571,8 +592,10 @@ def update_particles(particles, a, o, sample_next, likelihood, rng):
     w = np.array([likelihood(o, a, s2) for s2 in moved])            # weight
     if w.sum() == 0:
         raise ValueError("every particle has zero weight")
+    # Resample: draw N indices with probability proportional to weight. Heavy
+    # particles get copied, light ones tend to vanish, and all weights reset to equal.
     keep = rng.choice(len(moved), size=len(moved), p=w / w.sum())
-    return moved[keep]                                              # resample
+    return moved[keep]
 ```
 ## Julia
 ```{julia}
@@ -625,14 +648,18 @@ A buoy drifts on the sea with a roughly constant velocity. Its state is position
 
 ```{julia}
 #| include: false
+# State s = (x, y, ẋ, ẏ): position and velocity. Ts adds the velocity to the position each
+# step (constant velocity). There is no control input, so Ta is zero. Σs lets the velocity
+# drift slowly. Os keeps only the position (the GPS doesn't see velocity), with 2 m noise.
 buoy = LinearGaussianModel([1 0 1 0; 0 1 0 1; 0 0 1 0; 0 0 0 1], zeros(4, 2),
                            Diagonal([0.01, 0.01, 0.002, 0.002]), [1 0 0 0; 0 1 0 0], 4.0 * I(2))
 function track_buoy(steps; seed = 5)
     rng = MersenneTwister(seed)
-    s = [0.0, 0.0, 1.0, 0.5]
-    μ, Σ = zeros(4), 10.0 * Matrix(I, 4, 4)
+    s = [0.0, 0.0, 1.0, 0.5]                     # true start: at the origin, drifting east-northeast
+    μ, Σ = zeros(4), 10.0 * Matrix(I, 4, 4)      # the filter starts vague and assumes zero velocity
     truth, fixes, means, covs = [s[1:2]], Vector{Float64}[], [μ[1:2]], [Σ[1:2, 1:2]]
     for _ in 1:steps
+        # Σs is diagonal, so each state component gets independent noise with std sqrt(Σs[i, i]).
         s = buoy.Ts * s .+ sqrt.(diag(buoy.Σs)) .* randn(rng, 4)
         o = s[1:2] .+ 2 .* randn(rng, 2)
         μ, Σ = kalman_update(μ, Σ, zeros(2), o, buoy)
@@ -670,13 +697,15 @@ While the rover drives straight east, the readings can't tell *north* of the bea
 #| include: false
 function localize(; seed = 3, N = 2000)
     rng = MersenneTwister(seed)
-    σm, σr = 0.3, 0.5
+    σm, σr = 0.3, 0.5                  # motion noise and range-sensor noise (standard deviations)
     sample_next(rng, s, a) = s .+ a .+ σm .* randn(rng, 2)
-    stay(rng, s, a) = s
+    stay(rng, s, a) = s                # used for step 0: nothing moves before the first reading
+    # Gaussian likelihood of the measured distance o, with the beacon at the origin. The
+    # normalizing constant is left out: it's the same for every particle, so it cancels.
     likelihood(o, a, s′) = exp(-(o - norm(s′))^2 / (2σr^2))
     truth = [-4.0, 3.0]
-    particles = [20 .* rand(rng, 2) .- 10 for _ in 1:N]
-    actions = [[[1.0, 0.0] for _ in 1:6]; [[0.0, 1.0] for _ in 1:6]]
+    particles = [20 .* rand(rng, 2) .- 10 for _ in 1:N]   # uniform over the 20 m square
+    actions = [[[1.0, 0.0] for _ in 1:6]; [[0.0, 1.0] for _ in 1:6]]   # 6 steps east, then 6 north
     frames = Dict{Int, Any}()
     o = norm(truth) + σr * randn(rng)
     particles = update_particles(particles, [0.0, 0.0], o, stay, likelihood, rng)

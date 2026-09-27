@@ -14,9 +14,11 @@ end
 
 # Correct: blend prediction and observation using the Kalman gain K.
 function kalman_correct(μp, Σp, o, m::LinearGaussianModel)
+    # A / B means A * inv(B), computed without forming the inverse.
+    # (Os Σp Os' + Σo) is the covariance of the predicted observation.
     K = Σp * m.Os' / (m.Os * Σp * m.Os' + m.Σo)
-    μb = μp + K * (o - m.Os * μp)
-    Σb = Σp - K * m.Os * Σp
+    μb = μp + K * (o - m.Os * μp)     # move toward the observation by the innovation
+    Σb = Σp - K * m.Os * Σp           # same as (I - K Os) Σp, but also works with plain numbers
     return μb, Σb, K
 end
 

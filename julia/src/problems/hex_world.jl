@@ -31,11 +31,12 @@ function hex_mdp(tiles, rewards; γ = 0.9, p_intended = 0.7, bump_cost = 1.0)
             T[i, :, terminal] .= 1.0
             continue
         end
+        # da = 0 is the chosen direction; ±1 are its two neighbors. mod1 wraps 0 → 6 and 7 → 1.
         for a in 1:nA, (da, p) in ((0, p_intended), (-1, p_veer), (1, p_veer))
             target = hex_neighbor(tile, HEX_DIRECTIONS[mod1(a + da, nA)])
             if haskey(index, target)
                 T[i, a, index[target]] += p
-            else
+            else   # off the map: stay put and pay the bump cost in expectation
                 T[i, a, i] += p
                 R[i, a] -= p * bump_cost
             end

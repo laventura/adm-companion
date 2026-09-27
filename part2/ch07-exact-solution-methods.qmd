@@ -38,25 +38,31 @@ from adm.problems.gridworld import ACTIONS, MOVES, ROVER
 style.apply()
 T_rover, R_rover = ROVER.mdp()
 GAMMA = 0.9
+# Diverging colors centered at 0: negative values red, positive blue, 0 neutral,
+# with ±10 (the biggest rewards) at the two ends.
 NORM = TwoSlopeNorm(vmin=-10, vcenter=0, vmax=10)
 CMAP = style.diverging_cmap()
 
 
 def draw_grid(ax, U, policy=None, values=True, title=None, head=10):
     """Draw Rover-world values as colored cells, with optional greedy-policy arrows."""
+    # Cell (r, c) is a rounded square centered at x = c, y = r. The y-axis is
+    # flipped below (set_ylim), so row 0 is drawn at the top, as in the grid.
     for (r, c) in ROVER.walls:
         ax.add_patch(FancyBboxPatch((c - 0.45, r - 0.45), 0.9, 0.9, boxstyle="round,pad=0,rounding_size=0.06",
                                     facecolor=style.INK_SECONDARY, edgecolor="none"))
     for i, (r, c) in enumerate(ROVER.cells):
         ax.add_patch(FancyBboxPatch((c - 0.45, r - 0.45), 0.9, 0.9, boxstyle="round,pad=0,rounding_size=0.06",
                                     facecolor=CMAP(NORM(U[i])), edgecolor="none"))
-        ink = "white" if abs(U[i]) > 6 else style.INK
+        ink = "white" if abs(U[i]) > 6 else style.INK      # white text on the darkest cells, for contrast
         if (r, c) in ROVER.rewards:
             ax.text(c, r, f"{ROVER.rewards[(r, c)]:+g}", ha="center", va="center", color=ink, fontweight="bold")
             continue
         if values:
             ax.text(c, r + 0.28, f"{U[i]:.1f}", ha="center", va="center", fontsize=8, color=ink)
         if policy is not None:
+            # MOVES gives (row step, column step); the arrow runs from tail to head through
+            # the cell's center, nudged up when a value is printed below it.
             dr, dc = MOVES[ACTIONS[policy[i]]]
             y = r - 0.08 if values else r
             ax.annotate("", xy=(c + 0.3 * dc, y + 0.3 * dr), xytext=(c - 0.3 * dc, y - 0.3 * dr),
@@ -411,11 +417,13 @@ In sweep 2, Low's value becomes positive for the first time, because charging no
 U_drone, history_drone = value_iteration(T, R, gamma)
 names = ["deliver", "charge"]
 rows = ["| Sweep $k$ | $U_k(\\text{High})$ | $U_k(\\text{Low})$ | Greedy in High | Greedy in Low |", "|---|---|---|---|---|"]
+# Sweeps 0–5, then a "…" row (None), then the final sweep.
 for k in [*range(6), None, len(history_drone) - 1]:
     if k is None:
         rows.append("| … | … | … | … | … |")
         continue
     U = history_drone[k]
+    # At k = 0 every value is 0, so every action ties and "greedy" means nothing yet.
     act = greedy(T, R, gamma, U)[0] if k > 0 else None
     rows.append(f"| {k} | {U[0]:.3f} | {U[1]:.3f} | {names[act[0]] if k else '—'} | {names[act[1]] if k else '—'} |")
 Markdown("\n".join(rows))
@@ -451,6 +459,8 @@ Drag the slider to run value iteration on the Rover grid one sweep at a time. Th
 
 ```{python}
 #| include: false
+# residuals[k] is the change from sweep k-1 to sweep k; sweep 0 has none. Likewise
+# there is no greedy policy at sweep 0, where all values are 0 and every action ties.
 residuals = [None] + [float(np.max(np.abs(b - a))) for a, b in zip(history_rover, history_rover[1:])]
 write_json({
     "rows": ROVER.rows,
@@ -487,12 +497,15 @@ md`**Sweep ${k}.** Bellman residual: ${k === 0 ? "—" : vi.iterations[k].residu
 //| fig-cap: "Value iteration on the Rover grid (γ = 0.9, slip 0.3), one sweep at a time. Cell color and number show $U_k(s)$; arrows show the greedy policy for those values."
 //| fig-alt: "Interactive grid of 4 rows and 5 columns with a slider for the sweep number. Each open cell shows its current value and an arrow for the greedy action; walls are dark gray; reward cells are labeled +10, −10 and +3."
 {
-  const it = vi.iterations[k];
+  const it = vi.iterations[k];                       // values (and policy) after sweep k
   const arrow = {N: "↑", E: "→", S: "↓", W: "←"};
+  // One record per open cell: its position, reward (null if none), value, and greedy action.
   const cells = vi.cells.map((d, i) => ({...d, U: it.U[i], a: it.policy ? vi.actions[it.policy[i]] : null}));
   const open = cells.filter(d => d.reward === null);
-  const ink = d => Math.abs(d.U) > 6 ? "white" : vi.style.ink;
-  const arrows = showPolicy && it.policy;
+  const ink = d => Math.abs(d.U) > 6 ? "white" : vi.style.ink;   // white text on the darkest cells
+  const arrows = showPolicy && it.policy;            // sweep 0 has no policy (all values tie)
+  // Cells are placed on band scales x = column, y = row (row 0 on top). A mark that is
+  // null is skipped, which is how the arrows switch off.
   return Plot.plot({
     width: 480, height: 400, padding: 0,
     style: {background: vi.style.surface, color: vi.style.ink, fontSize: "13px"},
@@ -523,9 +536,12 @@ The discount factor $\gamma$ sets how much a reward several steps away is worth.
 gammas = [0.5, 0.7, 0.9, 0.95, 0.99]
 glyph = {"N": "↑", "E": "→", "S": "↓", "W": "←"}
 fig = go.Figure()
+# One heatmap trace per γ, all but one hidden. The slider below just switches which
+# trace is visible, so no computation happens in the browser.
 for g in gammas:
     U, _ = value_iteration(T_rover, R_rover, g)
     policy, _ = greedy(T_rover, R_rover, g, U)
+    # A row-by-column grid; None leaves a gap, which is where the walls go.
     z = [[None] * ROVER.cols for _ in range(ROVER.rows)]
     text = [[""] * ROVER.cols for _ in range(ROVER.rows)]
     for i, (r, c) in enumerate(ROVER.cells):
@@ -544,6 +560,7 @@ fig.update_layout(**style.plotly_layout())
 fig.update_layout(
     height=440,
     xaxis={"visible": False},
+    # Reversed so row 0 is on top; scaleanchor keeps the cells square.
     yaxis={"visible": False, "autorange": "reversed", "scaleanchor": "x"},
     sliders=[{
         "active": gammas.index(GAMMA),
@@ -574,11 +591,14 @@ show_source(lookahead, greedy)
 using LinearAlgebra
 
 # Q[s, a] = R(s, a) + γ Σ_s′ T(s′ | s, a) U(s′), for every s and a.
+# A comprehension with two `for` clauses builds a matrix: rows are states, columns actions.
+# dot(T[s, a, :], U) is the expected next-state value.
 lookahead(T, R, γ, U) = [R[s, a] + γ * dot(T[s, a, :], U) for s in axes(R, 1), a in axes(R, 2)]
 
 # The greedy policy with respect to U, and the value of each greedy action.
 function greedy(T, R, γ, U)
     Q = lookahead(T, R, γ, U)
+    # eachrow(Q) is one row per state; the dot applies argmax/maximum to every row.
     return argmax.(eachrow(Q)), maximum.(eachrow(Q))
 end
 ```
@@ -599,6 +619,7 @@ show_source(policy_matrices, policy_evaluation_iterative, policy_evaluation_exac
 # T_π[s, s′] and R_π[s]: the MDP with the policy's action fixed in every state.
 function policy_matrices(T, R, policy)
     S = eachindex(policy)
+    # Row s keeps only the transitions of the action the policy picks in s.
     T_π = [T[s, policy[s], s′] for s in S, s′ in S]
     R_π = [R[s, policy[s]] for s in S]
     return T_π, R_π
@@ -619,6 +640,7 @@ end
 # Solve the linear system (I - γ T_π) U = R_π.
 function policy_evaluation_exact(T, R, γ, policy)
     T_π, R_π = policy_matrices(T, R, policy)
+    # A \ b solves A x = b. I is the identity; it takes whatever size the expression needs.
     return (I - γ * T_π) \ R_π
 end
 ```
@@ -642,9 +664,10 @@ function value_iteration(T, R, γ; δ=1e-6, k_max=10_000)
     U = zeros(size(R, 1))
     history = [U]
     for _ in 1:k_max
+        # Bellman backup: max over actions (dims=2) of the lookahead; vec turns the S×1 result into a vector.
         U′ = vec(maximum(lookahead(T, R, γ, U), dims=2))
         push!(history, U′)
-        maximum(abs.(U′ - U)) < δ && break
+        maximum(abs.(U′ - U)) < δ && break      # Bellman residual below δ: stop
         U = U′
     end
     return history[end], history
@@ -669,7 +692,7 @@ function policy_iteration(T, R, γ, policy; k_max=100)
     U = policy_evaluation_exact(T, R, γ, policy)
     for _ in 1:k_max
         improved, _ = greedy(T, R, γ, U)
-        improved == policy && break
+        improved == policy && break    # greedy on its own values changes nothing: optimal
         policy = improved
         push!(history, policy)
         U = policy_evaluation_exact(T, R, γ, policy)
@@ -691,8 +714,8 @@ policy, U_pi, policies = policy_iteration(T, R, gamma, np.array([0, 0]))
 ## Julia
 ```{.julia .snippet}
 U_star, history = value_iteration(T, R, γ)
-policy, U_pi, policies = policy_iteration(T, R, γ, [1, 1])
-@assert policy == [1, 2]
+policy, U_pi, policies = policy_iteration(T, R, γ, [1, 1])   # start: deliver in both states
+@assert policy == [1, 2]                                       # deliver when High, charge when Low
 @assert isapprox(U_star, U_pi; atol=1e-4)
 ```
 :::
@@ -734,9 +757,10 @@ plt.show()
 fig, ax = plt.subplots(figsize=(6.4, 3.6))
 for color, g in zip(style.CATEGORICAL, [0.5, 0.9, 0.99]):
     _, hist = value_iteration(T_rover, R_rover, g)
+    # Residual of sweep k: the largest change between consecutive iterates.
     res = [np.max(np.abs(b - a)) for a, b in zip(hist, hist[1:])]
     ax.semilogy(range(1, len(res) + 1), res, color=color, label=rf"$\gamma = {g}$")
-    at = int(0.6 * len(res))
+    at = int(0.6 * len(res))    # label each line 60% along, where the lines are well apart
     ax.annotate(rf"$\gamma = {g}$", (at + 1, res[at]), xytext=(6, 4), textcoords="offset points",
                 fontsize=9, color=style.INK_SECONDARY)
 ax.axhline(1e-6, color=style.MUTED, linestyle="--", linewidth=1)
@@ -755,6 +779,7 @@ plt.show()
 #| label: fig-pi-steps
 #| fig-cap: "Policy iteration on the Rover grid (γ = 0.9), starting from 'always drive north'. Each panel shows a policy and its exact value $U^\\pi$; the last panel is optimal."
 #| fig-alt: "Row of small grid heatmaps. The first shows every arrow pointing up, with mostly pale cells. In each following panel more arrows turn toward the +10 cell and the cells turn a deeper blue. The final panel matches the optimal policy."
+# Start from action index 0 everywhere, which is "N": always drive north.
 _, _, policies_rover = policy_iteration(T_rover, R_rover, GAMMA, np.zeros(len(U_rover), dtype=int))
 fig, axes = plt.subplots(1, len(policies_rover), figsize=(2.5 * len(policies_rover) + 1, 2.6))
 for i, (ax, p) in enumerate(zip(np.atleast_1d(axes), policies_rover)):

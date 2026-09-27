@@ -47,6 +47,9 @@ class GridWorld:
                 T[i, :, done] = 1.0
                 continue
             for a, intended in enumerate(ACTIONS):
+                # Every direction can happen; the intended one is most likely.
+                # += (not =) because several directions can land on the same
+                # cell, e.g. two bumps into walls both leave you in place.
                 for actual in ACTIONS:
                     p = 1 - self.slip if actual == intended else self.slip / 3
                     T[i, a, index[self.move(cell, actual)]] += p

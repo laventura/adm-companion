@@ -17,17 +17,23 @@ def lookahead(T: Array, R: Array, gamma: float, U: Array) -> Array:
 
     Computed for every state s and action a at once.
     """
+    # T has shape (S, A, S) and U has shape (S,). The @ sums over T's last
+    # axis, giving an (S, A) array of expected next-state values.
     return R + gamma * T @ U
 
 
 def greedy(T: Array, R: Array, gamma: float, U: Array) -> tuple[Array, Array]:
     """The greedy policy with respect to U, and each greedy action's value."""
     Q = lookahead(T, R, gamma, U)
+    # axis=1 runs over actions: best action (and its value) in each state.
+    # argmax breaks ties by taking the first action.
     return Q.argmax(axis=1), Q.max(axis=1)
 
 
 def policy_matrices(T: Array, R: Array, policy: Array) -> tuple[Array, Array]:
     """T_pi[s, s2] and R_pi[s]: the MDP with the policy's action fixed."""
+    # Paired indexing: row s of T_pi is T[s, policy[s], :], i.e. each state
+    # keeps only the transition row of the action the policy picks there.
     s = np.arange(len(policy))
     return T[s, policy], R[s, policy]
 
@@ -66,8 +72,10 @@ def value_iteration(
     U = np.zeros(R.shape[0])
     history = [U]
     for _ in range(k_max):
+        # Bellman backup: best one-step lookahead on the old estimate.
         U_next = lookahead(T, R, gamma, U).max(axis=1)
         history.append(U_next)
+        # Bellman residual: the largest change in any state this sweep.
         if np.max(np.abs(U_next - U)) < delta:
             break
         U = U_next
@@ -85,6 +93,8 @@ def policy_iteration(
     U = policy_evaluation_exact(T, R, gamma, policy)
     for _ in range(k_max):
         improved, _ = greedy(T, R, gamma, U)
+        # If acting greedily on the policy's own values changes nothing, the
+        # policy satisfies the Bellman optimality equation: it is optimal.
         if np.array_equal(improved, policy):
             break
         policy = improved

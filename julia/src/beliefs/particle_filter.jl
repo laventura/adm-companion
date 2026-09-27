@@ -6,6 +6,8 @@ function update_particles(particles, a, o, sample_next, likelihood, rng)
     moved = [sample_next(rng, s, a) for s in particles]    # predict
     w = [likelihood(o, a, s′) for s′ in moved]             # weight
     sum(w) > 0 || error("every particle has zero weight: the observation is impossible under this belief")
+    # Resample: draw N particle indices with probability proportional to weight.
+    # Heavy particles get copied, light ones tend to vanish; all weights reset to equal.
     keep = rand(rng, Categorical(w ./ sum(w)), length(moved))
-    return moved[keep]                                     # resample
+    return moved[keep]
 end

@@ -49,11 +49,15 @@ def hex_mdp(tiles, rewards, gamma=0.9, p_intended=0.7, bump_cost=1.0) -> Discret
             T[i, :, terminal] = 1.0
             continue
         for a in range(len(DIRECTIONS)):
+            # da = 0 is the chosen direction; da = -1 and +1 are the two
+            # neighboring directions (60 degrees either way, wrapping around).
             for da, p in ((0, p_intended), (-1, p_veer), (1, p_veer)):
                 target = neighbor(tile, DIRECTIONS[(a + da) % len(DIRECTIONS)])
                 if target in index:
                     T[i, a, index[target]] += p
                 else:
+                    # Off the map: stay put, and charge the bump cost in
+                    # expectation (weighted by how likely this outcome is).
                     T[i, a, i] += p
                     R[i, a] -= p * bump_cost
     T[terminal, :, terminal] = 1.0

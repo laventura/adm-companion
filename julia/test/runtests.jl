@@ -61,6 +61,11 @@ end
     @test size(straight_line_hex_world().T) == (8, 6, 8)
 end
 
+@testset "Bayes net chain rule" begin
+    c = commute_network()
+    @test probability(c, Dict(:S => 2, :R => 1, :J => 2, :L => 2, :A => 2)) ≈ 0.1 * 0.8 * 0.7 * 0.5 * 0.95
+end
+
 @testset "show_source" begin
     out = sprint(io -> show_source("beliefs/discrete_filter.jl", io))
     @test startswith(out, "```julia\n") && endswith(rstrip(out), "```")

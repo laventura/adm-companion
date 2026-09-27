@@ -6,6 +6,18 @@ This site uses the book's notation. Symbols are added here as chapters are writt
 
 | Symbol | Meaning | First used |
 |---|---|---|
+| $P(x)$ | Probability mass function (discrete): the probability that $X = x$ | Ch 2 |
+| $p(x)$ | Probability density function (continuous); probabilities are areas under it | Ch 2 |
+| $\operatorname{cdf}(x)$ | Cumulative distribution function, $P(X \le x)$ | Ch 2 |
+| $\mathcal{N}(x \mid \mu, \sigma^2)$ | Gaussian with mean $\mu$ and variance $\sigma^2$; $\mathcal{N}(\mathbf{x} \mid \boldsymbol\mu, \boldsymbol\Sigma)$ is the multivariate version | Ch 2 |
+| $\mathcal{U}(x \mid a, b)$ | Uniform distribution on $[a, b]$ | Ch 2 |
+| $\rho_i$ | Weight of component $i$ in a mixture | Ch 2 |
+| $x^0$, $x^1$ | The two values of a binary variable: no, yes | Ch 2 |
+| $P(x \mid y)$ | Conditional probability of $x$ given $y$ | Ch 2 |
+| $\theta_1$, $\theta_2$ | Threshold and softness of a sigmoid conditional | Ch 2 |
+| $x_{1:n}$ | The values $x_1, \ldots, x_n$ | Ch 2 |
+| $\mathrm{pa}(x_i)$ | Values of the parents of $X_i$ in a Bayesian network | Ch 2 |
+| $(X \perp Y \mid Z)$ | $X$ and $Y$ are conditionally independent given $Z$ | Ch 2 |
 | $\mathcal{S}$ | State space | Ch 7 |
 | $\mathcal{A}$ | Action space | Ch 7 |
 | $T(s' \mid s, a)$ | Transition model: probability of reaching $s'$ from $s$ after action $a$ | Ch 7 |

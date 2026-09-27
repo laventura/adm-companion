@@ -201,6 +201,7 @@ Several chapters define their own small, original problems. They live next to th
 
 | Problem | Kind | Page | Code |
 |---|---|---|---|
+| Morning commute | Bayesian network, 5 binary variables | [Ch 2](../part1/ch02-representation.qmd) | `adm/problems/commute.py` |
 | Rover grid | MDP, 4×5 grid with slip | [Ch 7](../part2/ch07-exact-solution-methods.qmd) | `adm/problems/gridworld.py` |
 | Delivery drone | MDP, 2 states | [Ch 7](../part2/ch07-exact-solution-methods.qmd) | on the page |
 | Factory machine | MDP, 2 states (solved problem) | [Ch 7](../part2/ch07-exact-solution-methods.qmd) | on the page |

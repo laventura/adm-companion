@@ -1,8 +1,772 @@
 ---
 title: "2 · Representation"
 subtitle: "Part I — Probabilistic Reasoning"
+jupyter: python3
+execute:
+  echo: false
 ---
 
 ::: {.callout-note appearance="minimal"}
-**In progress.** This page will cover ADM Ch. 2, *Representation*.
+**Executed in:** Python · **Book:** ADM Ch. 2 · **Lecture:** to be added
 :::
+<!-- TODO(video): link the official Stanford AA228 lecture on representation / Bayesian networks. -->
+
+```{python}
+#| include: false
+from itertools import combinations
+
+import numpy as np
+import matplotlib.pyplot as plt
+import plotly.graph_objects as go
+from IPython.display import Markdown
+from scipy import stats
+
+from adm import style
+from adm.bayes_net import active_trail, d_separated, joint_table, num_parameters, probability
+from adm.io import write_json
+from adm.page import show_source
+from adm.problems.commute import COMMUTE, NAMES, PARENTS
+
+style.apply()
+blue, orange, green = style.CATEGORICAL[:3]
+ORDER = list(PARENTS)                       # S, R, J, L, A: the axes of joint_table
+joint = joint_table(COMMUTE)
+```
+
+## Big picture
+
+Part I is about reasoning under uncertainty before any decisions are made. Before an agent can reason, it needs a way to *write down* what it believes. This chapter is about that language: probability distributions for single quantities, joint distributions for many at once, and **Bayesian networks**, which make joint distributions small enough to store by exploiting which variables directly influence which.
+
+The one-sentence idea: **a joint distribution over many variables is usually far too large to write out, but if each variable depends directly on only a few others, you can store it as a product of small local tables, one per variable, arranged on a graph.**
+
+```{dot}
+//| label: fig-ch02-map
+//| fig-width: 7
+//| fig-height: 2.13
+//| fig-cap: "Map of this chapter. Each step builds a bigger object out of the previous one, and the Bayesian network is the payoff: a compact joint distribution whose graph also answers independence questions."
+//| fig-alt: "Flow diagram, left to right: a box for one variable (discrete or continuous distributions) leads to a box for many variables (joint distributions, which grow exponentially). That leads to conditional distributions (tables, linear Gaussian, sigmoid), which lead to a blue box for Bayesian networks (a graph plus one conditional table per variable). From there, an arrow labeled 'read off' leads to conditional independence (d-separation)."
+digraph ch02 {
+  rankdir=TB; bgcolor="#fcfcfb"; pad=0.25; nodesep=0.5; ranksep=0.5;
+  node [shape=box, style="rounded,filled", fillcolor="white", color="#c3c2b7", penwidth=1.2,
+        fontname="Helvetica", fontsize=13, fontcolor="#0b0b0b", margin="0.14,0.08"];
+  edge [color="#52514e", penwidth=1.2, arrowsize=0.7, fontname="Helvetica", fontsize=11, fontcolor="#52514e"];
+  one [label=<<B>One variable</B><BR/><FONT POINT-SIZE="11">discrete or continuous</FONT>>];
+  many [label=<<B>Many variables</B><BR/><FONT POINT-SIZE="11">joint: grows exponentially</FONT>>];
+  cond [label=<<B>Conditionals</B><BR/><FONT POINT-SIZE="11">tables, linear Gaussian,<BR/>sigmoid</FONT>>];
+  bn [label=<<B>Bayesian network</B><BR/><FONT POINT-SIZE="11">graph + one table<BR/>per variable</FONT>>, fillcolor="#cde2fb", color="#2a78d6"];
+  ci [label=<<B>Independence</B><BR/><FONT POINT-SIZE="11">d-separation</FONT>>];
+  { rank=same; one; many; cond; }
+  { rank=same; bn; ci; }
+  one -> many [label="combine"];
+  many -> cond [label="factor"];
+  cond -> bn [label="assemble"];
+  ci -> bn [label="read off", dir=back];
+}
+```
+
+## Intuition
+
+::: {.callout-tip title="Analogy"}
+Imagine describing every possible morning before work. You track five yes/no facts: was there a storm, roadwork, a traffic jam, were you late, and did the radio warn of a storm? Listing a probability for every combination takes $2^5 = 32$ numbers. With 30 facts it would take about a billion.
+
+But you don't think that way. You think in **local stories**: storms and roadwork cause jams; jams make you late; storms trigger radio alerts. Each story needs only a few numbers ("if there's a jam, I'm late half the time"). Chain the stories together and you can still recover the probability of any full morning, from just 10 numbers.
+:::
+
+That "chain the local stories" idea *is* a Bayesian network. @fig-commute draws the one used throughout this page.
+
+```{dot}
+//| label: fig-commute
+//| fig-width: 3.62
+//| fig-height: 2.79
+//| fig-cap: "The morning-commute Bayesian network. Each arrow points from a cause to an effect; each variable is yes/no, and each comes with a small table of probabilities given its parents."
+//| fig-alt: "A directed graph with five boxes. Storm and Roadwork at the top both point to Traffic jam in the middle. Traffic jam points to Late below it. Storm also points to Radio alert, at the lower left."
+digraph commute {
+  bgcolor="#fcfcfb"; pad=0.2; nodesep=0.5; ranksep=0.45;
+  node [shape=box, style="rounded,filled", fillcolor="white", color="#52514e", penwidth=1.2,
+        fontname="Helvetica", fontsize=13, fontcolor="#0b0b0b"];
+  edge [color="#52514e", penwidth=1.2, arrowsize=0.7];
+  S [label="Storm (S)"]; R [label="Roadwork (R)"]; J [label="Traffic jam (J)"];
+  L [label="Late (L)"]; A [label="Radio alert (A)"];
+  S -> J; R -> J; J -> L; S -> A;
+}
+```
+
+## Formalism
+
+### Probability distributions (one variable)
+
+A probability measures a degree of belief (ADM §2.1): 0 means certainly false, 1 means certainly true. A **distribution** assigns belief to every value a variable can take (ADM §2.2).
+
+::: {.key-equation data-name="Probability mass and density"}
+$$
+\sum_{x} P(x) = 1 \quad\text{(discrete)}
+\qquad\qquad
+\int_{-\infty}^{\infty} p(x)\, dx = 1 \quad\text{(continuous)}
+$$ {#eq-normalization}
+:::
+
+**In words.** For a discrete variable, the probabilities of all values add up to 1. For a continuous one, the *density* curve encloses an area of 1.
+
+**Term by term.**
+
+- $P(x)$ is a **probability mass function (PMF)**: the probability that the variable equals $x$ exactly.
+- $p(x)$ is a **probability density function (PDF)**. It is *not* a probability, and it can exceed 1. Probabilities come from areas: $P(a \le x \le b) = \int_a^b p(x)\, dx$.
+- The distinction matters because a continuous variable takes any single exact value with probability 0.
+
+The **cumulative distribution function** $\operatorname{cdf}(x) = P(X \le x)$ answers "what's the chance of at most $x$?". Its inverse, the **quantile function**, answers "what value is exceeded only $1 - \alpha$ of the time?". For example, the 90% quantile of your commute time is the time you beat 9 days out of 10.
+
+The most important continuous distribution:
+
+::: {.key-equation .famous data-name="Gaussian (normal) distribution"}
+$$
+\mathcal{N}(x \mid \mu, \sigma^2) = \frac{1}{\sigma\sqrt{2\pi}} \exp\!\left(-\frac{(x - \mu)^2}{2\sigma^2}\right)
+$$ {#eq-gaussian}
+:::
+
+**In words.** A symmetric bell curve centered at $\mu$, whose width is set by $\sigma$.
+
+**Term by term.**
+
+- $\mu$ is the mean: the center and the most likely value.
+- $\sigma$ is the standard deviation. About 68% of the probability lies within $\mu \pm \sigma$, and about 95% within $\mu \pm 2\sigma$.
+- $\frac{(x-\mu)^2}{2\sigma^2}$ penalizes distance from the mean, measured in units of $\sigma$. The exponential turns that penalty into a density that falls off fast.
+- $\frac{1}{\sigma\sqrt{2\pi}}$ is just the constant that makes the area equal to 1 (@eq-normalization).
+
+Two other workhorses are the **uniform** $\mathcal{U}(x \mid a, b)$, which is flat on $[a, b]$, and the **mixture**, for data with several distinct modes:
+
+::: {.key-equation data-name="Mixture model"}
+$$
+p(x) = \sum_{i=1}^{n} \rho_i\, \mathcal{N}(x \mid \mu_i, \sigma_i^2), \qquad \rho_i \ge 0,\ \ \sum_i \rho_i = 1
+$$ {#eq-mixture}
+:::
+
+**In words.** Pick one of $n$ bell curves at random, with probability $\rho_i$ for curve $i$, then draw from it.
+
+**Term by term.** $\rho_i$ is the **mixture weight**, or how common component $i$ is. The weights sum to 1, so the mixture still integrates to 1. Commute times are a natural example: normal days cluster around 30 minutes, jam days around 50. You can try it in the [interactive below](#mixture-slider).
+
+@fig-distributions shows a PMF, a PDF and a CDF side by side.
+
+```{python}
+#| label: fig-distributions
+#| fig-cap: "Three ways to describe a distribution. Left: a PMF, the number of late days in a 5-day week. Middle: a PDF, commute time in minutes, where the shaded area is the probability of a 30–45 minute trip. Right: the CDF of the same commute time, with the 90% quantile marked."
+#| fig-alt: "Three panels. The left is a bar chart over 0 to 5 late days, tallest at 0 and 1 and near zero from 3 on. The middle is a bell curve centered at 35 minutes, with the region from 30 to 45 shaded. The right is an S-shaped curve rising from 0 to 1, with a dashed line at probability 0.9 meeting the curve at about 45 minutes."
+p_late = joint.sum(axis=(0, 1, 2, 4))[1]
+commute_time = stats.norm(35, 8)
+fig, axes = plt.subplots(1, 3, figsize=(10, 3))
+k = np.arange(6)
+axes[0].bar(k, stats.binom(5, p_late).pmf(k), color=blue, width=0.6)
+axes[0].set(xlabel="Late days in a week", ylabel="P(x)", title="PMF")
+t = np.linspace(5, 65, 300)
+axes[1].plot(t, commute_time.pdf(t), color=blue)
+band = (t >= 30) & (t <= 45)
+axes[1].fill_between(t[band], commute_time.pdf(t[band]), color=blue, alpha=0.25)
+axes[1].text(37.5, 0.012, f"{commute_time.cdf(45) - commute_time.cdf(30):.2f}", ha="center", color=style.INK)
+axes[1].set(xlabel="Commute time (min)", ylabel="p(x)", title="PDF")
+q90 = commute_time.ppf(0.9)
+axes[2].plot(t, commute_time.cdf(t), color=blue)
+axes[2].plot([5, q90, q90], [0.9, 0.9, 0], color=style.MUTED, linestyle="--", linewidth=1)
+axes[2].text(q90 + 1.5, 0.05, f"90% quantile\n≈ {q90:.0f} min", fontsize=9, color=style.INK_SECONDARY)
+axes[2].set(xlabel="Commute time (min)", ylabel="cdf(x)", title="CDF")
+fig.tight_layout()
+plt.show()
+```
+
+### Joint distributions (many variables)
+
+A **joint distribution** $P(x_1, \ldots, x_n)$ gives the probability of every combination of values (ADM §2.3). For $n$ binary variables, a full table has $2^n$ entries, and $2^n - 1$ free parameters, because the last entry is fixed by the rest summing to 1. That exponential growth is the central problem this chapter solves (@fig-params).
+
+For continuous variables, the standard joint distribution is the multivariate Gaussian:
+
+::: {.key-equation .famous data-name="Multivariate Gaussian"}
+$$
+\mathcal{N}(\mathbf{x} \mid \boldsymbol{\mu}, \boldsymbol{\Sigma}) = \frac{1}{(2\pi)^{n/2} |\boldsymbol{\Sigma}|^{1/2}} \exp\!\left(-\tfrac{1}{2} (\mathbf{x} - \boldsymbol{\mu})^\top \boldsymbol{\Sigma}^{-1} (\mathbf{x} - \boldsymbol{\mu})\right)
+$$ {#eq-mvn}
+:::
+
+**In words.** A bell-shaped hill in $n$ dimensions. The mean $\boldsymbol{\mu}$ sets where the hill is; the covariance $\boldsymbol{\Sigma}$ sets its width in each direction and how the variables move together.
+
+**Term by term.**
+
+- $\boldsymbol{\Sigma}_{ii}$ is the variance of variable $i$. $\boldsymbol{\Sigma}_{ij}$ is the covariance of $i$ and $j$: positive if they tend to rise together, negative if one tends to fall as the other rises.
+- $(\mathbf{x} - \boldsymbol{\mu})^\top \boldsymbol{\Sigma}^{-1} (\mathbf{x} - \boldsymbol{\mu})$ is a squared distance from the mean that accounts for the variables' spreads and correlations (the *Mahalanobis distance*). The contours of equal density are ellipses.
+- $|\boldsymbol{\Sigma}|$, the determinant, measures the overall spread; it keeps the total volume equal to 1.
+- The joint needs only $n$ means and $n(n+1)/2$ covariances, far fewer than a table, because the Gaussian's shape is fixed.
+
+```{python}
+#| label: fig-mvn
+#| fig-cap: "Density contours of a two-variable Gaussian with unit variances and three correlations. Correlation tilts and stretches the ellipses: with ρ = 0.7, a high x₁ makes a high x₂ likely."
+#| fig-alt: "Three square contour plots of nested ellipses. With correlation minus 0.7 the ellipses tilt downward to the right; with correlation 0 they are circles; with correlation 0.7 they tilt upward to the right."
+g = np.linspace(-3, 3, 200)
+X1, X2 = np.meshgrid(g, g)
+fig, axes = plt.subplots(1, 3, figsize=(10, 3.3), sharey=True)
+for ax, rho in zip(axes, [-0.7, 0.0, 0.7]):
+    dens = stats.multivariate_normal([0, 0], [[1, rho], [rho, 1]]).pdf(np.dstack([X1, X2]))
+    ax.contour(X1, X2, dens, levels=6, cmap=style.sequential_cmap(), linewidths=1.5)
+    ax.set(aspect="equal", xlabel="$x_1$", title=rf"$\rho = {rho}$")
+    ax.grid(False)
+axes[0].set_ylabel("$x_2$")
+fig.tight_layout()
+plt.show()
+```
+
+### Conditional distributions
+
+The way out of the exponential table is to describe each variable *given* the few things it depends on (ADM §2.4).
+
+::: {.key-equation .famous data-name="Conditional probability"}
+$$
+P(x \mid y) = \frac{P(x, y)}{P(y)}
+$$ {#eq-conditional}
+:::
+
+**In words.** Among the situations where $y$ holds, what fraction also have $x$?
+
+**Term by term.** $P(x, y)$ is how often $x$ and $y$ happen together. Dividing by $P(y)$ zooms in on the world where $y$ happened, and rescales it so that it sums to 1 again. Rearranged, $P(x, y) = P(x \mid y)\, P(y)$: a joint can be built from a conditional times a marginal. That identity is the seed of the Bayesian network.
+
+A **conditional probability table (CPT)** stores $P(x \mid y)$ for discrete variables: one distribution over $x$ for each value of the parents $y$. Continuous variables need a formula instead. Two common ones:
+
+::: {.key-equation data-name="Linear Gaussian"}
+$$
+p(x \mid y) = \mathcal{N}(x \mid m y + b,\ \sigma^2)
+$$ {#eq-linear-gaussian}
+:::
+
+**In words.** $x$ is a straight-line function of $y$, plus bell-shaped noise.
+
+**Term by term.** $m$ is the slope (how much $x$ moves per unit of $y$), $b$ is the intercept, and $\sigma$ is the noise around the line. For example, trip time might be $m = 1.2$ minutes per minute of delay, plus a baseline $b$, plus noise.
+
+::: {.key-equation data-name="Sigmoid (logistic) model"}
+$$
+P(x^1 \mid y) = \frac{1}{1 + \exp\!\left(-2\,\frac{y - \theta_1}{\theta_2}\right)}
+$$ {#eq-sigmoid}
+:::
+
+**In words.** A smooth on/off switch. The probability that a binary $x$ is "yes" rises from 0 to 1 as a continuous $y$ passes a threshold.
+
+**Term by term.**
+
+- $x^1$ means "$x$ takes value 1", or yes. $x^0$ is no.
+- $\theta_1$ is the threshold: at $y = \theta_1$, the probability is exactly 0.5.
+- $\theta_2$ is the softness. A small $\theta_2$ gives an abrupt switch, and a large one a gradual ramp.
+
+```{python}
+#| label: fig-conditional
+#| fig-cap: "Two conditional distributions for continuous parents. Left: a linear Gaussian, trip time given the delay at a bottleneck; the line is the mean and the band holds 95% of trips. Right: a sigmoid, the probability of being late given the delay, for three softness values θ₂ with threshold θ₁ = 10 minutes."
+#| fig-alt: "Two panels. The left shows a straight line rising from about 25 minutes at zero delay to about 55 at 25 minutes of delay, inside a shaded band of constant width. The right shows three S-shaped curves crossing 0.5 at a delay of 10 minutes: one steep, one moderate, one gradual."
+y = np.linspace(0, 25, 200)
+m, b, s = 1.2, 25, 3.0
+fig, axes = plt.subplots(1, 2, figsize=(10, 3.2))
+axes[0].plot(y, m * y + b, color=blue)
+axes[0].fill_between(y, m * y + b - 2 * s, m * y + b + 2 * s, color=blue, alpha=0.2)
+axes[0].set(xlabel="Delay at bottleneck, y (min)", ylabel="Trip time, x (min)", title="Linear Gaussian")
+for color, t2 in zip(style.CATEGORICAL, [1, 4, 10]):
+    axes[1].plot(y, 1 / (1 + np.exp(-2 * (y - 10) / t2)), color=color, label=rf"$\theta_2 = {t2}$")
+axes[1].axvline(10, color=style.MUTED, linestyle="--", linewidth=1)
+axes[1].set(xlabel="Delay, y (min)", ylabel=r"$P(\mathrm{late} \mid y)$", title="Sigmoid", ylim=(-0.02, 1.02))
+axes[1].legend(loc="lower right")
+fig.tight_layout()
+plt.show()
+```
+
+### Bayesian networks
+
+A **Bayesian network** is a directed acyclic graph with one node per variable, plus one conditional distribution per node given its parents (ADM §2.5). It encodes a joint distribution through one famous identity:
+
+::: {.key-equation .famous data-name="Chain rule for Bayesian networks"}
+$$
+P(x_{1:n}) = \prod_{i=1}^{n} P\big(x_i \mid \mathrm{pa}(x_i)\big)
+$$ {#eq-chain-rule}
+:::
+
+**In words.** The probability of a complete situation is the product of each variable's probability given its parents' values in that situation.
+
+**Term by term.**
+
+- $x_{1:n}$ is a full assignment: a value for every variable.
+- $\mathrm{pa}(x_i)$ is the values of $X_i$'s parents in the graph.
+- Each factor comes straight out of a small CPT.
+
+**Why it holds.** The general chain rule, which comes from applying @eq-conditional repeatedly, says $P(x_{1:n}) = \prod_i P(x_i \mid x_{1:i-1})$ for any ordering. Order the variables so that parents come before children. The network's defining assumption is that each variable, given its parents, is independent of the other variables earlier in the order. So each factor shrinks to $P(x_i \mid \mathrm{pa}(x_i))$.
+
+**What it saves.** A node with $k$ binary parents needs $2^k$ numbers, one $P(\text{yes})$ per parent combination. The commute network needs $1 + 1 + 4 + 2 + 2 = 10$ numbers, where the full table needs 31. With 20 variables and at most two parents each, the difference is at most 80 against about a million (@fig-params).
+
+```{python}
+#| label: fig-params
+#| fig-cap: "Free parameters needed for n binary variables: a full joint table, a Bayesian network where each variable has at most 2 parents, and fully independent variables. The vertical axis is logarithmic, so the full table's straight line is exponential growth."
+#| fig-alt: "Line chart with the number of variables from 1 to 20 across and the number of parameters on a log scale up the side. The full-table line rises steeply and straight, reaching about a million at 20 variables. The Bayesian-network line rises gently to 80. The independent line is lowest, reaching 20."
+n = np.arange(1, 21)
+fig, ax = plt.subplots(figsize=(6.4, 3.6))
+for color, label, counts in [
+    (blue, "Full joint table", 2.0**n - 1),
+    (orange, "Bayes net, ≤ 2 parents", np.minimum(4 * n, 2.0**n - 1)),
+    (green, "Independent", n),
+]:
+    ax.semilogy(n, counts, color=color, label=label, marker="o", markersize=3)
+ax.set(xlabel="Number of binary variables, n", ylabel="Free parameters", xticks=[1, 5, 10, 15, 20])
+ax.legend()
+plt.show()
+```
+
+### Conditional independence
+
+The graph also tells you, without any arithmetic, when learning one variable can't change your belief about another (ADM §2.6).
+
+::: {.key-equation data-name="Conditional independence"}
+$$
+(X \perp Y \mid Z) \iff P(x, y \mid z) = P(x \mid z)\, P(y \mid z) \ \text{ for all } x, y, z
+$$ {#eq-cond-indep}
+:::
+
+**In words.** Once you know $Z$, also learning $Y$ tells you nothing more about $X$.
+
+**Term by term.** $\perp$ reads "is independent of". The right side says the joint of $X$ and $Y$, given $Z$, splits into separate factors. Equivalently, $P(x \mid y, z) = P(x \mid z)$.
+
+Whether a path between two variables carries information depends on the middle node of each three-node segment. There are three patterns, shown in @fig-patterns.
+
+```{dot}
+//| label: fig-patterns
+//| fig-width: 3.69
+//| fig-height: 3.83
+//| fig-cap: "The three building blocks of d-separation. Observing the middle node (shaded) blocks a chain and a fork, but opens a collider."
+//| fig-alt: "Three small diagrams stacked vertically. Chain: S to J to L, with J shaded, labeled blocked by J. Fork: S points to both A and J, with S shaded, labeled blocked by S. Collider: S and R both point to J, with J shaded, labeled opened by J."
+digraph patterns {
+  rankdir=LR; bgcolor="#fcfcfb"; pad=0.15; nodesep=0.2; ranksep=0.35;
+  node [shape=box, style="rounded,filled", fillcolor="white", color="#52514e", fontname="Helvetica", fontsize=12, fontcolor="#0b0b0b", margin="0.08,0.04"];
+  edge [color="#52514e", arrowsize=0.6];
+  // Graphviz stacks these bottom-up, so they are listed in reverse reading order.
+  subgraph cluster_collider { label=<<B>Collider</B>: opened by J>; fontname="Helvetica"; fontsize=12; color="#c3c2b7"; style=rounded;
+    v1 [label="S"]; v2 [label="J", fillcolor="#c3c2b7"]; v3 [label="R"]; v1 -> v2; v2 -> v3 [dir=back]; }
+  subgraph cluster_fork { label=<<B>Fork</B>: blocked by S>; fontname="Helvetica"; fontsize=12; color="#c3c2b7"; style=rounded;
+    f1 [label="A"]; f2 [label="S", fillcolor="#c3c2b7"]; f3 [label="J"]; f1 -> f2 [dir=back]; f2 -> f3; }
+  subgraph cluster_chain { label=<<B>Chain</B>: blocked by J>; fontname="Helvetica"; fontsize=12; color="#c3c2b7"; style=rounded;
+    c1 [label="S"]; c2 [label="J", fillcolor="#c3c2b7"]; c3 [label="L"]; c1 -> c2 -> c3; }
+}
+```
+
+- **Chain** $S \to J \to L$: a storm makes a jam likelier, which makes being late likelier. If you already know whether there was a jam, the storm adds nothing about lateness. *Observing the middle blocks.*
+- **Fork** $A \leftarrow S \to J$: a radio alert and a jam share a cause. The alert suggests a storm, and so a jam. Once you know whether there was a storm, the alert adds nothing. *Observing the middle blocks.*
+- **Collider** $S \to J \leftarrow R$: storms and roadwork are unrelated, until you see a jam. Then learning there was roadwork *explains away* the jam and makes a storm less likely. *Observing the middle, or any of its descendants, opens the path.*
+
+$X$ and $Y$ are **d-separated** by $Z$ if every path between them is blocked somewhere. d-separation guarantees $(X \perp Y \mid Z)$ for every choice of CPTs.
+
+## Worked example
+
+The commute network's tables, in code:
+
+::: {.panel-tabset group="lang"}
+## Python
+```{python}
+#| echo: true
+#| output: false
+from adm.bayes_net import BayesNet
+
+def binary(p_yes):
+    """CPT with last axis (no, yes), from P(yes) for each parent combination."""
+    p_yes = np.asarray(p_yes, dtype=float)
+    return np.stack([1 - p_yes, p_yes], axis=-1)
+
+parents = {"S": (), "R": (), "J": ("S", "R"), "L": ("J",), "A": ("S",)}
+commute = BayesNet(
+    card={x: 2 for x in parents},
+    parents=parents,
+    cpt={
+        "S": binary(0.1),                     # P(storm)
+        "R": binary(0.2),                     # P(roadwork)
+        "J": binary([[0.1, 0.6], [0.7, 0.9]]),  # P(jam | S, R); rows S, columns R
+        "L": binary([0.05, 0.5]),             # P(late | J)
+        "A": binary([0.02, 0.95]),            # P(alert | S)
+    },
+)
+```
+## Julia
+```{.julia .snippet}
+# Values are 1 = no, 2 = yes (Julia counts from 1).
+struct BayesNet
+    card; parents; cpt      # Dicts keyed by variable name (a Symbol)
+end
+
+# CPT with last axis (no, yes), from P(yes) for each parent combination.
+binary(p_yes) = cat(1 .- p_yes, p_yes; dims = ndims(p_yes) + 1)
+
+parents = Dict(:S => (), :R => (), :J => (:S, :R), :L => (:J,), :A => (:S,))
+commute = BayesNet(
+    Dict(x => 2 for x in keys(parents)),
+    parents,
+    Dict(:S => binary(0.1),                   # P(storm)
+         :R => binary(0.2),                   # P(roadwork)
+         :J => binary([0.1 0.6; 0.7 0.9]),    # P(jam | S, R); rows S, columns R
+         :L => binary([0.05, 0.5]),           # P(late | J)
+         :A => binary([0.02, 0.95])),         # P(alert | S)
+)
+```
+:::
+
+**A full morning, by the chain rule.** What's the probability of a storm, no roadwork, a jam, being late, and a radio alert? By @eq-chain-rule, multiply one entry from each table:
+
+$$
+P(s^1, r^0, j^1, l^1, a^1) = \underbrace{0.1}_{P(s^1)} \times \underbrace{0.8}_{P(r^0)} \times \underbrace{0.7}_{P(j^1 \mid s^1, r^0)} \times \underbrace{0.5}_{P(l^1 \mid j^1)} \times \underbrace{0.95}_{P(a^1 \mid s^1)} = 0.0266
+$$
+
+**How often is there a jam?** Sum over the four combinations of its parents:
+
+$$
+P(j^1) = \sum_{s, r} P(s)\, P(r)\, P(j^1 \mid s, r) = 0.9(0.8)(0.1) + 0.9(0.2)(0.6) + 0.1(0.8)(0.7) + 0.1(0.2)(0.9) = 0.254
+$$
+
+Then $P(l^1) = 0.254 \times 0.5 + 0.746 \times 0.05 = 0.164$: you're late about one day in six. That number fed the PMF in @fig-distributions.
+
+**Explaining away, in numbers.** You're stuck in a jam. How likely is it that there was a storm?
+
+$$
+P(s^1 \mid j^1) = \frac{P(s^1, j^1)}{P(j^1)} = \frac{0.1\,(0.8 \times 0.7 + 0.2 \times 0.9)}{0.254} = \frac{0.074}{0.254} \approx 0.29
+$$
+
+Now you also see roadwork. The roadwork alone would explain the jam, so a storm becomes *less* likely:
+
+$$
+P(s^1 \mid j^1, r^1) = \frac{0.1 \times 0.9}{0.1 \times 0.9 + 0.9 \times 0.6} = \frac{0.09}{0.63} \approx 0.14
+$$
+
+Storm and roadwork are independent a priori, but dependent once the jam is known. That is the collider pattern at work. @tbl-commute-checks confirms these numbers from the full joint table.
+
+```{python}
+#| label: tbl-commute-checks
+#| tbl-cap: "The worked example's numbers, computed from the full 32-entry joint table built by the chain rule."
+def marginal(assign, given={}):
+    """P(assign | given) from the full joint table, by summing entries."""
+    def total(fixed):
+        index = tuple(fixed.get(v, slice(None)) for v in ORDER)
+        return joint[index].sum()
+    return total({**given, **assign}) / total(given)
+
+rows = [
+    ("P(s¹, r⁰, j¹, l¹, a¹)", probability(COMMUTE, {"S": 1, "R": 0, "J": 1, "L": 1, "A": 1})),
+    ("P(j¹)", marginal({"J": 1})),
+    ("P(l¹)", marginal({"L": 1})),
+    ("P(s¹ \\| j¹)", marginal({"S": 1}, {"J": 1})),          # \| keeps the bar out of the table syntax
+    ("P(s¹ \\| j¹, r¹)", marginal({"S": 1}, {"J": 1, "R": 1})),
+    ("Parameters: network vs full table", f"{num_parameters(COMMUTE)} vs {joint.size - 1}"),
+]
+Markdown("\n".join(["| Quantity | Value |", "|---|---|"]
+                   + [f"| {q} | {v if isinstance(v, str) else f'{v:.4f}'} |" for q, v in rows]))
+```
+
+## Interactive
+
+### Explore independence in the commute network
+
+Pick two variables and any set of observed ones. The explorer reports whether the two are independent, and if not, it highlights an **active trail** that carries information between them. Observed variables are shaded, as in @fig-patterns. Try Storm vs. Roadwork with nothing observed, then observe Late.
+
+```{python}
+#| include: false
+nodes = {"S": (150, 50), "R": (350, 50), "A": (70, 165), "J": (250, 165), "L": (250, 280)}
+queries = {}
+for x in ORDER:
+    for y in ORDER:
+        if x == y:
+            continue
+        rest = [v for v in ORDER if v not in (x, y)]
+        for k in range(len(rest) + 1):
+            for given in combinations(rest, k):
+                queries["|".join([x, y, ",".join(sorted(given))])] = active_trail(PARENTS, x, y, given)
+write_json({
+    "nodes": [{"id": v, "name": NAMES[v], "x": xy[0], "y": xy[1]} for v, xy in nodes.items()],
+    "edges": [[p, c] for c, ps in PARENTS.items() for p in ps],
+    "queries": queries,
+    "style": {"surface": style.SURFACE, "ink": style.INK, "muted": style.MUTED, "observed": style.AXIS,
+              "blue": blue, "blueFill": style.SEQUENTIAL_BLUE[0], "orange": orange},
+}, "data/ch02-dsep.json")
+```
+
+```{ojs}
+dsep = FileAttachment("data/ch02-dsep.json").json()
+names = Object.fromEntries(dsep.nodes.map(d => [d.id, d.name]))
+viewof x = Inputs.select(dsep.nodes.map(d => d.id), {label: "Is", value: "S", format: v => names[v]})
+viewof y = Inputs.select(dsep.nodes.map(d => d.id), {label: "independent of", value: "R", format: v => names[v]})
+viewof given = Inputs.checkbox(dsep.nodes.map(d => d.id).filter(v => v !== x && v !== y),
+                               {label: "given (observed)", format: v => names[v]})
+```
+
+```{ojs}
+trail = x === y ? undefined : dsep.queries[[x, y, [...given].sort().join(",")].join("|")]
+md`${x === y ? "Pick two different variables." : trail === null
+  ? `**Yes: ${names[x]} ⊥ ${names[y]}${given.length ? " | " + given.map(v => names[v]).join(", ") : ""}.** Every path between them is blocked.`
+  : `**No: they are dependent.** Active trail: ${trail.map(v => names[v]).join(" — ")}.`}`
+```
+
+```{ojs}
+//| label: fig-dsep-explorer
+//| fig-cap: "d-separation explorer for the commute network. The orange edges form an active trail, if there is one."
+//| fig-alt: "Interactive diagram of the five-node commute network, with menus to choose two variables and checkboxes to choose observed ones. Observed nodes turn gray, the two chosen nodes get blue outlines, and edges on an active trail turn thick and orange."
+{
+  const W = 420, H = 320, hw = 62, hh = 18, s = dsep.style;
+  const pos = Object.fromEntries(dsep.nodes.map(d => [d.id, d]));
+  const hot = new Set((trail || []).slice(1).map((v, i) => [trail[i], v].sort().join("")));
+  const svg = d3.create("svg").attr("viewBox", [0, 0, W, H]).attr("width", W)
+    .style("background", s.surface).style("font", "13px system-ui, sans-serif");
+  for (const [id, c] of [["arrow", s.muted], ["arrow-hot", s.orange]])
+    svg.append("defs").append("marker").attr("id", id).attr("viewBox", "0 0 10 10").attr("refX", 10).attr("refY", 5)
+      .attr("markerWidth", 7).attr("markerHeight", 7).attr("orient", "auto")
+      .append("path").attr("d", "M0,0L10,5L0,10z").attr("fill", c);
+  const edgePoint = (a, b) => {           // where the line from a to b leaves a's box
+    const dx = b.x - a.x, dy = b.y - a.y, k = 1 / Math.max(Math.abs(dx) / hw, Math.abs(dy) / hh);
+    return [a.x + k * dx, a.y + k * dy];
+  };
+  for (const [u, v] of dsep.edges) {
+    const on = hot.has([u, v].sort().join(""));
+    const [x1, y1] = edgePoint(pos[u], pos[v]), [x2, y2] = edgePoint(pos[v], pos[u]);
+    svg.append("line").attr("x1", x1).attr("y1", y1).attr("x2", x2).attr("y2", y2)
+      .attr("stroke", on ? s.orange : s.muted).attr("stroke-width", on ? 4 : 1.5)
+      .attr("marker-end", `url(#${on ? "arrow-hot" : "arrow"})`);
+  }
+  for (const d of dsep.nodes) {
+    const g = svg.append("g").attr("transform", `translate(${d.x - hw},${d.y - hh})`);
+    g.append("rect").attr("width", 2 * hw).attr("height", 2 * hh).attr("rx", 8)
+      .attr("fill", given.includes(d.id) ? s.observed : (d.id === x || d.id === y) ? s.blueFill : "white")
+      .attr("stroke", (d.id === x || d.id === y) ? s.blue : s.muted).attr("stroke-width", (d.id === x || d.id === y) ? 2.5 : 1.2);
+    g.append("text").attr("x", hw).attr("y", hh + 5).attr("text-anchor", "middle").attr("fill", s.ink).text(d.name);
+  }
+  return svg.node();
+}
+```
+
+### Mix two commute-time distributions {#mixture-slider}
+
+Commute time is a mixture (@eq-mixture) of normal days, $\mathcal{N}(30, 4^2)$, and jam days, $\mathcal{N}(50, 8^2)$. The slider sets the weight on jam days. It starts at the network's value, $P(j^1) = 0.254$.
+
+```{python}
+#| label: fig-mixture
+#| fig-cap: "A two-component Gaussian mixture of commute times. Dashed curves are the weighted components; the solid curve is their sum. Use the slider to change the weight on jam days."
+#| fig-alt: "Interactive line chart of density against commute time from 0 to 90 minutes, with a slider for the jam-day weight from 0 to 1. A solid curve is the mixture; two dashed curves are its components, one peaked near 30 minutes and one wider, near 50. As the weight grows, the second peak grows and the first shrinks."
+tt = np.linspace(0, 90, 400)
+normal_day, jam_day = stats.norm(30, 4).pdf(tt), stats.norm(50, 8).pdf(tt)
+weights = [0.0, 0.1, 0.254, 0.4, 0.6, 0.8, 1.0]
+fig = go.Figure()
+for w in weights:
+    shown = w == 0.254
+    fig.add_trace(go.Scatter(x=tt, y=(1 - w) * normal_day, line={"color": blue, "dash": "dash", "width": 1.5},
+                             name="Normal days × (1 − ρ)", visible=shown))
+    fig.add_trace(go.Scatter(x=tt, y=w * jam_day, line={"color": orange, "dash": "dash", "width": 1.5},
+                             name="Jam days × ρ", visible=shown))
+    fig.add_trace(go.Scatter(x=tt, y=(1 - w) * normal_day + w * jam_day, line={"color": style.INK, "width": 2.5},
+                             name="Mixture", visible=shown))
+fig.update_layout(**style.plotly_layout())
+fig.update_layout(
+    height=380, yaxis={"title": "Density", "range": [0, 0.105]}, xaxis={"title": "Commute time (min)"},
+    legend={"orientation": "h", "y": 1.12},
+    sliders=[{
+        "active": weights.index(0.254), "currentvalue": {"prefix": "Weight on jam days ρ = "}, "pad": {"t": 40},
+        "steps": [{"label": f"{w:g}", "method": "update",
+                   "args": [{"visible": [v == w for v in weights for _ in range(3)]}]} for w in weights],
+    }],
+)
+fig.show()
+```
+
+## Algorithms & code
+
+### Chain rule, joint table, and parameter count
+
+These implement @eq-chain-rule. `joint_table` applies it to every assignment, which is fine for 5 variables and hopeless for 50. Chapter 3 is about avoiding exactly that.
+
+::: {.panel-tabset group="lang"}
+## Python
+```{python}
+#| output: asis
+show_source(probability, joint_table, num_parameters)
+```
+## Julia
+```{.julia .snippet}
+# P(assignment) by the chain rule: one CPT entry per variable.
+probability(bn, a) = prod(bn.cpt[x][(a[q] for q in pa)..., a[x]] for (x, pa) in bn.parents)
+
+# The full joint distribution as an array, with axes in the given order.
+function joint_table(bn, order)
+    table = zeros(Tuple(bn.card[x] for x in order))
+    for idx in CartesianIndices(table)
+        table[idx] = probability(bn, Dict(zip(order, Tuple(idx))))
+    end
+    return table
+end
+
+# Independent numbers in all the CPTs (each row loses one: it sums to 1).
+num_parameters(bn) = sum(prod((bn.card[q] for q in pa); init = 1) * (bn.card[x] - 1)
+                         for (x, pa) in bn.parents)
+```
+:::
+
+### d-separation by searching for an active trail
+
+The search walks the graph from $X$, keeping track of whether it arrived at each node from a child ("up") or from a parent ("down"). That direction is what decides whether a node is a chain, fork or collider on the current path. If it ever reaches $Y$, the path it followed is an active trail.
+
+::: {.panel-tabset group="lang"}
+## Python
+```{python}
+#| output: asis
+show_source(active_trail, d_separated)
+```
+## Julia
+```{.julia .snippet}
+function active_trail(parents, x, y, given = ())
+    given = Set(given)
+    children = Dict(v => [c for c in keys(parents) if v in parents[c]] for v in keys(parents))
+    # A collider is active if it or a descendant is observed.
+    active_colliders, frontier = Set{Symbol}(), collect(given)
+    while !isempty(frontier)
+        v = pop!(frontier)
+        v in active_colliders && continue
+        push!(active_colliders, v)
+        append!(frontier, parents[v])
+    end
+    came_from = Dict{Tuple{Symbol, Symbol}, Any}((x, :up) => nothing)
+    queue = [(x, :up)]
+    while !isempty(queue)
+        state = popfirst!(queue)
+        node, direction = state
+        if node == y && !(node in given)
+            trail = Symbol[]
+            while state !== nothing
+                push!(trail, state[1])
+                state = came_from[state]
+            end
+            return reverse(trail)
+        end
+        moves = Tuple{Symbol, Symbol}[]
+        if direction == :up && !(node in given)
+            append!(moves, [(p, :up) for p in parents[node]], [(c, :down) for c in children[node]])
+        elseif direction == :down
+            node in given || append!(moves, [(c, :down) for c in children[node]])
+            node in active_colliders && append!(moves, [(p, :up) for p in parents[node]])
+        end
+        for m in moves
+            haskey(came_from, m) || (came_from[m] = state; push!(queue, m))
+        end
+    end
+    return nothing
+end
+
+d_separated(parents, x, y, given = ()) = active_trail(parents, x, y, given) === nothing
+```
+:::
+
+### Run them on the commute network
+
+::: {.panel-tabset group="lang"}
+## Python
+```{python}
+#| echo: true
+p_morning = probability(commute, {"S": 1, "R": 0, "J": 1, "L": 1, "A": 1})
+n_params = num_parameters(commute)
+storm_roadwork = d_separated(parents, "S", "R")
+storm_roadwork_given_late = d_separated(parents, "S", "R", ["L"])
+trail = active_trail(parents, "A", "L")
+```
+## Julia
+```{.julia .snippet}
+p_morning = probability(commute, Dict(:S => 2, :R => 1, :J => 2, :L => 2, :A => 2))
+@assert p_morning ≈ 0.1 * 0.8 * 0.7 * 0.5 * 0.95
+@assert num_parameters(commute) == 10
+joint = joint_table(commute, [:S, :R, :J, :L, :A])
+@assert sum(joint) ≈ 1 && sum(joint[:, :, :, 2, :]) ≈ 0.1643
+@assert d_separated(parents, :S, :R) && !d_separated(parents, :S, :R, (:L,))
+@assert active_trail(parents, :A, :L) == [:A, :S, :J, :L]
+```
+:::
+
+```{python}
+print(f"P(storm, no roadwork, jam, late, alert) = {p_morning:.4f}")
+print(f"Parameters: {n_params} in the network vs {2**5 - 1} in a full table")
+print(f"Storm ⊥ Roadwork: {storm_roadwork};  Storm ⊥ Roadwork | Late: {storm_roadwork_given_late}")
+print(f"Active trail from Radio alert to Late: {' → '.join(trail)}")
+```
+
+::: {.callout-note collapse="true" title="Reading the Julia code (for Python programmers)"}
+- **Symbols** like `:S` are lightweight names, a common choice for dictionary keys. They're like interned strings.
+- **`cat(a, b; dims = k)`** stacks arrays along a new axis `k`, like `np.stack([a, b], axis=-1)` here.
+- **Splatting**: `bn.cpt[x][(a[q] for q in pa)..., a[x]]` expands the parents' values into separate indices, like `table[(*parent_values, x_value)]` in Python.
+- **`CartesianIndices(table)`** loops over every index tuple of an array, like `itertools.product(*map(range, table.shape))`.
+- **`prod(...; init = 1)`** gives 1 for an empty product, which is needed for a node with no parents. Python's `math.prod` does that automatically.
+:::
+
+## Solved problems
+
+**Problem 1: counting parameters.** A network has six binary variables. $A$ and $B$ have no parents; $C$ has parents $A, B$; $D$ has parent $C$; $E$ has parents $C, D$; $F$ has parents $B, E$. How many free parameters does it need, and how many would a full joint table need?
+
+::: {.callout-tip collapse="true" title="Solution"}
+Each binary node needs $2^{k}$ numbers, where $k$ is its number of parents: $A$: 1, $B$: 1, $C$: 4, $D$: 2, $E$: 4, $F$: 4. The total is **16**. A full table needs $2^6 - 1 = $ **63**.
+:::
+
+**Problem 2: reading independence off the graph.** In the commute network, decide each of the following, and name the blocking or active pattern:
+(a) $A \perp R$; (b) $A \perp R \mid J$; (c) $A \perp L \mid S$; (d) $S \perp R \mid L$.
+
+::: {.callout-tip collapse="true" title="Solution"}
+(a) **Independent.** The only path is $A \leftarrow S \to J \leftarrow R$, and the collider $J$ is unobserved (as is its descendant $L$), so it blocks.
+
+(b) **Dependent.** Observing $J$ opens the collider. The fork at $S$ is unobserved, so it passes, and the trail $A - S - J - R$ is active.
+
+(c) **Independent.** The path $A \leftarrow S \to J \to L$ has a fork at $S$, which is observed and so blocks.
+
+(d) **Dependent.** $L$ is a descendant of the collider $J$. Observing it opens $S \to J \leftarrow R$. Intuitively, being late suggests a jam, which then needs an explanation.
+
+Check them all in the explorer above.
+:::
+
+**Problem 3: a Gaussian probability.** Commute time is $\mathcal{N}(35, 8^2)$ minutes. Using the rule of thumb that about 95% of the probability lies within $2\sigma$ of the mean, what range covers 95% of commutes? About what fraction of commutes take longer than 51 minutes?
+
+::: {.callout-tip collapse="true" title="Solution"}
+$35 \pm 2 \times 8$ gives **19 to 51 minutes**. The remaining 5% is split evenly between the two tails, so about **2.5%** of commutes take longer than 51 minutes. (The exact value is 2.3%.)
+:::
+
+**Problem 4: explaining away, from scratch.** Change the commute network so that roadwork is common, $P(r^1) = 0.5$, and keep everything else. Compute $P(s^1 \mid j^1)$. Is it higher or lower than the original 0.29, and why?
+
+::: {.callout-tip collapse="true" title="Solution"}
+$P(s^1, j^1) = 0.1\,(0.5 \times 0.7 + 0.5 \times 0.9) = 0.08$, and
+$P(s^0, j^1) = 0.9\,(0.5 \times 0.1 + 0.5 \times 0.6) = 0.315$.
+So $P(s^1 \mid j^1) = 0.08 / 0.395 \approx$ **0.20**, which is *lower* than 0.29. With roadwork common, a jam is more easily explained without a storm, so seeing a jam is weaker evidence for one. This is explaining away again, now working through the prior on the competing cause.
+:::
+
+## Recap
+
+1. **Distributions describe belief about one quantity:** a PMF for discrete values, a PDF for continuous ones, with probabilities as areas (@eq-normalization). The Gaussian (@eq-gaussian) and mixtures (@eq-mixture) are the everyday building blocks.
+   *Why it matters:* every model later in the book, whether transitions, observations or rewards, is built from these pieces.
+2. **Joint distributions over many variables grow exponentially:** $2^n - 1$ numbers for $n$ binary variables.
+   *Why it matters:* this is the core obstacle to reasoning about realistic systems, and every representation afterward is a way around it.
+3. **Conditional distributions describe one variable given a few others:** tables, linear Gaussians (@eq-linear-gaussian), sigmoids (@eq-sigmoid).
+   *Why it matters:* they are the "local stories" that stay small, and they reappear as transition models $T(s' \mid s, a)$ in [Ch 7](../part2/ch07-exact-solution-methods.qmd) and observation models $O(o \mid a, s')$ in [Ch 19](../part4/ch19-beliefs.qmd).
+4. **A Bayesian network multiplies those local stories into a full joint (@eq-chain-rule),** with far fewer parameters.
+   *Why it matters:* it is the representation that Ch 3 (inference), Ch 4 (learning parameters) and Ch 5 (learning structure) all work on, and decision networks in Ch 6 extend it.
+5. **The graph reveals independence through d-separation:** chains and forks are blocked by observing the middle; colliders are opened by it.
+   *Why it matters:* independence is what makes inference and learning tractable, and explaining away is a real, often counterintuitive effect in diagnosis.
+
+## Cheat sheet & connections
+
+| Name | Formula | Ref |
+|---|---|---|
+| Normalization | $\sum_x P(x) = 1$, $\ \int p(x)\,dx = 1$ | @eq-normalization |
+| ★ Gaussian | $\mathcal{N}(x \mid \mu, \sigma^2) = \frac{1}{\sigma\sqrt{2\pi}} e^{-(x-\mu)^2 / 2\sigma^2}$ | @eq-gaussian |
+| Mixture | $p(x) = \sum_i \rho_i \mathcal{N}(x \mid \mu_i, \sigma_i^2)$ | @eq-mixture |
+| ★ Multivariate Gaussian | $\mathcal{N}(\mathbf{x} \mid \boldsymbol\mu, \boldsymbol\Sigma)$, with elliptical contours | @eq-mvn |
+| ★ Conditional probability | $P(x \mid y) = P(x, y) / P(y)$ | @eq-conditional |
+| Linear Gaussian | $p(x \mid y) = \mathcal{N}(x \mid my + b, \sigma^2)$ | @eq-linear-gaussian |
+| Sigmoid | $P(x^1 \mid y) = 1 / (1 + e^{-2(y - \theta_1)/\theta_2})$ | @eq-sigmoid |
+| ★ Chain rule (Bayes net) | $P(x_{1:n}) = \prod_i P(x_i \mid \mathrm{pa}(x_i))$ | @eq-chain-rule |
+| Conditional independence | $P(x, y \mid z) = P(x \mid z) P(y \mid z)$ | @eq-cond-indep |
+
+: Key equations from this page (★ = well-known by name). {#tbl-cheatsheet}
+
+**d-separation in one line:** a path is blocked if it has an observed chain or fork node, or an unobserved collider with no observed descendants.
+
+**Common pitfalls**
+
+- **Treating a density as a probability.** $p(x) = 2$ is fine for a narrow distribution; only areas are probabilities.
+- **Forgetting that CPT rows sum to 1.** Store $P(\text{yes})$ and derive $P(\text{no})$, or check each row.
+- **Reading arrows as proof of causation.** A Bayesian network only encodes independence. Arrows drawn from cause to effect make the tables small and easy to fill in, but the math doesn't require it.
+- **Assuming observed evidence can only reduce dependence.** Observing a collider or one of its descendants *creates* dependence (explaining away).
+
+**Connections**
+
+- [Ch 3 · Inference](../part1/ch03-inference.qmd) computes queries like $P(s^1 \mid j^1)$ without building the full joint table.
+- [Ch 4 · Parameter Learning](../part1/ch04-parameter-learning.qmd) estimates the CPT numbers from data.
+- [Ch 5 · Structure Learning](../part1/ch05-structure-learning.qmd) learns the graph itself.
+- [Ch 6 · Simple Decisions](../part1/ch06-simple-decisions.qmd) adds decision and utility nodes to make decision networks.
+- [Ch 19 · Beliefs](../part4/ch19-beliefs.qmd) uses the same conditional-distribution building blocks for dynamics and sensors.

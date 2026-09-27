@@ -9,7 +9,9 @@ import numpy as np
 import pytest
 
 from adm.problems.coffee import COFFEE
-from adm.problems.commute import COMMUTE, COMMUTE_TIMES_COV, COMMUTE_TIMES_MEAN
+from adm.problems.commute import (
+    COMMUTE, COMMUTE_DECISION, COMMUTE_TIMES_COV, COMMUTE_TIMES_MEAN, COMMUTE_UTILITY,
+)
 
 ROOT = Path(__file__).resolve().parent.parent
 
@@ -23,6 +25,8 @@ print(JSON.json(Dict(
     "commute" => cpts(commute_network()),
     "coffee" => cpts(coffee_network()),
     "commute_times" => [COMMUTE_TIMES_MEAN; rowmajor(COMMUTE_TIMES_COV)],
+    "commute_decision" => cpts(commute_decision_network()),
+    "commute_utility" => rowmajor(COMMUTE_UTILITY),
 )))
 """
 
@@ -38,12 +42,17 @@ def julia_problems():
     return json.loads(out)
 
 
-@pytest.mark.parametrize("name, bn", [("commute", COMMUTE), ("coffee", COFFEE)])
+@pytest.mark.parametrize("name, bn", [("commute", COMMUTE), ("coffee", COFFEE),
+                                      ("commute_decision", COMMUTE_DECISION)])
 def test_bayes_nets_match(julia_problems, name, bn):
     theirs = julia_problems[name]
     assert set(theirs) == set(bn.cpt)
     for x, table in bn.cpt.items():
         assert np.allclose(theirs[x], table.ravel()), x
+
+
+def test_commute_utility_matches(julia_problems):
+    assert np.allclose(julia_problems["commute_utility"], COMMUTE_UTILITY.ravel())
 
 
 def test_commute_times_match(julia_problems):

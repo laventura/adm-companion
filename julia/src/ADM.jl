@@ -20,6 +20,7 @@ export LinearGaussianModel, kalman_predict, kalman_correct, kalman_update
 export update_particles
 export DiscreteMDP, hex_mdp, hex_world, straight_line_hex_world
 export BayesNet, binary_cpt, probability, commute_network, COMMUTE_TIMES_MEAN, COMMUTE_TIMES_COV
+export commute_decision_network, COMMUTE_ACTIONS, COMMUTE_UTILITY
 export coffee_network, COFFEE_CLASSES, COFFEE_PRIOR, COFFEE_P_SYMPTOM
 
 """

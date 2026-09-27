@@ -194,7 +194,7 @@ for k, ax in enumerate(axes, start=1):
 plt.show()
 ```
 
-**Where it's used.** No page on this site uses Hex World yet. The book uses it as a running example, so it will appear as later chapters are written.
+**Where it's used.** [Ch 9](../part2/ch09-online-planning.qmd): every online planner is scored against the exact solution. `optimistic_values` in `adm/problems/hex_world.py` gives an upper bound on the optimal values (each positive reward discounted by the fewest moves to reach it), used by branch and bound and heuristic search.
 
 ## Mountain car {#mountain-car}
 
@@ -226,7 +226,7 @@ s = mountain_car_step([-0.5, 0.0], 1)          # s = [x, v]
 ```
 :::
 
-**Where it's used.** [Ch 8](../part2/ch08-approximate-value-functions.qmd): approximate value iteration with seven kinds of value function approximation. From rest at $x = -0.5$, a policy from a fine 201 × 201 grid takes 106 steps: right, then left, then right.
+**Where it's used.** [Ch 8](../part2/ch08-approximate-value-functions.qmd): approximate value iteration with seven kinds of value function approximation. From rest at $x = -0.5$, a policy from a fine 201 × 201 grid takes 106 steps: right, then left, then right. [Ch 9](../part2/ch09-online-planning.qmd): receding-horizon forward search, with and without Ch 8's value function beyond the horizon.
 
 ## Problems made for this site
 

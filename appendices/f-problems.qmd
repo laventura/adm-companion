@@ -246,7 +246,58 @@ commute = commute_network()                   # a BayesNet: card, parents, cpt
 ```
 :::
 
-**Where it's used.** [Ch 2](../part1/ch02-representation.qmd): the chain rule, parameter counts, explaining away, d-separation. [Ch 3](../part1/ch03-inference.qmd): every inference method answers $P(\text{storm} \mid \text{late}, \text{alert}) = 0.935$. [Ch 4](../part1/ch04-parameter-learning.qmd): its tables are learned back from simulated mornings, including with the storm value missing (EM). [Ch 5](../part1/ch05-structure-learning.qmd): its *graph* is learned back from data, and the radio alert's near-copy of the storm shows why small samples can mislead.
+**Where it's used.** [Ch 2](../part1/ch02-representation.qmd): the chain rule, parameter counts, explaining away, d-separation. [Ch 3](../part1/ch03-inference.qmd): every inference method answers $P(\text{storm} \mid \text{late}, \text{alert}) = 0.935$. [Ch 4](../part1/ch04-parameter-learning.qmd): its tables are learned back from simulated mornings, including with the storm value missing (EM). [Ch 5](../part1/ch05-structure-learning.qmd): its *graph* is learned back from data, and the radio alert's near-copy of the storm shows why small samples can mislead. [Ch 6](../part1/ch06-simple-decisions.qmd): extended into a [decision network](#commute-decision).
+
+### Commute decision {#commute-decision}
+
+**The story.** The morning commute becomes a choice: leave on time, leave 30 minutes early, or stay home and work remotely. Leaving early makes lateness unlikely even in a jam, and staying home rules it out, but both have a cost of their own. It is the smallest decision network with a real trade-off, and its observations have clearly different values of information: the traffic app, which shows the jam, is worth over five times as much as the radio.
+
+```{dot}
+//| label: fig-gallery-commute-decision
+//| fig-width: 4.9
+//| fig-height: 3.6
+//| fig-cap: "The commute decision network: the commute network plus a decision (rectangle) and a utility (diamond)."
+//| fig-alt: "Diagram. Oval chance nodes Storm and Roadwork point to Traffic jam; Storm also points to Radio alert. A rectangular decision node, Leave when, and Traffic jam both point to the oval Late. Late and the decision both point to a diamond utility node."
+digraph dn {
+  bgcolor="#fcfcfb"; pad=0.2; nodesep=0.35; ranksep=0.4;
+  node [fontname="Helvetica", fontsize=12, fontcolor="#0b0b0b", color="#52514e", style=filled, fillcolor="white", penwidth=1.2];
+  edge [color="#52514e", arrowsize=0.6];
+  S [label="Storm", shape=ellipse]; R [label="Roadwork", shape=ellipse]; J [label="Traffic jam", shape=ellipse];
+  A [label="Radio alert", shape=ellipse]; L [label="Late", shape=ellipse];
+  D [label="Leave when?", shape=box, fillcolor="#cde2fb", color="#2a78d6"];
+  Ut [label="Utility", shape=diamond, fillcolor="#f0efec"];
+  S -> J; R -> J; S -> A; J -> L; D -> L; L -> Ut; D -> Ut;
+  { rank=same; D; J; }
+}
+```
+
+| Decision $D$ | P(late \| no jam) | P(late \| jam) | Utility if on time | Utility if late |
+|---|---|---|---|---|
+| Leave on time | 0.05 | 0.5 | 0 | −10 |
+| Leave early | 0 | 0.1 | −2 | −12 |
+| Stay home | 0 | 0 | −6 | −16 (can't happen) |
+
+: The commute decision: how the decision changes P(late), and the utility table U(D, L). Storm, roadwork, jam and alert are as in @tbl-commute-cpts. {#tbl-commute-decision}
+
+::: {.panel-tabset group="lang"}
+## Python
+```{python}
+#| echo: true
+from adm.problems.commute import ACTIONS, COMMUTE_DECISION, COMMUTE_UTILITY
+# COMMUTE_DECISION is a BayesNet whose decision D has no parents and a placeholder table;
+# COMMUTE_UTILITY[d, l] has axes D (0 = on time, 1 = early, 2 = home) and L (1 = late)
+```
+## Julia
+```{.julia .snippet}
+using ADM
+decision = commute_decision_network()          # D: 1 = on time, 2 = early, 3 = home
+@assert decision.card[:D] == 3 && decision.parents[:L] == (:J, :D)
+@assert decision.cpt[:L][2, 2, 2] == 0.1       # P(late | jam, leave early)
+@assert COMMUTE_UTILITY[2, 2] == -12           # leave early and still late
+```
+:::
+
+**Where it's used.** [Ch 6](../part1/ch06-simple-decisions.qmd): maximum expected utility, and the value of the radio and the traffic app.
 
 ### Coffee machine {#coffee-machine}
 
@@ -312,7 +363,7 @@ using ADM
 
 | Problem | Kind | Page | Code |
 |---|---|---|---|
-| Rover grid | MDP, 4×5 grid with slip |
+| Rover grid | MDP, 4×5 grid with slip | [Ch 7](../part2/ch07-exact-solution-methods.qmd) | Python: `adm/problems/gridworld.py` |
 | Delivery drone | MDP, 2 states | [Ch 7](../part2/ch07-exact-solution-methods.qmd) | on the page |
 | Factory machine | MDP, 2 states (solved problem) | [Ch 7](../part2/ch07-exact-solution-methods.qmd) | on the page |
 | Tram loop | Discrete filter, 12 states | [Ch 19](../part4/ch19-beliefs.qmd) | on the page |

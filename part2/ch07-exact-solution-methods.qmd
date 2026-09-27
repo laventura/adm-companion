@@ -82,9 +82,17 @@ def add_colorbar(fig, axes, label=r"$U(s)$"):
 
 ## Big picture
 
-Chapter 6 chose one action to maximize expected utility. This chapter chooses a whole sequence of actions over time, in a world whose outcomes are uncertain but whose rules are fully known. The rules are a **Markov decision process (MDP)**: which states exist, which actions are possible, how likely each action is to lead to each next state, and what reward it earns.
+### Where this chapter fits
 
-The one-sentence idea: **if you know the model exactly, you can compute what every state is worth when you act well from there, and then act greedily on those values.** Policy iteration and value iteration are two schedules for computing those values.
+Part I ended with [Chapter 6](../part1/ch06-simple-decisions.qmd), which chose a *single* action to maximize expected utility. Most real problems are sequences: each action changes the situation, which changes what the next action should be. Part II (Chapters 7–14) handles such **sequential decisions** when the current state is always known. This chapter is its foundation: it solves them *exactly*, assuming the rules of the world are fully known. Every later chapter relaxes something:
+- huge state spaces ([Ch 8](ch08-approximate-value-functions.qmd), [Ch 9](ch09-online-planning.qmd));
+- searching over policies directly (Ch 10–13);
+- unknown rules that must be learned (Part III);
+- a hidden state (Part IV, starting at [Ch 19](../part4/ch19-beliefs.qmd)).
+
+**The question:** if you know exactly how the world responds to your actions (with probabilities) and what each outcome is worth, what should you do in every situation to collect the most reward over time?
+
+The short answer: **compute what every situation is worth when you act well from it, then in each situation take the action that leads to the best mix of immediate reward and future worth.** Policy iteration and value iteration are two ways to compute those worths.
 
 ```{dot}
 //| label: fig-ch07-map
@@ -125,6 +133,50 @@ digraph ch07 {
 }
 ```
 
+### The key ideas at a glance
+
+1. **A Markov decision process (MDP) describes the world.** It lists:
+   - the **states** (situations) and **actions** (choices);
+   - a **transition model** giving the probability of each next state after each action;
+   - a **reward** for each action in each state;
+   - a **discount factor** $\gamma$ (gamma) between 0 and 1, which makes a reward one step later worth $\gamma$ times as much.
+
+   "Markov" means the next state depends only on the current state and action, not on the history.
+
+2. **A policy says what to do; its value says how good that is.** A **policy** picks an action for every state. The **value** of a state under a policy is the expected total of discounted rewards from following it forever. A useful rule of thumb: $1/(1-\gamma)$ is roughly how many steps ahead the agent effectively cares about. For $\gamma = 0.9$ that's about 10 steps.
+
+3. **A state's value is reward now plus discounted value next.** This self-consistency is the **Bellman expectation equation**. It turns an infinite sum into a one-step relation, so evaluating a policy means solving one linear system, or repeating the one-step relation until it settles.
+
+4. **Good values give good actions.** Given values for every state, the **one-step lookahead** (the Q-value) of an action is its immediate reward plus the discounted average value of where it leads. Picking the best lookahead in each state is **acting greedily**.
+
+5. **Policy iteration: evaluate, improve, repeat.** Start from any policy. Compute its values exactly, switch every state to its greedy action, and repeat. Each round is at least as good as the last, and after a handful of rounds nothing changes: the policy is optimal.
+
+6. **Value iteration: back up the best lookahead until the values settle.** Start with all values 0. Repeatedly replace each state's value with its best lookahead, a **Bellman backup**. Good news spreads outward from rewarding states, one step per sweep. Stop when the largest change in one sweep, the **Bellman residual**, is small enough to guarantee the values are within a chosen accuracy, then act greedily.
+
+### Vocabulary
+
+| Term | Plain meaning |
+|:---|:---|
+| State, action | A situation; a choice available in it |
+| Transition model $T(s' \mid s, a)$ | Probability of landing in $s'$ after taking $a$ in $s$ |
+| Reward $R(s, a)$ | Expected immediate payoff for taking $a$ in $s$ |
+| Discount factor $\gamma$ | How much a reward one step later is worth compared to now |
+| Policy $\pi$ | A rule choosing an action in every state |
+| Value $U(s)$ | Expected discounted total reward from $s$ onward |
+| Q-value $Q(s, a)$ | Value of taking $a$ now, then continuing with the given values |
+| Greedy | Picking the action with the best one-step lookahead |
+| Bellman backup | Replace a state's value with its best lookahead |
+| Bellman residual | The largest change in any state's value during one sweep |
+
+: Terms used on this page. {#tbl-vocab}
+
+### After this chapter you can
+
+- Write a sequential decision problem as an MDP: arrays of transition probabilities and rewards.
+- Compute the value of any policy, by iteration or by one linear solve.
+- Find an optimal policy with policy iteration or value iteration, and pick a stopping threshold with a guaranteed accuracy.
+- Predict how the discount factor changes what an agent is willing to go after.
+
 ## Intuition
 
 ::: {.callout-tip title="Analogy"}
@@ -150,7 +202,29 @@ add_colorbar(fig, axes)
 plt.show()
 ```
 
-There is a second, more managerial way to get the same answer. Start with *any* plan, for example "always drive north". First measure exactly how good that plan is from every cell. Then fix every cell whose move is worse than the best alternative, given those measurements. Repeat until no fix helps. That is **policy iteration**. It usually needs very few rounds, but each round does more work.
+### Discounting: later rewards count for less
+
+With $\gamma = 0.9$, a reward worth 10 now is worth $0.9 \times 10 = 9$ one step away, and $0.9^{10} \times 10 \approx 3.5$ ten steps away. That's why a far reward can lose to a near one. In the Rover grid, a small discount makes the rover settle for the nearby +3 rock, while a large one sends it all the way to the +10 site. Discounting also keeps the total of an endless stream of rewards finite. See @eq-value and the [γ slider](#how-far-ahead-does-the-rover-care).
+
+### Evaluating a plan: reward now plus what comes next
+
+A delivery drone that *always delivers*, even on low battery, earns −6 per step once it's low, and stays low forever. Its value when low is $-6$ now plus $0.9$ times its value when low. Solving $U = -6 + 0.9\,U$ gives $U = -60$: $-6$ per step times an effective horizon of 10 steps. No infinite sum is needed, just a one-step relation that must hold. See @eq-policy-evaluation.
+
+### Acting on values: look one step ahead
+
+Suppose you know every cell's value. In a given cell, for each direction ask: "What do I get now, plus 0.9 times the average value of where I'll probably land?" Take the direction with the best answer. You don't need to plan the whole route. The values already summarize everything beyond one step. See @eq-lookahead.
+
+### Value iteration: the ripple
+
+That ripple in @fig-vi-sweeps is value iteration. Each sweep lets every cell look one step further ahead. After sweep $k$, a cell's value is the best it can do in $k$ steps, and sweeps continue until the values stop changing. The number of sweeps needed grows with $\gamma$: the more the future matters, the further the ripple must travel before it settles. See @eq-backup.
+
+### Policy iteration: measure the plan, fix every bad move
+
+There is a second, more managerial way to get the same answer. Start with *any* plan, say "always drive north". Measure exactly how good that plan is from every cell. Then fix every cell whose move is worse than the best alternative under those measurements. Repeat until no fix helps. That's **policy iteration**. On the Rover grid it needs 3 rounds where value iteration needs 41 sweeps, but each round solves a linear system. See [Policy iteration](#pi-formal) in the Formalism.
+
+### Knowing when to stop
+
+Value iteration never exactly finishes, so when is it close enough? Watch the biggest change in any cell during a sweep. With $\gamma = 0.9$, if nothing moved by more than $0.001$, every value is within $0.009$ of the true one. The factor $\gamma/(1-\gamma) = 9$ comes from errors that shrink geometrically. See @eq-residual.
 
 ## Formalism
 
@@ -254,7 +328,7 @@ $$ {#eq-greedy}
 
 The **advantage** $A(s, a) = Q(s, a) - U(s)$ measures how much better $a$ is than what $U$ already expects. The greedy policy picks the action with the largest advantage.
 
-### Policy iteration
+### Policy iteration {#pi-formal}
 
 Policy iteration (ADM §7.4) alternates two steps until the policy stops changing:
 

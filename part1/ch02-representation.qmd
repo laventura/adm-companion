@@ -35,9 +35,13 @@ joint = joint_table(COMMUTE)
 
 ## Big picture
 
-Part I is about reasoning under uncertainty before any decisions are made. Before an agent can reason, it needs a way to *write down* what it believes. This chapter is about that language: probability distributions for single quantities, joint distributions for many at once, and **Bayesian networks**, which make joint distributions small enough to store by exploiting which variables directly influence which.
+### Where this chapter fits
 
-The one-sentence idea: **a joint distribution over many variables is usually far too large to write out, but if each variable depends directly on only a few others, you can store it as a product of small local tables, one per variable, arranged on a graph.**
+The book is about agents that make good decisions when they are uncertain. Part I (Chapters 2–6) covers the first half of that: *reasoning* under uncertainty, before any decisions are made. Before an agent can reason about anything, it needs a way to **write down what it believes**. This chapter supplies that language. [Chapter 3](ch03-inference.qmd) uses it to answer questions, [Chapters 4](ch04-parameter-learning.qmd) and [5](ch05-structure-learning.qmd) learn it from data, and [Chapter 6](ch06-simple-decisions.qmd) adds decisions. Every later model on this site, including transition models in Part II and sensor models in Part IV, is built from the pieces introduced here.
+
+**The question:** how can an agent describe what it believes about many uncertain quantities at once, compactly enough to store and use?
+
+The short answer: **a table of probabilities for every combination of many variables is far too large, but if each variable depends directly on only a few others, you can store the same information as small local tables, one per variable, arranged on a graph.**
 
 ```{dot}
 //| label: fig-ch02-map
@@ -63,6 +67,43 @@ digraph ch02 {
   ci -> bn [label="read off", dir=back];
 }
 ```
+
+### The key ideas at a glance
+
+1. **Probability is a degree of belief, and a distribution spreads it over the possible values.** For a quantity with separate values, like "number of late days this week", a **probability mass function (PMF)** gives each value a probability, and those add up to 1. For a continuous quantity, like "commute time in minutes", a **probability density function (PDF)** is a curve, and probabilities are *areas* under it: the chance of a 30–45 minute trip is the area between 30 and 45. The **Gaussian** (bell curve) is the standard continuous shape. A **mixture** of several bell curves handles quantities with several typical values.
+
+2. **A joint distribution describes many variables together, and it explodes.** To describe several variables at once, you need a probability for every combination of their values. Five yes/no variables have $2^5 = 32$ combinations; thirty have about a billion. Such a table can't be stored, and there would never be enough data to fill it in.
+
+3. **Conditional distributions describe one variable given a few others.** $P(x \mid y)$ is the probability of $x$ in the situations where $y$ holds. It is computed as $P(x, y) / P(y)$. For yes/no variables it's a small table, a **conditional probability table (CPT)**, such as "late 50% of the time if there's a jam, 5% if not". For continuous variables it's a formula: a straight-line trend plus noise (**linear Gaussian**), or a smooth on/off switch (**sigmoid**).
+
+4. **A Bayesian network assembles conditionals into a full joint distribution.** Draw a graph with an arrow from each variable to those it directly influences, with no loops. Give each variable one conditional table: its distribution given its **parents** (the variables pointing into it). Then the probability of any complete situation is the **product** of one entry from each table. This is the **chain rule for Bayesian networks**. The commute example needs 10 numbers instead of 31, and the savings grow exponentially with size.
+
+5. **The graph shows which variables can't inform each other.** Two variables are **conditionally independent** given some observations if learning one tells you nothing more about the other. You can read this off the graph with **d-separation**. Information flows along paths, a path through an observed middle variable is usually blocked, and one special case works the other way: two causes of a common effect become linked once the effect is observed. That effect is **explaining away**.
+
+### Vocabulary
+
+| Term | Plain meaning |
+|:---|:---|
+| Random variable | An uncertain quantity, like "was there a storm?" or "commute time" |
+| PMF / PDF | Probability of each value (discrete) / density curve whose areas are probabilities (continuous) |
+| CDF, quantile | Chance of at most $x$ / the value that is beaten a given fraction of the time |
+| Joint distribution | Probabilities of every combination of values of several variables |
+| Marginal | The distribution of some variables alone, found by summing the joint over the others |
+| Conditional, CPT | Distribution of a variable given others; its table form for discrete variables |
+| Parent / child | In a Bayesian network, a variable with an arrow into / out of another |
+| Chain rule | The joint is the product of each variable's conditional given its parents |
+| Conditional independence | Once $Z$ is known, learning $Y$ tells you nothing more about $X$ |
+| d-separation | Reading conditional independence off the graph's paths |
+| Explaining away | Observing a common effect makes its independent causes compete |
+
+: Terms used on this page. {#tbl-vocab}
+
+### After this chapter you can
+
+- Describe an uncertain quantity with a PMF, PDF or mixture, and read probabilities as areas.
+- Count how many numbers a full joint table or a Bayesian network needs.
+- Build a small Bayesian network and compute the probability of any complete situation by the chain rule.
+- Tell from the graph alone whether two variables can inform each other, given what's observed.
 
 ## Intuition
 
@@ -90,6 +131,34 @@ digraph commute {
   S -> J; R -> J; J -> L; S -> A;
 }
 ```
+
+### Probabilities as areas
+
+Say your commute time is spread like a bell curve centered at 35 minutes. What's the chance a trip takes *exactly* 35.000 minutes? Essentially zero: there are infinitely many possible times. The sensible question is about a range. The chance of 30–45 minutes is the area under the curve between 30 and 45, about 0.63. So the curve's height (the density) is not itself a probability, and for a narrow curve it can be bigger than 1. Only areas are probabilities. See @eq-normalization and @fig-distributions.
+
+### Why a full table explodes
+
+Five yes/no facts give 32 combinations, which is manageable. Each extra fact *doubles* the count: 10 facts give about a thousand, 20 about a million, 30 about a billion. Even if you could store a billion numbers, you could never observe enough mornings to estimate them. The fix is not a bigger table but a different representation. See @fig-params.
+
+### Conditionals as local stories
+
+"If there's a jam, I'm late half the time; if not, one time in twenty." That is a conditional distribution: two numbers, $P(\text{late} \mid \text{jam}) = 0.5$ and $P(\text{late} \mid \text{no jam}) = 0.05$. It mentions only the jam, because once you know about the jam, the storm and the roadwork don't change your lateness. Each variable's story involves only its direct causes, which keeps every story small. See @eq-conditional.
+
+### Multiplying the stories together
+
+How likely is this particular morning: a storm, no roadwork, a jam, late, and a radio alert? Walk through the stories in cause-before-effect order and multiply:
+
+- storm: 0.1;
+- no roadwork: 0.8;
+- a jam, given storm and no roadwork: 0.7;
+- late, given the jam: 0.5;
+- an alert, given the storm: 0.95.
+
+The product is 0.027. Every complete morning's probability comes out this way, so the ten numbers in the stories carry the same information as the 31 in a full table. That's the chain rule, @eq-chain-rule.
+
+### Reading independence off the picture
+
+Storms and roadwork have nothing to do with each other: learning there's roadwork tells you nothing about the weather. But suppose you're stuck in a jam. Now a storm is a plausible explanation (29% likely). If you then see roadwork, the jam is already explained, and a storm drops to 14%. The two causes became linked *because* you observed their common effect. The opposite happens on a chain: once you know whether there was a jam, the storm no longer tells you anything about being late. The graph shows which case you're in. See @fig-patterns.
 
 ## Formalism
 

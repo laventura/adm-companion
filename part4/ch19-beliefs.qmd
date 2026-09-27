@@ -40,9 +40,15 @@ end
 
 ## Big picture
 
-Until now, the agent always knew which state it was in. Part IV drops that assumption. A robot has noisy sensors, a doctor sees symptoms rather than the disease, and a tracker sees radar blips rather than the aircraft. The agent can't act on the state, so it acts on a **belief**: a probability distribution over the states it might be in.
+### Where this chapter fits
 
-The one-sentence idea: **a belief is kept up to date with two moves, repeated forever: *predict* (push the belief through what your action does, so it spreads out) and *correct* (reweight it by how well each state explains what you just observed, so it sharpens).** The rest of the chapter is about how to store the belief so that these two moves stay cheap.
+In Parts II and III, the agent always knew which state it was in: the rover knew its cell, even when it didn't know where its wheels would take it next. Part IV (Chapters 19–23) drops that assumption. A robot has noisy sensors, a doctor sees symptoms rather than the disease, and a tracker sees radar blips rather than the aircraft. The agent can't act on the state, because it doesn't know it. So it acts on a **belief**: a probability distribution over the states it might be in.
+
+This chapter is about *keeping that belief up to date*. It is [Chapter 3](../part1/ch03-inference.qmd)'s inference, repeated at every time step, with [Chapter 2](../part1/ch02-representation.qmd)'s building blocks as the models. Chapters 20–23 then decide what to *do* given a belief, treating the belief itself as the state of a new, larger decision problem.
+
+**The question:** as an agent acts and receives noisy observations, how should it keep track of where it probably is?
+
+The short answer: **by repeating two moves forever. *Predict*: push the belief through what the action does, so it spreads out. *Correct*: reweight it by how well each possible state explains what you just observed, so it sharpens.** The rest of the chapter is about storing the belief so that these two moves stay cheap.
 
 ```{dot}
 //| label: fig-ch19-map
@@ -74,6 +80,41 @@ digraph ch19 {
   predict -> table [style=invis]; correct -> samples [style=invis];
 }
 ```
+
+### The key ideas at a glance
+
+1. **A belief replaces the state.** A belief gives each possible state a probability, given everything done and observed so far. It needs one extra piece of model beyond an MDP: an **observation model**, the probability of each possible observation in each state. For example, the chance the window looks dark when the tram is in a tunnel.
+
+2. **Every update is predict, then correct.** *Predict*: for each possible new state, add up all the ways of getting there from where you might have been. The belief spreads out. *Correct*: multiply each state's probability by how likely the actual observation is in that state, then normalize. The belief sharpens. This is Bayes' rule applied over and over, and it's called the **Bayes filter**.
+
+3. **With few states, store the whole table: the discrete filter.** Keep one probability per state and apply predict and correct exactly. It's simple and exact, and it costs about (number of states)² per step.
+
+4. **With linear motion and Gaussian noise, store a mean and a covariance: the Kalman filter.** If the belief starts as a bell curve and everything is linear with Gaussian noise, it stays a bell curve. So only its center and spread need updating. The key quantity is the **Kalman gain**, how far to move from the prediction toward the observation. A noisy sensor gives a small gain; a shaky prediction gives a large one. For nonlinear models, the extended and unscented Kalman filters approximate the same idea.
+
+5. **Otherwise, store samples: the particle filter.** Represent the belief by a cloud of guesses (particles). Move each guess with a random draw from the dynamics, weight it by how well it explains the observation, then resample: copy the heavy ones and drop the light ones. The cloud can take any shape, including a ring or two separate clumps. It only needs a simulator of the world, and more particles give more accuracy.
+
+### Vocabulary
+
+| Term | Plain meaning |
+|:---|:---|
+| Belief $b(s)$ | Probability that the current state is $s$, given the history |
+| Observation model $O(o \mid a, s')$ | Probability of seeing $o$ after action $a$ lands you in $s'$ |
+| Predict / correct | Push the belief through the dynamics / reweight it by the observation |
+| Bayes filter | Predict-then-correct, repeated every step |
+| Kalman gain $K$ | Fraction of the gap between prediction and observation to move by |
+| Innovation | The observation minus what you expected to observe |
+| Particle | One sampled guess of the state |
+| Resampling | Copying high-weight particles and dropping low-weight ones |
+| Particle degeneracy | Nearly all weight falling on one or two particles |
+
+: Terms used on this page. {#tbl-vocab}
+
+### After this chapter you can
+
+- Update a belief over a handful of states by hand, and in code for many.
+- Run a Kalman filter, and explain its gain in terms of trust in the prediction versus the sensor.
+- Track a state with a particle filter when the belief has several peaks or odd shapes.
+- Choose between the three representations for a given problem.
 
 ## Intuition
 
@@ -154,6 +195,22 @@ let steps = length(tram) - 1
     fig
 end
 ```
+
+### Predict spreads, correct sharpens
+
+The tram starts with every stop equally likely, $1/12$ each. The window goes dark. Five stops are in tunnels, where "dark" is 0.9 likely, against 0.2 elsewhere. So each tunnel stop's share becomes $0.9/5.9 = 0.153$ and each open stop's $0.2/5.9 = 0.034$: the belief has sharpened toward the tunnels. Then the tram drives. Each stop's probability flows mostly one stop forward, with some staying put and some skipping ahead, so the peaks blur and shift. Every step repeats these two moves. See @eq-belief-update.
+
+### Kalman: blending two noisy guesses
+
+A kayaker's predicted position is 2 m, uncertain with variance 10; the GPS says 3.5 m, with variance 4. Neither is trustworthy alone. The Kalman filter trusts each in proportion to the other's uncertainty. The gain is $10/(10+4) = 0.71$, so it moves 71% of the way from the prediction toward the GPS, to 3.07 m. The combined variance, 2.86, is smaller than *both* sources: two independent opinions beat either one. See @eq-kalman-correct.
+
+### Particles: a crowd of guesses
+
+A rover can only measure its distance to one beacon. After the first reading, every point on a ring around the beacon is equally plausible. No bell curve can represent a ring, but a cloud of 2,000 random guesses, reweighted by the reading, forms one on its own. Driving straight east leaves the rover's side of the beacon ambiguous, so the cloud splits into two mirror-image clumps. After a turn north, the wrong clump's predictions stop matching the readings, and it dies out. See @eq-particles and @fig-particles.
+
+### Choosing how to store the belief
+
+A table is exact but grows with the number of states. A mean and covariance are tiny and exact, but only for linear-Gaussian worlds. Particles fit any shape but need many samples when the sensor is precise. The three filters make exactly this trade-off, and the [cheat sheet](#cheat-sheet-connections) summarizes when to use each.
 
 ## Formalism
 

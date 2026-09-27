@@ -41,9 +41,16 @@ EXACT = exact_inference(COMMUTE, ("S",), EVIDENCE).table[1]
 
 ## Big picture
 
-[Chapter 2](ch02-representation.qmd) built a language for beliefs: a Bayesian network stores a big joint distribution as small local tables. This chapter *uses* it. **Inference** answers questions of the form "given what I've observed, how likely is this?": $P(\text{query} \mid \text{evidence})$. You're late and the radio warned of a storm; how likely is it that there actually was a storm?
+### Where this chapter fits
 
-The one-sentence idea: **every inference question is answered by summing the joint distribution over the variables you don't care about. Doing that exactly can be exponential, so you either organize the sums cleverly (variable elimination) or estimate them by simulation (sampling).**
+[Chapter 2](ch02-representation.qmd) built a language for beliefs: a Bayesian network stores a big joint distribution as small local tables, one per variable. This chapter *uses* that language. A model is only useful if you can ask it questions, and asking it a question is called **inference**. Every later chapter relies on it:
+- [Ch 4](ch04-parameter-learning.qmd) needs it to learn from incomplete data;
+- [Ch 6](ch06-simple-decisions.qmd) needs it to weigh the outcomes of decisions;
+- [Ch 19](../part4/ch19-beliefs.qmd) runs it at every time step to track a hidden state.
+
+**The question:** given what you've observed, how likely is something you haven't? You're late and the radio warned of a storm. How likely is it that there actually was a storm? Written as a formula, $P(\text{query} \mid \text{evidence})$.
+
+The short answer: **every such question is answered by adding up the joint distribution over the variables you don't care about. Doing that naively takes exponential time, so you either organize the additions cleverly (variable elimination) or estimate them by simulation (sampling).**
 
 ```{dot}
 //| label: fig-ch03-map
@@ -70,6 +77,42 @@ digraph ch03 {
 }
 ```
 
+### The key ideas at a glance
+
+1. **Inference is summing and normalizing.** Split the variables into three groups: the **query** (what you want to know), the **evidence** (what you've observed) and the **hidden** variables (everything else). The answer is the total probability of the situations where the query holds and the evidence matches, divided by the total over all situations where the evidence matches. That's exact, but the number of situations doubles with every hidden yes/no variable.
+
+2. **Variable elimination organizes the sums.** Most of the chain-rule product doesn't involve any given hidden variable. So you can sum out one variable at a time, touching only the few tables that mention it, and keep the small result for later. The work depends on the *order* in which variables are eliminated. It's efficient for many networks, although exact inference is intractable (NP-hard) in the worst case.
+
+3. **Naive Bayes is inference made trivial.** If one hidden cause produces several observations that are otherwise unrelated, as a machine's fault produces its symptoms, the posterior is just the prior times one likelihood per observation, normalized. That's quick enough for diagnosis and classification.
+
+4. **Sampling estimates the sums.** Simulate many situations from the model and count. **Rejection sampling** keeps only the simulations that match the evidence, which wastes most of them when the evidence is rare. **Likelihood weighting** forces the evidence into every simulation and weights each one by how plausible that forcing was. **Gibbs sampling** changes one variable at a time given everything else, and wanders through the plausible situations. More samples mean more accuracy, with error shrinking roughly like $1/\sqrt{\text{samples}}$.
+
+5. **Gaussian models need no sums.** When everything is jointly Gaussian, observing some variables shifts the others' mean in proportion to how surprising the observation was, and shrinks their spread by a fixed amount. It's a closed-form formula, and it's the same update the Kalman filter uses.
+
+### Vocabulary
+
+| Term | Plain meaning |
+|:---|:---|
+| Query / evidence / hidden | What you want to know / what you've observed / everything else |
+| Marginalize (sum out) | Add up a joint over all values of some variables to remove them |
+| Normalize | Rescale numbers so they add up to 1 |
+| Factor $\phi$ | A table over some variables: a CPT, or any partial product of CPTs |
+| Elimination order | The order in which variable elimination sums variables out |
+| Direct sampling | Drawing a full situation from the model, causes before effects |
+| Likelihood weight | How plausible the observed evidence was in one weighted sample |
+| Markov blanket | A variable's parents, children and children's other parents: all Gibbs needs |
+| Burn-in | Early Gibbs samples thrown away while the chain forgets its starting point |
+
+: Terms used on this page. {#tbl-vocab}
+
+### After this chapter you can
+
+- Answer a query in a small Bayesian network by hand, summing in a smart order.
+- Implement variable elimination with factor products and sums.
+- Diagnose with naive Bayes.
+- Estimate queries by sampling, and pick a sampler based on how rare the evidence is.
+- Condition a Gaussian on an observation.
+
 ## Intuition
 
 ::: {.callout-tip title="Analogy"}
@@ -83,6 +126,26 @@ A detective asks: "Given the clues, how likely is it that the butler did it?"
 - **Likelihood weighting** forces every simulation to match the clues, then gives less weight to the ones where that forcing was implausible.
 - **Gibbs sampling** starts from any story that matches the clues, then keeps revising one detail at a time. It wanders through the plausible stories in proportion to how plausible they are.
 :::
+
+### Summing and normalizing
+
+You're late and the radio issued an alert. There are only two possibilities for the storm: it happened or it didn't. Add up the probability of every full morning with a storm, late and an alert: 0.0364. Do the same without a storm: 0.0025. Together they total 0.0389, the probability of the evidence. The storm's share is $0.0364 / 0.0389 = 0.935$. That's all inference is. The difficulty is only that "every full morning" can be astronomically many. See @eq-enumeration.
+
+### Sharing sub-plots (variable elimination)
+
+To get those totals, you'd naively list all 8 combinations of the other variables for each storm value, and multiply 5 numbers for each. But "late, given the jam" doesn't care about the storm or the roadwork. So first combine the jam and late tables into a small "chance of being late given storm and roadwork" table (4 entries). Then fold in the roadwork (2 entries), then the storm. You never build anything bigger than 4 entries. On a chain of 30 variables, the same trick replaces about half a billion terms with about 120 multiplications. See @eq-sum-product.
+
+### One product for naive Bayes
+
+A coffee machine is fine 80% of the time and has a worn pump 5% of the time. A worn pump makes a loud noise 80% of the time, a healthy machine only 10%. Hearing the noise multiplies each condition's weight by its noise probability: fine becomes $0.80 \times 0.1 = 0.08$ and pump becomes $0.05 \times 0.8 = 0.04$. Scale buildup, the third condition, becomes $0.15 \times 0.2 = 0.03$. Normalizing, one symptom raises the pump from 5% to $0.04 / 0.15 \approx 27\%$. Each further symptom multiplies in again. See @eq-naive-bayes.
+
+### Simulating instead of summing
+
+Run the commute model 1,000 times. The evidence, late *and* an alert, shows up on only about 39 of those mornings. Rejection sampling estimates the storm probability from those 39 alone, a noisy answer. Likelihood weighting instead *sets* "late" and "alert" in all 1,000 runs, and weights each run by how likely that evidence was given its simulated storm and jam. Runs with a storm get weights hundreds of times larger than runs without, and all 1,000 runs contribute. Gibbs sampling fixes the evidence and repeatedly re-draws one unknown at a time given the rest. See @eq-rejection, @eq-likelihood-weight and @eq-gibbs.
+
+### Gaussians in closed form
+
+Morning and evening commutes are correlated: bad days tend to be bad all day. This morning took 50 minutes, 15 more than usual. The model says each morning minute above average predicts 0.75 of an evening minute above average. So expect about 11 extra minutes tonight (51 instead of 40), with a spread that shrinks from 10 to 8 minutes, whatever this morning's time was. See @eq-gaussian-condition.
 
 ## Formalism
 

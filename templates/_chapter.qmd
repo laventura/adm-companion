@@ -11,10 +11,22 @@ execute:
 :::
 
 ## Big picture
-<!-- Where this chapter sits: a Graphviz chapter map in the site palette (CLAUDE.md §6.3). The one-sentence idea. {{< video URL >}} -->
+<!-- SELF-SUFFICIENT (CLAUDE.md §6.5): a reader who stops after Big picture + Intuition should
+understand the whole chapter. In order:
+1. Where this chapter fits: what earlier chapters gave us, the gap, which chapters build on this.
+2. The question it answers, in one plain sentence.
+3. Chapter map: a Graphviz diagram (§6.3).
+4. ### The key ideas at a glance: one short paragraph per key concept (4–7): what it is,
+   why it's needed, its formula in words. No symbol is used before it is explained.
+5. ### Vocabulary: a small left-aligned table (|:---|:---|), term → plain meaning.
+6. ### After this chapter you can: 3–5 bullets.
+{{< video URL >}} -->
 
 ## Intuition
-<!-- A concrete story or analogy before any math. Use .callout-tip titled "Analogy". -->
+<!-- 1. One opening analogy for the whole chapter (.callout-tip titled "Analogy").
+2. Then one ### subsection per key idea: a concrete, small-numbers picture of why it works,
+   ending with a pointer to its Formalism subsection or equation. -->
+
 
 ## Formalism
 <!-- Every displayed equation (CLAUDE.md §6.4):

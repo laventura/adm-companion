@@ -66,6 +66,14 @@ This site uses the book's notation. Symbols are added here as chapters are writt
 | $d(s, s')$, $k(s, s')$ | Distance between states, and a kernel (larger for closer states) | Ch 8 |
 | $\sigma$ | Width of a Gaussian kernel | Ch 8 |
 | $X$, $X^+$ | Feature matrix (row $i$ is $\beta(s_i)^\top$) and its pseudoinverse | Ch 8 |
+| $d$ | Search depth (planning horizon) of an online planner | Ch 9 |
+| $U_d(s)$ | Value of $s$ from a depth-$d$ search | Ch 9 |
+| $\underline{U}(s)$, $\overline{Q}(s, a)$, $\overline{U}(s)$ | Lower bound on values; upper bounds on action values and values (admissible heuristic) | Ch 9 |
+| $m$ | Number of samples (sparse sampling) or simulations (MCTS, heuristic search) | Ch 9 |
+| $N(s, a)$, $N(s)$ | Visit counts in Monte Carlo tree search | Ch 9 |
+| $c$ | Exploration constant in UCB1 | Ch 9 |
+| $\delta$ | Residual threshold for a state to count as solved | Ch 9 |
+| $a_{1:d}$ | An open-loop sequence of actions | Ch 9 |
 | $o$ | An observation | Ch 19 |
 | $O(o \mid a, s')$ | Observation model: probability of observing $o$ after taking $a$ and landing in $s'$ | Ch 19 |
 | $b(s)$ | Belief: probability that the current state is $s$, given the history | Ch 19 |

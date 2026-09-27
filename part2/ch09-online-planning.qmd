@@ -1,8 +1,1194 @@
 ---
 title: "9 · Online Planning"
 subtitle: "Part II — Sequential Problems"
+jupyter: python3
+execute:
+  echo: false
 ---
 
 ::: {.callout-note appearance="minimal"}
-**In progress.** This page will cover ADM Ch. 9, *Online Planning*.
+**Executed in:** Python · **Book:** ADM Ch. 9 · **Lecture:** to be added
 :::
+<!-- TODO(video): link the official Stanford AA228 lecture on online planning. -->
+
+```{python}
+#| include: false
+import time
+
+import numpy as np
+import matplotlib.pyplot as plt
+from IPython.display import Markdown
+from matplotlib.colors import Normalize, TwoSlopeNorm
+from matplotlib.patches import Circle, RegularPolygon
+
+from adm import style
+from adm.io import write_json
+from adm.mdp import lookahead as q_table
+from adm.mdp import policy_evaluation_exact, policy_iteration
+from adm.online import (
+    MonteCarloTreeSearch, branch_and_bound, deterministic_forward_search,
+    double_integrator, forward_search, greedy, heuristic_search,
+    labeled_heuristic_search, lookahead, mpc_plan, rollout, rollout_lookahead,
+    sample_step, sparse_sampling,
+)
+from adm.page import show_source
+from adm.problems import mountain_car as mc
+from adm.problems.hex_world import STANDARD_REWARDS, STANDARD_TILES, hex_world, optimistic_values
+from adm.value_approx import MultilinearValue, approximate_value_iteration
+
+style.apply()
+blue, orange, green = style.CATEGORICAL[:3]
+
+# Hex World and its exact solution (policy iteration, Ch 7), used to score every planner.
+mdp = hex_world()
+T, R, gamma = mdp.T, mdp.R, mdp.gamma
+pi_star, U_star, _ = policy_iteration(T, R, gamma, np.zeros(len(T), int))
+Q_star = q_table(T, R, gamma, U_star)
+TILES = STANDARD_TILES
+DECISIONS = [i for i, t in enumerate(TILES) if t not in STANDARD_REWARDS]   # 21 tiles with a real choice
+S0 = TILES.index((1, 4))                 # the running example: the middle tile
+ACT = mdp.actions                        # E, NE, NW, W, SW, SE
+
+# Bounds: an optimistic upper bound (rewards discounted by the fewest moves to reach them)
+# and a pessimistic lower bound (the exact value of acting greedily on that upper bound).
+U_hi = optimistic_values(STANDARD_TILES, STANDARD_REWARDS, gamma)
+Q_hi = R + gamma * T @ U_hi
+U_lo = policy_evaluation_exact(T, R, gamma, Q_hi.argmax(axis=1))
+Ulo = lambda s: U_lo[s]
+
+
+def center(tile):
+    """Screen position of a (row, col) tile in odd-r offset coordinates."""
+    r, c = tile
+    return c + 0.5 * (r % 2), -r * np.sqrt(3) / 2
+
+
+def draw_hex(ax, color_of, text_of=lambda i: "", edge_of=lambda i: None):
+    """Draw Hex World: color_of(i) gives each tile's face color, text_of(i) a label,
+    and edge_of(i) an optional thick edge color."""
+    for i, tile in enumerate(TILES):
+        x, y = center(tile)
+        edge = edge_of(i)
+        ax.add_patch(RegularPolygon((x, y), 6, radius=0.55, facecolor=color_of(i),
+                                    edgecolor=edge or style.AXIS, linewidth=2.5 if edge else 1))
+        ax.text(x, y, text_of(i), ha="center", va="center", fontsize=8, color=style.INK)
+    ax.set_aspect("equal")
+    ax.autoscale_view()
+    ax.axis("off")
+
+
+def fmt(a):
+    return ACT[a]
+```
+
+## Big picture
+
+### Where this chapter fits
+
+[Chapter 7](ch07-exact-solution-methods.qmd) computed a policy for *every* state before acting, and [Chapter 8](ch08-approximate-value-functions.qmd) did the same with an approximate value function. Both are **offline**: all the work happens before the first move, and both struggle when the state space is huge. This chapter turns the problem around. An **online** planner waits until it knows the current state, then reasons only about the states reachable from there, picks one action, acts, and repeats. The same idea powers game-playing programs (Monte Carlo tree search was central to AlphaGo), robot controllers (model predictive control), and the online POMDP planners of [Chapter 22](../part4/ch22-online-belief-state-planning.qmd).
+
+**The question:** how do you choose a good action for the state you're in *right now*, without solving the whole problem?
+
+The short answer: **look ahead from the current state, as far and as widely as you can afford, estimate what lies beyond, pick the best first action, then do it all again from the next state.** The methods differ in how they spend a fixed amount of thinking: exhaustively, with bounds that prune, with random samples, or guided by optimism.
+
+```{dot}
+//| label: fig-ch09-map
+//| fig-width: 7
+//| fig-height: 2.5
+//| fig-cap: "Map of this chapter. Every online planner works in the same receding-horizon loop and differs in how it explores the future: exhaustively, with pruning, by sampling, guided by an optimistic heuristic, or by optimizing a fixed sequence of actions."
+//| fig-alt: "Diagram. A blue box, Receding horizon (plan from the current state, act, replan), leads to five boxes: Forward search (every action, every outcome), which leads to Branch and bound (prune with bounds); Sampling (rollouts, sparse sampling, Monte Carlo tree search); Heuristic search (optimistic values, greedy simulations), which leads to Labeled heuristic search (stop when solved); and Open-loop planning (optimize an action sequence, model predictive control)."
+digraph ch09 {
+  rankdir=LR; bgcolor="#fcfcfb"; pad=0.25; nodesep=0.2; ranksep=0.5;
+  node [shape=box, style="rounded,filled", fillcolor="white", color="#c3c2b7", penwidth=1.2,
+        fontname="Helvetica", fontsize=13, fontcolor="#0b0b0b", margin="0.12,0.07"];
+  edge [color="#52514e", penwidth=1.2, arrowsize=0.7, fontname="Helvetica", fontsize=11, fontcolor="#52514e"];
+  loop [label=<<B>Receding horizon</B><BR/><FONT POINT-SIZE="11">plan from here, act, replan</FONT>>, fillcolor="#cde2fb", color="#2a78d6"];
+  fs [label=<<B>Forward search</B><BR/><FONT POINT-SIZE="11">every action, every outcome</FONT>>];
+  bb [label=<<B>Branch and bound</B><BR/><FONT POINT-SIZE="11">prune with bounds</FONT>>];
+  samp [label=<<B>Sampling</B><BR/><FONT POINT-SIZE="11">rollouts, sparse sampling,<BR/>Monte Carlo tree search</FONT>>];
+  hs [label=<<B>Heuristic search</B><BR/><FONT POINT-SIZE="11">optimism + greedy runs</FONT>>];
+  lhs [label=<<B>Labeled heuristic search</B><BR/><FONT POINT-SIZE="11">stop when solved</FONT>>];
+  ol [label=<<B>Open-loop planning</B><BR/><FONT POINT-SIZE="11">optimize a sequence (MPC)</FONT>>];
+  loop -> fs [label="exhaustive"]; loop -> samp [label="sample"]; loop -> hs [label="guide"]; loop -> ol [label="commit"];
+  fs -> bb [label="prune"]; hs -> lhs [label="label"];
+}
+```
+
+### The key ideas at a glance
+
+1. **Plan from where you are, then replan.** From any one state, only a small part of the state space is reachable in a few steps. **Receding horizon planning** looks $d$ steps ahead from the current state, takes the best first action, and repeats from wherever it lands. Replanning at every step makes up for a short horizon and for surprises.
+
+2. **Forward search: try everything, then estimate beyond the horizon.** Expand every action and every possible outcome to depth $d$, and put a value estimate $U(s)$ at the leaves. The cost grows exponentially with depth, so the **leaf values** matter enormously. A good offline estimate, such as one from Chapter 8, makes a shallow search good. Combining the two is called **hybrid planning**.
+
+3. **Branch and bound: skip what can't win.** With a lower bound on values and an upper bound on action values, a branch whose best case is worse than something already found needn't be explored. It returns exactly what forward search does, usually with far less work.
+
+4. **Sampling: simulate instead of enumerate.** You only need a simulator, not the full transition table:
+   - **Rollouts** estimate a state's value by simulating some simple policy.
+   - **Sparse sampling** follows only $m$ sampled outcomes per action, so its cost no longer depends on the number of states.
+   - **Monte Carlo tree search (MCTS)** grows a search tree one simulation at a time. It chooses actions with an **upper confidence bound (UCB1)** that balances actions that look good against actions that haven't been tried much, so effort flows to promising branches.
+
+5. **Heuristic search: be optimistic, then correct.** Start from an **optimistic** value (an upper bound, also called an *admissible heuristic*). Repeatedly simulate the greedy policy, updating values along the way. Optimism lures the search into unexplored states, and each disappointment corrects a value. **Labeled** heuristic search marks states "solved" once their values stop changing, and stops when the current state is solved.
+
+6. **Open-loop planning: commit to a sequence.** Instead of a plan that reacts to future outcomes, optimize a fixed sequence of actions, often as a fast continuous optimization. This is **model predictive control (MPC)**. It ignores the chance to adapt later, which can cost a lot when outcomes are uncertain, but replanning at every step recovers much of that.
+
+### Vocabulary
+
+| Term | Plain meaning |
+|:---|:---|
+| Online planning | Choosing an action for the current state only, at decision time |
+| Receding horizon | Plan $d$ steps ahead, take one step, replan |
+| Leaf value $U(s)$ | Estimated value of a state at the edge of the search |
+| Hybrid planning | Online search plus an offline value estimate at the leaves |
+| Rollout | A simulation of a simple policy, used to estimate a value |
+| Generative model | A simulator that samples a next state and reward |
+| Branch and bound | Search that prunes branches using upper and lower bounds |
+| Sparse sampling | Search that follows $m$ sampled outcomes per action |
+| Monte Carlo tree search (MCTS) | Grow a search tree by repeated simulations, guided by UCB1 |
+| UCB1 | Action score: estimated value plus a bonus for trying rarely tried actions |
+| Admissible heuristic | An optimistic value estimate: never below the true optimal value |
+| Open-loop plan | A fixed sequence of actions, chosen without reacting to outcomes |
+| Model predictive control (MPC) | Optimize an open-loop plan, apply its first action, replan |
+
+: Terms used on this page. {#tbl-vocab}
+
+### After this chapter you can
+
+- Explain receding horizon planning, and why leaf values and depth trade off.
+- Run forward search, branch and bound, sparse sampling and MCTS, and compare their costs.
+- Compute UCB1 scores and explain the role of the exploration constant.
+- Use an admissible heuristic in heuristic search, and say when a state is "solved".
+- Distinguish open-loop from closed-loop plans, and set up a simple model predictive controller.
+
+## Intuition
+
+::: {.callout-tip title="Analogy"}
+A chess player doesn't memorize the best move for every possible board. At the board, they think a few moves ahead from *this* position, judge the resulting positions with experience ("I'm up a knight, that's good"), play a move, and think again after the reply.
+
+- Thinking through *every* reply is forward search.
+- Not bothering with a line once it's clearly worse than one already found is branch and bound.
+- Thinking harder about the promising lines is Monte Carlo tree search.
+- "Experience" is the value estimate at the leaves.
+:::
+
+We'll use **Hex World** (@fig-reachable): 24 hexagonal tiles, three of them special (+5, −10, +10; landing on one ends the game after collecting it). Each move goes the intended way with probability 0.7, and veers to a neighboring direction otherwise. Bumping a wall costs 1, and future rewards are discounted by $\gamma = 0.9$ per step. We know the exact optimal policy from Chapter 7, so we can score every planner against it.
+
+```{python}
+#| include: false
+# States reachable from S0 in k steps (any actions, any outcomes), and the size of the forward-search tree.
+reach = {0: {S0}}
+for k in range(1, 4):
+    reach[k] = reach[k - 1] | {int(s2) for s in reach[k - 1] for a in range(6) for s2 in np.flatnonzero(T[s, a])}
+first_seen = {}
+for k in range(3, -1, -1):
+    for s in reach[k]:
+        first_seen[s] = k
+leaves = {}
+for d in (1, 2, 3):
+    count = [0]
+
+    def counting_leaf(s):
+        count[0] += 1
+        return 0.0
+    forward_search(mdp, S0, d, counting_leaf)
+    leaves[d] = count[0]
+n_reach3 = len([s for s in reach[3] if s < len(TILES)])
+```
+
+```{python}
+#| label: fig-reachable
+#| fig-cap: "Hex World, with the running example's start (the middle tile, thick border). Numbers show how many steps it takes to first reach each tile from there. Within 3 steps only a handful of tiles can be reached, yet a full search tree of depth 3 has thousands of leaves, because it revisits the same tiles along different paths."
+#| fig-alt: "A map of 24 hexagonal tiles in three rows. The start tile in the middle row has a thick black border and the label 0. Tiles one, two and three steps away are shaded blue from dark to light and labeled 1, 2 and 3. Tiles farther away are left white. Reward tiles are outlined: plus 5 on the left of the middle row, minus 10 in the bottom row, plus 10 at the bottom right."
+fig, ax = plt.subplots(figsize=(8, 2.6))
+shade = {0: "#2a78d6", 1: "#6aa3e6", 2: "#a9c9f0", 3: "#d8e6f8"}
+draw_hex(ax, lambda i: shade.get(first_seen.get(i), style.SURFACE),
+         lambda i: (f"{STANDARD_REWARDS[TILES[i]]:+g}" if TILES[i] in STANDARD_REWARDS else "")
+                   + ("\n" if TILES[i] in STANDARD_REWARDS and i in first_seen else "")
+                   + (str(first_seen[i]) if i in first_seen else ""),
+         lambda i: style.INK if i == S0 else (orange if TILES[i] in STANDARD_REWARDS else None))
+plt.show()
+```
+
+```{python}
+#| include: false
+# Forward search at several depths, with zero leaves and with the heuristic policy's value at the leaves.
+def share_optimal(choose):
+    return np.mean([choose(s) == pi_star[s] for s in DECISIONS])
+
+
+depth_rows = []
+for d in (1, 2, 3, 4):
+    calls = {"fs": 0, "bb": 0}
+
+    def leaf(name, U):
+        def f(s):
+            calls[name] += 1
+            return U(s)
+        return f
+    zero = share_optimal(lambda s: forward_search(mdp, s, d, lambda s2: 0.0)[0])
+    lo = share_optimal(lambda s: forward_search(mdp, s, d, leaf("fs", Ulo))[0])
+    bb = share_optimal(lambda s: branch_and_bound(mdp, s, d, leaf("bb", Ulo), lambda s, a: Q_hi[s, a])[0])
+    depth_rows.append(dict(d=d, zero=zero, lo=lo, bb=bb, fs_leaves=calls["fs"] / len(DECISIONS),
+                           bb_leaves=calls["bb"] / len(DECISIONS)))
+fs_zero3, fs_lo1 = depth_rows[2]["zero"], depth_rows[0]["lo"]
+bb_ratio = depth_rows[2]["bb_leaves"] / depth_rows[2]["fs_leaves"]
+```
+
+```{python}
+#| include: false
+# Scorecard: every planner on the 21 decision tiles (10 random seeds for the sampling planners).
+rand_policy = lambda s, rng: int(rng.integers(6))
+planners = [
+    ("Greedy on the heuristic policy's value (depth 1)", "exact", 1, lambda s, rng: forward_search(mdp, s, 1, Ulo)[0]),
+    ("Forward search, depth 3, leaves 0", "exact", 1, lambda s, rng: forward_search(mdp, s, 3, lambda s2: 0.0)[0]),
+    ("Forward search, depth 3, heuristic leaves", "exact", 1, lambda s, rng: forward_search(mdp, s, 3, Ulo)[0]),
+    ("Branch and bound, depth 3", "exact", 1,
+     lambda s, rng: branch_and_bound(mdp, s, 3, Ulo, lambda s2, a: Q_hi[s2, a])[0]),
+    ("Rollout lookahead (random policy, 10 rollouts × 10 steps)", "sample", 10,
+     lambda s, rng: rollout_lookahead(mdp, s, rand_policy, 10, 10, rng)),
+    ("Sparse sampling, depth 2, m = 3", "sample", 10, lambda s, rng: sparse_sampling(mdp, s, 2, 3, Ulo, rng)[0]),
+    ("Sparse sampling, depth 2, m = 10", "sample", 10, lambda s, rng: sparse_sampling(mdp, s, 2, 10, Ulo, rng)[0]),
+    ("MCTS, 500 simulations, c = 1", "sample", 10,
+     lambda s, rng: MonteCarloTreeSearch(mdp, 10, 500, 1.0, Ulo, rng)(s)),
+    ("MCTS, 500 simulations, c = 10", "sample", 10,
+     lambda s, rng: MonteCarloTreeSearch(mdp, 10, 500, 10.0, Ulo, rng)(s)),
+    ("Heuristic search, 20 walks, U = 10", "exact", 10,
+     lambda s, rng: heuristic_search(mdp, s, np.full(len(T), 10.0), 10, 20, rng)[0]),
+    ("Heuristic search, 20 walks, distance heuristic", "exact", 10,
+     lambda s, rng: heuristic_search(mdp, s, U_hi, 10, 20, rng)[0]),
+    ("Labeled heuristic search, δ = 0.01", "exact", 10,
+     lambda s, rng: labeled_heuristic_search(mdp, s, U_hi, 10, 0.01, rng)[0]),
+]
+scores = {}
+for name, model, seeds, plan in planners:
+    optimal, lost, t0 = [], [], time.perf_counter()
+    for seed in range(seeds):
+        rng = np.random.default_rng(seed)
+        for s in DECISIONS:
+            a = plan(s, rng)
+            optimal.append(a == pi_star[s])
+            lost.append(U_star[s] - Q_star[s, a])      # value given up by this choice
+    scores[name] = dict(model=model, optimal=np.mean(optimal), lost=np.mean(lost),
+                        ms=1000 * (time.perf_counter() - t0) / len(optimal))
+r_mcts1, r_mcts10 = scores["MCTS, 500 simulations, c = 1"], scores["MCTS, 500 simulations, c = 10"]
+r_hs, r_hs10 = scores["Heuristic search, 20 walks, distance heuristic"], scores["Heuristic search, 20 walks, U = 10"]
+```
+
+### Plan from where you are
+
+From the middle tile, only `{python} n_reach3` of the 24 tiles can be reached within 3 steps. An online planner never needs values for the rest. Yet a complete search tree of depth 3 from there has `{python} f"{leaves[3]:,}"` leaves: there are 6 actions and up to 3 outcomes each, so up to 18 branches per step, and the same tiles appear many times along different paths. See @eq-forward-search.
+
+### Forward search and leaf values
+
+Search 3 steps ahead from each of the 21 decision tiles, valuing the leaves at 0 ("I don't know what happens after that"). This picks the optimal action on `{python} f"{fs_zero3:.0%}"` of the tiles. Put a rough estimate at the leaves instead, the value of a simple heuristic policy, and even a 1-step search is optimal on `{python} f"{fs_lo1:.0%}"`, while a 3-step search is optimal on all of them. The search fixes the estimate's mistakes near the root, and the estimate stands in for everything beyond the horizon (@fig-depth).
+
+### Pruning with bounds
+
+Suppose the first action you examine is worth 3.2, and an upper bound says another action can be worth *at most* 2.9. There's no need to look inside that other action at all. Branch and bound makes exactly the same choices as forward search here, but evaluates only `{python} f"{bb_ratio:.0%}"` as many leaves at depth 3. See @eq-bnb.
+
+### Sampling and Monte Carlo tree search
+
+Instead of weighing every outcome, simulate: take an action, sample where you land, keep going. Monte Carlo tree search does this again and again from the current state. At each state already in its tree, it picks the action with the best **optimistic score**: the average return seen so far, plus a bonus that is large for actions tried only a few times. After 500 simulations from each decision tile, it picks the optimal action `{python} f"{r_mcts10['optimal']:.0%}"` of the time with a well-scaled bonus ($c = 10$), but only `{python} f"{r_mcts1['optimal']:.0%}"` with a bonus 10 times too small ($c = 1$), because it then stops exploring too soon. See @eq-ucb1.
+
+### Heuristic search: optimism, then correction
+
+Start by believing every tile is as good as it could possibly be: the best reward, discounted by the fewest moves needed to reach it. Then walk the greedy path, and after each step replace the tile's value with a one-step lookahead. Optimistic values pull the walk toward unexplored tiles, and every visit makes a value more realistic. With this heuristic, 20 walks from each tile pick the optimal action `{python} f"{r_hs['optimal']:.1%}"` of the time. With the lazy heuristic "every tile is worth 10", it's `{python} f"{r_hs10['optimal']:.0%}"`: a looser heuristic needs more walks. See @eq-heuristic.
+
+### Open loop vs. closed loop
+
+A delivery drone can fly the **valley** route, worth 25 whatever happens, or the **ridge** route, where the wind turns out to blow left or right, 50/50. On the ridge, the matching turn earns 40 and the wrong turn 5.
+
+- Choosing a **fixed sequence** of actions in advance, the ridge is worth only $0.5 \times 40 + 0.5 \times 5 = 22.5$, so the valley wins.
+- A **closed-loop** plan turns *after* seeing the wind, and the ridge is worth 40.
+
+Open-loop planning is cheaper but can't value the chance to react. See @eq-open-loop.
+
+## Formalism
+
+### Receding horizon and forward search
+
+A receding horizon planner, at each time step, looks ahead $d$ steps from the current state, takes the best first action, and replans from the next state (ADM §9.1). Forward search does the lookahead exhaustively (ADM §9.3):
+
+::: {.key-equation data-name="Forward search (depth-limited Bellman recursion)"}
+$$
+U_d(s) = \max_{a} \left( R(s, a) + \gamma \sum_{s'} T(s' \mid s, a)\, U_{d-1}(s') \right),
+\qquad U_0(s) = U(s)
+$$ {#eq-forward-search}
+:::
+
+**In words.** The value of a state with $d$ steps to go is the best action's reward plus the discounted average value, with $d - 1$ steps to go, of where it leads. At the bottom of the tree, use the estimate $U$.
+
+**Term by term.**
+
+- $U(s)$ is the **leaf estimate**: 0 if we just want the best $d$-step plan, or an offline approximation (Chapter 8) to account for what lies beyond.
+- The action chosen now is the maximizing $a$ at the root.
+- The tree has up to $(|\mathcal{S}| \times |\mathcal{A}|)^d$ leaves, so the cost is exponential in the depth.
+
+**Why it holds.** This is $d$ steps of value iteration (Chapter 7), but computed only for states reachable from the root, recursively rather than for all states at once. If $U = U^*$, the result is exactly optimal at any depth.
+
+### Rollouts
+
+A **rollout** simulates a policy $\pi$ (often random or a simple rule) for $d$ steps using a generative model $s' \sim T(s, a)$, and returns the discounted sum of rewards (ADM §9.2):
+
+::: {.key-equation data-name="Rollout estimate"}
+$$
+\hat U^{\pi}(s) = \sum_{t=1}^{d} \gamma^{t-1} r_t,
+\qquad a_t \sim \pi(s_t),\ \ (s_{t+1}, r_t) \sim \text{simulate}(s_t, a_t)
+$$ {#eq-rollout}
+:::
+
+**In words.** Play the game forward with a simple policy and add up the discounted rewards. Averaged over $m$ rollouts, this estimates the policy's value.
+
+**Term by term.** A one-step lookahead on rollout values is an approximate **policy improvement** step (Chapter 7): it usually beats the rollout policy, but has no optimality guarantee. The cost is $O(m \times |\mathcal{A}| \times |\mathcal{S}| \times d)$ with $m$ rollouts per next state.
+
+### Branch and bound
+
+With a lower bound $\underline{U}(s) \le U^*(s)$ for the leaves and an upper bound $\overline{Q}(s, a) \ge Q^*(s, a)$, examine actions from the highest upper bound down (ADM §9.4):
+
+::: {.key-equation data-name="Branch-and-bound pruning rule"}
+$$
+\text{skip action } a \text{ (and all remaining ones) if } \ \overline{Q}(s, a) < \max_{a' \text{ examined}} \hat Q(s, a')
+$$ {#eq-bnb}
+:::
+
+**In words.** If even the most optimistic value of an action is below something you've already found, its subtree can't change the answer.
+
+**Term by term.**
+
+- $\hat Q(s, a')$ is the value forward search computes for an action already examined, using $\underline U$ at the leaves.
+- Sorting actions by $\overline{Q}$ means that once one fails the test, every later one does too.
+- Worst case: nothing is pruned, and the cost equals forward search.
+
+**Why it holds.** Backups preserve lower bounds, so every $\hat Q$ computed with $\underline U$ at the leaves is at most $Q^*$, which is at most $\overline Q$. An action with $\overline{Q}(s, a) < \hat Q(s, a')$ therefore can't have a larger $\hat Q$ than $a'$. On Hex World, the upper bound comes from the fewest moves to each positive reward, and the lower bound is the exact value of acting greedily on that upper bound: any policy's value is a lower bound on the optimum.
+
+### Sparse sampling
+
+Replace the sum over all next states with an average over $m$ samples (ADM §9.5; M. Kearns, Y. Mansour and A. Ng, *Machine Learning*, 2002):
+
+::: {.key-equation data-name="Sparse sampling"}
+$$
+\hat Q_d(s, a) = \frac{1}{m} \sum_{i=1}^{m} \Big( r^{(i)} + \gamma \max_{a'} \hat Q_{d-1}\big(s'^{(i)}, a'\big) \Big),
+\qquad (s'^{(i)}, r^{(i)}) \sim \text{simulate}(s, a)
+$$ {#eq-sparse}
+:::
+
+**In words.** For each action, sample $m$ outcomes and recurse on each. Average the results.
+
+**Term by term.** The tree has $(m \times |\mathcal{A}|)^d$ leaves: still exponential in depth, but **independent of the number of states**. That's what matters for huge or continuous state spaces. With $\hat Q_0$ replaced by the leaf estimate $U$, the estimate is noisy but converges to forward search as $m$ grows.
+
+### Monte Carlo tree search
+
+MCTS runs $m$ simulations from the current state (ADM §9.6). Each simulation walks down the current tree choosing actions by UCB1, adds one new state when it leaves the tree, estimates that state's value (by a rollout or a value function), and updates the statistics along the path. Inside the tree it chooses:
+
+::: {.key-equation .famous data-name="UCB1 exploration rule"}
+$$
+a = \mathop{\mathrm{arg\,max}}_{a} \; Q(s, a) + c \sqrt{\frac{\log N(s)}{N(s, a)}},
+\qquad N(s) = \sum_a N(s, a)
+$$ {#eq-ucb1}
+:::
+
+**In words.** Prefer actions that have done well, but add a bonus that shrinks as an action is tried more often and grows (slowly) as the state is visited more. An action never tried gets an infinite bonus.
+
+**Term by term.**
+
+- $Q(s, a)$ is the average return seen after taking $a$ in $s$, and $N(s, a)$ is how often that happened.
+- $c$ sets the exploration strength. It must be on the **scale of the values**: too small and the search fixes on an early favorite, too large and it wastes simulations on bad actions.
+- After the simulations, act with $\arg\max_a Q(s, a)$.
+
+**Why it holds.** The bonus comes from a concentration bound (Chernoff–Hoeffding): with high probability the true mean is below $Q + \sqrt{2 \log N / N(s, a)}$ for values in $[0, 1]$. Picking the highest upper confidence bound is optimism in the face of uncertainty, the same idea as in exploration (Chapter 15; P. Auer, N. Cesa-Bianchi and P. Fischer, *Machine Learning*, 2002). After each simulation returns $q$, the statistics update as a running mean:
+
+::: {.key-equation data-name="MCTS statistics update"}
+$$
+N(s, a) \leftarrow N(s, a) + 1,
+\qquad Q(s, a) \leftarrow Q(s, a) + \frac{q - Q(s, a)}{N(s, a)}
+$$ {#eq-mcts-update}
+:::
+
+**In words.** Count the visit, then move the average toward the new return by one over the count, which keeps $Q$ equal to the mean of all returns seen.
+
+**Term by term.** $q = r + \gamma \times$ (the value returned by the rest of the simulation). For large or continuous spaces, **progressive widening** limits how many actions or next states each node may have, growing with its visit count.
+
+### Heuristic search and labeling
+
+Heuristic search (ADM §9.7; A. Barto, S. Bradtke and S. Singh, *Artificial Intelligence*, 1995) keeps a value table $U$, initialized to an upper bound $\overline U \ge U^*$, and runs $m$ greedy simulations of depth $d$ from the current state, updating every visited state:
+
+::: {.key-equation data-name="Heuristic search update"}
+$$
+U(s) \leftarrow \max_a \left( R(s, a) + \gamma \sum_{s'} T(s' \mid s, a)\, U(s') \right)
+\quad \text{for each } s \text{ visited by the greedy policy}
+$$ {#eq-heuristic}
+:::
+
+**In words.** Walk where the current values say is best, and correct each value you pass with a one-step lookahead.
+
+**Term by term.**
+
+- An **admissible** heuristic $\overline{U}$ (never below $U^*$) makes unexplored states look attractive, so they get visited and corrected.
+- Backups keep $U$ above $U^*$ throughout, and the values converge to $U^*$ on the states the optimal policy reaches.
+- Tighter upper bounds need fewer simulations.
+
+**Labeled** heuristic search (ADM §9.8; B. Bonet and H. Geffner, *ICAPS*, 2003) calls a state **solved** when every state in its **greedy envelope** (the states the greedy policy can reach from it) has a small residual:
+
+::: {.key-equation data-name="Solved state"}
+$$
+\big|\, U(s') - \max_a \big(R(s', a) + \gamma \textstyle\sum_{s''} T(s'' \mid s', a)\, U(s'')\big) \big| < \delta
+\quad \text{for every } s' \text{ in the greedy envelope of } s
+$$ {#eq-solved}
+:::
+
+**In words.** A state is solved when one more lookahead wouldn't change any value it depends on by more than $\delta$.
+
+**Term by term.** Solved states are never updated again, and simulations stop when they reach one. The search ends when the current state is solved, so it spends effort only where values are still moving.
+
+### Open-loop planning and model predictive control
+
+A **closed-loop** plan says what to do in every future state, so it can react to what happens. An **open-loop** plan is a fixed sequence of actions (ADM §9.9):
+
+::: {.key-equation data-name="Open-loop planning"}
+$$
+\max_{a_{1:d}} \ U(a_{1:d}),
+\qquad U(a_{1:d}) = \mathbb{E}\left[ \sum_{t=1}^{d} \gamma^{t-1} R(s_t, a_t) \right]
+$$ {#eq-open-loop}
+:::
+
+**In words.** Choose the whole sequence of actions up front to maximize the expected return.
+
+**Term by term.** $U(a_{1:d})$ averages over outcomes but can't condition later actions on them, so an open-loop plan can never beat the best closed-loop plan, and can be much worse (the drone example). Its advantage is that it's often a fast continuous optimization.
+
+**Model predictive control** makes it concrete by assuming deterministic dynamics (for example, the most likely outcome), solving the optimization, applying only the first action, and replanning:
+
+::: {.key-equation data-name="Deterministic model predictive control"}
+$$
+\max_{a_{1:d},\, s_{2:d}} \ \sum_{t=1}^{d} \gamma^{t} R(s_t, a_t)
+\quad \text{subject to} \quad s_{t+1} = T(s_t, a_t),\ \ t = 1, \ldots, d-1
+$$ {#eq-mpc}
+:::
+
+**In words.** Pretend the future is predictable, find the best action sequence under that assumption, use its first step, and repeat as reality unfolds.
+
+**Term by term.**
+
+- $T(s, a)$ here is a deterministic function. With linear dynamics and a concave reward (a convex cost), the problem is convex and fast to solve.
+- **Robust MPC** instead maximizes the *worst case* over a set of possible outcomes, which is safer but often very conservative.
+- **Multiforecast MPC** plans against $m$ sampled scenarios, either for the worst one or on average, with a separate action sequence per scenario but a shared first action. This is also called hindsight optimization.
+
+### Costs at a glance
+
+| Method | Needs | Cost per decision |
+|---|---|---|
+| Forward search | $T$, $R$ | $O\big((\lvert\mathcal{S}\rvert\lvert\mathcal{A}\rvert)^d\big)$ |
+| Branch and bound | $T$, $R$, bounds | same worst case, often far less |
+| Rollout lookahead | simulator, rollout policy | $O(m \lvert\mathcal{A}\rvert\lvert\mathcal{S}\rvert d)$ |
+| Sparse sampling | simulator | $O\big((m\lvert\mathcal{A}\rvert)^d\big)$ |
+| Monte Carlo tree search | simulator | $O(m d)$ for $m$ simulations |
+| Heuristic search | $T$, $R$, admissible heuristic | $O(m d \lvert\mathcal{S}\rvert\lvert\mathcal{A}\rvert)$ |
+| Open-loop / MPC | (usually deterministic) model, optimizer | one optimization per step |
+
+: What each method needs and roughly what it costs. {#tbl-costs}
+
+## Worked example
+
+### Forward search, one step, by hand
+
+From the middle tile, a depth-1 search values each action by its reward plus the discounted expected leaf value. Here the leaf values are the heuristic policy's values $\underline{U}$ (the lower bound). For NE, for instance, the move goes NE with probability 0.7 and veers to NW or E with 0.15 each.
+
+```{python}
+#| label: tbl-depth1
+#| tbl-cap: "Depth-1 forward search from the middle tile with the heuristic policy's values at the leaves, compared with the exact optimal action values Q*. Bold marks each column's best action. Moves that would leave the map stay in place and cost 1, so R(s, a) is minus the chance of bumping."
+rows = ["| Action | Outcomes (probability → tile) | $R(s,a)$ | Expected leaf value | Search value | $Q^*(s, a)$ |",
+        "|---|---|---|---|---|---|"]
+vals = []
+for a in range(6):
+    outs = ", ".join(f"{T[S0, a, s2]:.2f} → {TILES[s2]}" for s2 in np.flatnonzero(T[S0, a]))
+    ev = T[S0, a] @ U_lo
+    vals.append((R[S0, a] + gamma * ev, Q_star[S0, a], outs, ev))
+best_search, best_true = int(np.argmax([v[0] for v in vals])), int(np.argmax([v[1] for v in vals]))
+for a, (v, q, outs, ev) in enumerate(vals):
+    sv = f"**{v:.2f}**" if a == best_search else f"{v:.2f}"
+    qv = f"**{q:.2f}**" if a == best_true else f"{q:.2f}"
+    rows.append(f"| {ACT[a]} | {outs} | {R[S0, a]:.2f} | {ev:.2f} | {sv} | {qv} |")
+# The leaf values are a lower bound, so search values can't exceed Q*. Say whether they're equal here.
+neighbors = sorted({int(s2) for a in range(6) for s2 in np.flatnonzero(T[S0, a])})
+if np.allclose(U_lo[neighbors], U_star[neighbors]):
+    depth1_note = ("Here the search values equal $Q^*$ exactly: the heuristic policy happens to be optimal on "
+                   "every tile one step from the middle, so its values there are the optimal values. In general, "
+                   "lower-bound leaves give search values at or below $Q^*$, and only their *ranking* matters.")
+else:
+    depth1_note = ("The search values are at or below $Q^*$ because the leaves are valued by a lower bound. "
+                   "Only their *ranking* matters for the decision.")
+Markdown("\n".join(rows))
+```
+
+Each search value is $R(s,a) + 0.9 \times$ (expected leaf value). The search picks **`{python} ACT[best_search]`**, and the optimal action is **`{python} ACT[best_true]`**. `{python} depth1_note`
+
+### UCB1 by hand
+
+After 10 simulations at a state, action A has been tried 7 times with average return 3.0, and action B 3 times with average 2.6. Then $\log N(s) = \log 10 = 2.303$.
+
+| | $c = 1$ | $c = 10$ |
+|---|---|---|
+| A: $3.0 + c\sqrt{2.303/7}$ | $3.0 + 0.57 = \mathbf{3.57}$ | $3.0 + 5.74 = 8.74$ |
+| B: $2.6 + c\sqrt{2.303/3}$ | $2.6 + 0.88 = 3.48$ | $2.6 + 8.76 = \mathbf{11.36}$ |
+
+: UCB1 scores. With a small c the search keeps exploiting A; with a larger c it checks B again. {#tbl-ucb}
+
+### Open loop vs. closed loop by hand
+
+The drone's four open-loop plans, and the closed-loop plan:
+
+| Plan | Expected reward |
+|---|---|
+| valley, then left | 25 |
+| valley, then right | 25 |
+| ridge, then left | $0.5 \times 40 + 0.5 \times 5 = 22.5$ |
+| ridge, then right | $0.5 \times 5 + 0.5 \times 40 = 22.5$ |
+| **ridge, then turn with the wind** (closed loop) | $0.5 \times 40 + 0.5 \times 40 = \mathbf{40}$ |
+
+: The drone example. The best open-loop plan is worth 25; the closed-loop plan is worth 40. {#tbl-drone}
+
+```{dot}
+//| label: fig-drone
+//| fig-width: 5.9
+//| fig-height: 3.0
+//| fig-cap: "The drone example. The valley route pays 25 regardless. On the ridge, the wind blows left or right (50/50), and only a plan that waits to see it can always take the matching turn."
+//| fig-alt: "A decision tree. From Start, a Valley branch leads to a box worth 25. A Ridge branch leads to a chance node splitting 50/50 into Wind left and Wind right. Under wind left, turning left pays 40 and turning right 5; under wind right, turning left pays 5 and turning right 40."
+digraph drone {
+  rankdir=LR; bgcolor="#fcfcfb"; pad=0.2; nodesep=0.2; ranksep=0.45;
+  node [fontname="Helvetica", fontsize=12, fontcolor="#0b0b0b", color="#52514e", style=filled, fillcolor="white", penwidth=1.2];
+  edge [color="#52514e", arrowsize=0.6, fontname="Helvetica", fontsize=11, fontcolor="#52514e"];
+  start [label="Start", shape=box, fillcolor="#cde2fb", color="#2a78d6"];
+  valley [label="25", shape=box];
+  wind [label="wind?", shape=ellipse, fillcolor="#f0efec"];
+  wl [label="wind left", shape=box]; wr [label="wind right", shape=box];
+  l1 [label="40", shape=box]; r1 [label="5", shape=box]; l2 [label="5", shape=box]; r2 [label="40", shape=box];
+  start -> valley [label="valley"]; start -> wind [label="ridge"];
+  wind -> wl [label="0.5"]; wind -> wr [label="0.5"];
+  wl -> l1 [label="left"]; wl -> r1 [label="right"]; wr -> l2 [label="left"]; wr -> r2 [label="right"];
+}
+```
+
+## Interactive
+
+### Monte Carlo tree search at the root
+
+Scrub through the simulations of MCTS from the middle tile and watch the root statistics. Bars show each action's current average return $Q(s, a)$, the numbers are the visit counts $N(s, a)$, and ticks mark the true optimal values $Q^*(s, a)$. With $c = 1$ the search settles on an early favorite; with $c = 10$ it keeps checking the others.
+
+```{python}
+#| include: false
+# Record the root statistics of MCTS after each simulation, for three exploration constants.
+CHECKPOINTS = list(range(1, 51)) + list(range(60, 1001, 10))
+mcts_runs = {}
+for c in (1.0, 10.0, 30.0):
+    planner = MonteCarloTreeSearch(mdp, 10, 0, c, Ulo, np.random.default_rng(7))
+    snaps = []
+    for k in range(1, 1001):
+        planner.simulate(S0, planner.d)
+        if k in CHECKPOINTS:
+            N, Q = planner.N.get(S0, np.zeros(6)), planner.Q.get(S0, np.zeros(6))
+            snaps.append({"N": N.astype(int).tolist(), "Q": Q.round(3).tolist()})
+    mcts_runs[str(int(c))] = snaps
+# The c = 10 run's preferred action at each checkpoint: the last checkpoint where it prefers the
+# optimal NE, and the first after that where it prefers NW (quoted in the text).
+choice10 = [ACT[int(np.argmax(snap["Q"]))] for snap in mcts_runs["10"]]
+ne_at = max(k for k, a in zip(CHECKPOINTS, choice10) if a == "NE")
+nw_at = next(k for k, a in zip(CHECKPOINTS, choice10) if a == "NW" and k > ne_at)
+write_json({"checkpoints": CHECKPOINTS, "runs": mcts_runs, "actions": ACT, "qstar": Q_star[S0].round(3),
+            "style": {"blue": blue, "orange": orange, "ink": style.INK, "muted": style.MUTED,
+                      "surface": style.SURFACE}}, "data/ch09-mcts.json")
+```
+
+```{ojs}
+mcts = FileAttachment("data/ch09-mcts.json").json()
+viewof c = Inputs.radio(["1", "10", "30"], {label: "Exploration constant c", value: "10"})
+viewof sims = Inputs.select(mcts.checkpoints, {label: "Simulations", value: 200})
+```
+
+```{ojs}
+root = {
+  const snap = mcts.runs[c][mcts.checkpoints.indexOf(sims)];
+  const rows = mcts.actions.map((a, i) => ({a, Q: snap.Q[i], N: snap.N[i], qstar: mcts.qstar[i]}));
+  // The action MCTS would take now: highest average return (ties go to the first).
+  const best = rows.reduce((b, r) => r.Q > b.Q ? r : b);
+  const opt = rows.reduce((b, r) => r.qstar > b.qstar ? r : b);
+  return {rows, best: best.a, opt: opt.a};
+}
+```
+
+```{ojs}
+md`After **${sims}** simulations with c = ${c}, MCTS would choose **${root.best}** (optimal: **${root.opt}**).`
+```
+
+```{ojs}
+//| label: fig-mcts-explorer
+//| fig-cap: "Root statistics of Monte Carlo tree search from the middle tile: average return per action (bars), visit counts (labels) and the optimal action values (black ticks)."
+//| fig-alt: "Interactive bar chart with one bar per action (E, NE, NW, W, SW, SE) showing MCTS's average return at the root, labeled with its visit count, and a black tick at each action's true optimal value. Controls choose the exploration constant and the number of simulations."
+Plot.plot({
+  width: 640, height: 280, marginLeft: 50,
+  style: {background: mcts.style.surface, color: mcts.style.ink},
+  x: {domain: mcts.actions, label: "Action"},
+  y: {domain: [-2, 5], label: "Value", grid: true},
+  marks: [
+    Plot.barY(root.rows, {x: "a", y: "Q", fill: d => d.a === root.best ? mcts.style.blue : mcts.style.muted}),
+    Plot.tickY(root.rows, {x: "a", y: "qstar", stroke: mcts.style.ink, strokeWidth: 3}),
+    Plot.text(root.rows, {x: "a", y: d => Math.max(d.Q, 0), text: d => `N = ${d.N}`, dy: -10, fill: mcts.style.ink}),
+    Plot.ruleY([0])
+  ]
+})
+```
+
+Two things to notice:
+
+- **The bars sit well below the ticks.** MCTS's averages include the returns of its own exploratory moves deeper in the tree, including bumps into walls. Hex World's paths also loop back to the middle tile, so the root's statistics pool returns from different depths. The averages value the search's own mixed behavior, not the optimal one.
+- **Only the ranking matters, and it's fragile.** With $c = 10$ the search still prefers the optimal NE after `{python} ne_at` simulations, but NW has overtaken it by `{python} nw_at`. The true values of these two actions differ by only `{python} f"{Q_star[S0].max() - np.sort(Q_star[S0])[-2]:.2f}"`.
+
+### Receding horizon on mountain car
+
+Mountain car (Chapter 8) needs about 106 steps to escape the valley, far beyond any affordable search depth. Choose the search depth, and what the planner assumes lies beyond its horizon: nothing, or the approximate value function from Chapter 8 on a coarse or a fine grid. The path is the car's actual trip in the state space.
+
+```{python}
+#| include: false
+# Mountain car driven by depth-d forward search, for three choices of leaf values.
+LO, HI = np.array([-1.2, -0.07]), np.array([0.6, 0.07])
+leaf_values = {"none": lambda s: np.zeros(len(s))}
+for n in (11, 41):
+    g = MultilinearValue(LO, HI, (n, n))
+    approximate_value_iteration(g, g.points(), mc.step, mc.ACTIONS, -1.0, 1.0, mc.is_goal, 400)
+    leaf_values[f"{n}x{n}"] = g
+DEPTHS, MAX_DRIVE = (1, 2, 4, 6, 8), 300
+drives = {}
+for name, U in leaf_values.items():
+    for d in DEPTHS:
+        s, path = np.array([-0.5, 0.0]), [[-0.5, 0.0]]
+        while not mc.is_goal(s) and len(path) <= MAX_DRIVE:
+            a, _, _ = deterministic_forward_search(mc.step, mc.is_goal, mc.ACTIONS, U, s, d)
+            s = mc.step(s, a)
+            path.append(s.round(4).tolist())
+        drives[f"{name}|{d}"] = path
+steps_none = {d: len(drives[f"none|{d}"]) - 1 for d in DEPTHS}
+steps_11 = {d: len(drives[f"11x11|{d}"]) - 1 for d in DEPTHS}
+steps_41 = {d: len(drives[f"41x41|{d}"]) - 1 for d in DEPTHS}
+write_json({"depths": DEPTHS, "max": MAX_DRIVE, "drives": drives,
+            "style": {"blue": blue, "orange": orange, "ink": style.INK, "muted": style.MUTED,
+                      "surface": style.SURFACE}}, "data/ch09-mountain.json")
+```
+
+```{ojs}
+mtn = FileAttachment("data/ch09-mountain.json").json()
+viewof depth = Inputs.select(mtn.depths, {label: "Search depth d", value: 4})
+viewof leaves = Inputs.radio(new Map([["nothing (value 0)", "none"], ["coarse 11 × 11 grid", "11x11"],
+  ["fine 41 × 41 grid", "41x41"]]), {label: "Beyond the horizon", value: "11x11"})
+```
+
+```{ojs}
+drive = mtn.drives[`${leaves}|${depth}`]
+md`${drive[drive.length - 1][0] >= 0.6 ? `The car escapes in **${drive.length - 1} steps**.` : `The car is **still in the valley after ${mtn.max} steps**.`}`
+```
+
+```{ojs}
+//| label: fig-receding-explorer
+//| fig-cap: "The car's trip in position and speed under receding-horizon forward search. The dashed line is the goal."
+//| fig-alt: "Interactive line chart of speed against position showing the path of the car under the chosen search depth and leaf values. With no value beyond the horizon, the path stays pinned near the left edge; with a value function, it spirals outward to the goal at position 0.6. Controls choose the depth and the leaf values."
+Plot.plot({
+  width: 640, height: 300,
+  style: {background: mtn.style.surface, color: mtn.style.ink},
+  x: {domain: [-1.25, 0.65], label: "Position x"}, y: {domain: [-0.07, 0.07], label: "Speed v", grid: true},
+  marks: [
+    Plot.ruleX([0.6], {stroke: mtn.style.blue, strokeDasharray: "4,3"}),
+    Plot.line(drive, {x: d => d[0], y: d => d[1], stroke: mtn.style.orange, strokeWidth: 2}),
+    Plot.dot([drive[0]], {x: d => d[0], y: d => d[1], fill: mtn.style.ink, r: 4})
+  ]
+})
+```
+
+## Algorithms & code
+
+### Exhaustive search: forward search and branch and bound
+
+::: {.panel-tabset group="lang"}
+## Python
+```{python}
+#| output: asis
+show_source(lookahead, forward_search, branch_and_bound)
+```
+## Julia
+```{.julia .snippet}
+using ADM, LinearAlgebra
+
+# Hex World from the problem zoo: T[s, a, s′], R[s, a], γ. States and actions are indices.
+mdp = hex_world()
+nS, nA = size(mdp.R)
+
+# R(s, a) + γ Σ T(s′ | s, a) U(s′), visiting only next states that can happen.
+lookahead(mdp, U, s, a) = mdp.R[s, a] + mdp.γ * sum(mdp.T[s, a, s′] * U(s′) for s′ in findall(>(0), mdp.T[s, a, :]))
+
+# Best action and its value, searching every action and outcome to depth d; U values the leaves.
+function forward_search(mdp, s, d, U)
+    d <= 0 && return (a = nothing, u = U(s))
+    U′(s′) = forward_search(mdp, s′, d - 1, U).u      # value with d - 1 steps left
+    q = [lookahead(mdp, U′, s, a) for a in 1:nA]
+    a = argmax(q)
+    return (a = a, u = q[a])
+end
+
+# Same answer as forward search, skipping actions whose upper bound Q_hi can't beat the best so far.
+function branch_and_bound(mdp, s, d, U_lo, Q_hi)
+    d <= 0 && return (a = nothing, u = U_lo(s))
+    U′(s′) = branch_and_bound(mdp, s′, d - 1, U_lo, Q_hi).u
+    best = (a = nothing, u = -Inf)
+    for a in sort(1:nA, by = a -> -Q_hi(s, a))    # most promising first
+        Q_hi(s, a) < best.u && break              # nothing left can win
+        u = lookahead(mdp, U′, s, a)
+        u > best.u && (best = (a = a, u = u))
+    end
+    return best
+end
+
+# Exact optimum (value iteration to a tight tolerance) to check against.
+function solve(mdp; tol = 1e-12)
+    U = zeros(nS)
+    while true
+        U′ = [maximum(lookahead(mdp, s′ -> U[s′], s, a) for a in 1:nA) for s in 1:nS]
+        maximum(abs.(U′ - U)) < tol && return U′
+        U = U′
+    end
+end
+U_star = solve(mdp)
+Q_star(s, a) = lookahead(mdp, s′ -> U_star[s′], s, a)
+```
+:::
+
+### Sampling: rollouts, sparse sampling and Monte Carlo tree search
+
+::: {.panel-tabset group="lang"}
+## Python
+```{python}
+#| output: asis
+show_source(sample_step, rollout, rollout_lookahead, sparse_sampling, MonteCarloTreeSearch)
+```
+## Julia
+```{.julia .snippet}
+using Random
+
+# Generative model: sample s′ from T(· | s, a) by inverting the cumulative distribution.
+sample_step(mdp, s, a, rng) = (findfirst(cumsum(mdp.T[s, a, :]) .>= rand(rng)), mdp.R[s, a])
+
+function sparse_sampling(mdp, s, d, m, U, rng)
+    d <= 0 && return (a = nothing, u = U(s))
+    best = (a = nothing, u = -Inf)
+    for a in 1:nA
+        u = 0.0
+        for _ in 1:m                               # m sampled outcomes per action
+            s′, r = sample_step(mdp, s, a, rng)
+            u += (r + mdp.γ * sparse_sampling(mdp, s′, d - 1, m, U, rng).u) / m
+        end
+        u > best.u && (best = (a = a, u = u))
+    end
+    return best
+end
+
+# Monte Carlo tree search: N and Q are dictionaries keyed by state, holding one entry per action.
+struct MCTS
+    mdp; d::Int; m::Int; c::Float64; U::Function; rng
+    N::Dict{Int, Vector{Float64}}
+    Q::Dict{Int, Vector{Float64}}
+end
+MCTS(mdp, d, m, c, U, rng) = MCTS(mdp, d, m, c, U, rng, Dict(), Dict())
+
+function (π::MCTS)(s)
+    for _ in 1:π.m
+        simulate!(π, s, π.d)
+    end
+    return argmax(π.Q[s])
+end
+
+function simulate!(π::MCTS, s, d)
+    d <= 0 && return π.U(s)
+    if !haskey(π.N, s)                             # new leaf: add it and estimate its value
+        π.N[s], π.Q[s] = zeros(nA), zeros(nA)
+        return π.U(s)
+    end
+    N, Q = π.N[s], π.Q[s]
+    # UCB1: untried actions (N = 0) get an infinite bonus.
+    bonus = [n == 0 ? Inf : sqrt(log(sum(N)) / n) for n in N]
+    a = argmax(Q .+ π.c .* bonus)
+    s′, r = sample_step(π.mdp, s, a, π.rng)
+    q = r + π.mdp.γ * simulate!(π, s′, d - 1)
+    N[a] += 1
+    Q[a] += (q - Q[a]) / N[a]                      # running mean of the returns
+    return q
+end
+```
+:::
+
+### Heuristic search and labeled heuristic search
+
+::: {.panel-tabset group="lang"}
+## Python
+```{python}
+#| output: asis
+show_source(greedy, heuristic_search, labeled_heuristic_search)
+from adm.online import _label
+show_source(_label)
+```
+## Julia
+```{.julia .snippet}
+# One-step lookahead on a value table U: best action and its value.
+function greedy(mdp, U, s)
+    q = [lookahead(mdp, s′ -> U[s′], s, a) for a in 1:nA]
+    a = argmax(q)
+    return a, q[a]
+end
+
+# Greedy simulations from s, correcting each visited value; U starts at an upper bound.
+function heuristic_search(mdp, s, U_hi, d, m, rng)
+    U = copy(U_hi)
+    for _ in 1:m
+        state = s
+        for _ in 1:d
+            a, U[state] = greedy(mdp, U, state)
+            state, _ = sample_step(mdp, state, a, rng)
+        end
+    end
+    return greedy(mdp, U, s)[1], U
+end
+
+# The optimistic heuristic: each positive reward discounted by the fewest moves to reach it.
+function optimistic_values(mdp)
+    tiles, U = ADM.HEX_STANDARD_TILES, zeros(nS)
+    for (target, r) in ADM.HEX_STANDARD_REWARDS
+        r > 0 || continue
+        steps, frontier = Dict(target => 0), [target]
+        while !isempty(frontier)                   # breadth-first search over neighbors
+            next = []
+            for t in frontier, dir in ADM.HEX_DIRECTIONS
+                n = ADM.hex_neighbor(t, dir)
+                if n in tiles && !haskey(steps, n)
+                    steps[n] = steps[t] + 1
+                    push!(next, n)
+                end
+            end
+            frontier = next
+        end
+        for (t, k) in steps
+            i = findfirst(==(t), tiles)
+            U[i] = max(U[i], r * mdp.γ^k)
+        end
+    end
+    return U
+end
+```
+:::
+
+### Model predictive control
+
+::: {.panel-tabset group="lang"}
+## Python
+```{python}
+#| output: asis
+show_source(double_integrator, mpc_plan)
+```
+## Julia
+```{.julia .snippet}
+# The double integrator: velocity changes by the action, then position by the new velocity.
+function double_integrator(s0, a)                 # a is d × 2
+    v = s0[3:4]' .+ cumsum(a, dims = 1)
+    p = s0[1:2]' .+ cumsum(v, dims = 1)
+    return p, v
+end
+# Solving the MPC problem needs a constrained optimizer, typically JuMP.jl with Ipopt, which
+# this site doesn't depend on; see the Python tab (SciPy's SLSQP) for the solver.
+
+# The drone example: best open-loop plan versus the closed-loop plan.
+payoff = Dict(("valley", :left) => [25, 25], ("valley", :right) => [25, 25],   # [wind left, wind right]
+              ("ridge", :left) => [40, 5], ("ridge", :right) => [5, 40])
+open_loop = maximum(sum(0.5 .* v) for v in values(payoff))
+closed_loop = maximum(sum(0.5 .* max.(payoff[(route, :left)], payoff[(route, :right)])) for route in ("valley", "ridge"))
+@assert (open_loop, closed_loop) == (25.0, 40.0)
+```
+:::
+
+### Run them on Hex World
+
+::: {.panel-tabset group="lang"}
+## Python
+```{python}
+#| echo: true
+s = S0                                        # the middle tile
+rng = np.random.default_rng(0)
+leaf = lambda s2: U_lo[s2]                    # heuristic policy's values
+upper = lambda s2, a: Q_hi[s2, a]             # optimistic action values
+a_fs, u_fs = forward_search(mdp, s, 3, leaf)
+a_bb, u_bb = branch_and_bound(mdp, s, 3, leaf, upper)
+a_mcts = MonteCarloTreeSearch(mdp, 10, 1000, 10.0, leaf, rng)(s)
+a_hs, U_hs = heuristic_search(mdp, s, U_hi, 10, 50, rng)
+a_lhs, U_lhs, n_sims = labeled_heuristic_search(mdp, s, U_hi, 10, 0.01, rng)
+```
+## Julia
+```{.julia .snippet}
+rng = MersenneTwister(0)
+s = findfirst(==((1, 4)), ADM.HEX_STANDARD_TILES)        # the middle tile
+U_hi = optimistic_values(mdp)
+Q_hi(s, a) = lookahead(mdp, s′ -> U_hi[s′], s, a)
+greedy_hi = [argmax([Q_hi(s, a) for a in 1:nA]) for s in 1:nS]
+# Lower bound: the exact value of acting greedily on U_hi (a linear solve, as in Ch 7).
+Tπ = [mdp.T[s, greedy_hi[s], s′] for s in 1:nS, s′ in 1:nS]
+U_lo = (I - mdp.γ * Tπ) \ [mdp.R[s, greedy_hi[s]] for s in 1:nS]
+decisions = [i for (i, t) in enumerate(ADM.HEX_STANDARD_TILES) if !haskey(ADM.HEX_STANDARD_REWARDS, t)]
+optimal(s, a) = a == argmax([Q_star(s, b) for b in 1:nA])
+
+@assert all(optimal(t, forward_search(mdp, t, 3, s′ -> U_lo[s′]).a) for t in decisions)
+@assert all(branch_and_bound(mdp, t, 3, s′ -> U_lo[s′], Q_hi).a == forward_search(mdp, t, 3, s′ -> U_lo[s′]).a
+            for t in decisions)
+@assert optimal(s, MCTS(mdp, 10, 1000, 10.0, s′ -> U_lo[s′], rng)(s))
+@assert optimal(s, heuristic_search(mdp, s, U_hi, 10, 50, rng)[1])
+```
+:::
+
+```{python}
+print(f"Middle tile, optimal action {ACT[pi_star[s]]}:")
+print(f"  forward search (d = 3) {ACT[a_fs]}, branch and bound {ACT[a_bb]}, MCTS {ACT[a_mcts]}")
+print(f"  heuristic search {ACT[a_hs]}; labeled: {ACT[a_lhs]} after {n_sims} simulations")
+```
+
+```{python}
+#| output: asis
+# Explain the MCTS result honestly, whichever way this run went.
+best_two = np.argsort(Q_star[s])[::-1][:2]
+gap = Q_star[s, best_two[0]] - Q_star[s, best_two[1]]
+if a_mcts != pi_star[s]:
+    print(f"In this run MCTS chose {ACT[a_mcts]}, not the optimal {ACT[pi_star[s]]}. The two best actions "
+          f"differ by only {gap:.2f} in true value, and MCTS's averages include the returns of its own "
+          f"exploratory moves deeper in the tree, so 1,000 simulations aren't always enough to separate them. "
+          f"The scorecard below shows how often this happens across tiles and seeds.")
+else:
+    print(f"All planners agree here. The two best actions differ by {gap:.2f} in true value, so MCTS "
+          f"needs enough simulations to separate them; the scorecard below shows how often it does.")
+```
+
+::: {.callout-note collapse="true" title="Reading the Julia code (for Python programmers)"}
+- **`d <= 0 && return ...`** is a one-line `if`: the right side runs only when the left side is true.
+- **`U′(s′) = ...`** defined inside a function is a closure, like a nested `def` or `lambda` in Python.
+- **`(a = a, u = q[a])`** is a named tuple, read as `result.a` and `result.u`.
+- **`findfirst(cumsum(p) .>= rand(rng))`** samples an index with probabilities `p`, like `rng.choice(len(p), p=p)`.
+- **`(π::MCTS)(s)`** makes the struct callable, like `__call__`. `Dict()` plays the role of Python's `{}`.
+- **`(I - γ * Tπ) \ r`** solves a linear system, like `np.linalg.solve`. `I` is the identity matrix from `LinearAlgebra`, of whatever size the expression needs.
+:::
+
+### Results
+
+#### Depth versus leaf values
+
+```{python}
+#| label: fig-depth
+#| fig-cap: "Forward search on the 21 decision tiles of Hex World. Left: share of tiles where the search picks the optimal action, at each depth, with zero leaf values or with the heuristic policy's values. Right: leaf evaluations per decision (log scale); branch and bound makes the same choices as forward search with far fewer."
+#| fig-alt: "Two panels against search depth 1 to 4. Left, share optimal: with zero leaves it rises from about 57 percent at depth 1 to 86 percent at depth 4; with the heuristic's values at the leaves it starts at 95 percent and reaches 100 percent from depth 3. Right, leaf evaluations per decision on a log scale: forward search grows from about 15 to about 39,000; branch and bound grows from about 9 to about 14,000."
+fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(10, 3.4))
+ds = [row["d"] for row in depth_rows]
+ax1.plot(ds, [100 * row["zero"] for row in depth_rows], "o-", color=orange, label="leaves valued 0")
+ax1.plot(ds, [100 * row["lo"] for row in depth_rows], "o-", color=blue, label="heuristic values at leaves")
+ax1.set(xlabel="Search depth d", ylabel="Tiles where it's optimal (%)", xticks=ds, ylim=(40, 102))
+ax1.legend(loc="lower right")
+ax2.semilogy(ds, [row["fs_leaves"] for row in depth_rows], "o-", color=style.INK_SECONDARY, label="forward search")
+ax2.semilogy(ds, [row["bb_leaves"] for row in depth_rows], "o-", color=green, label="branch and bound")
+ax2.set(xlabel="Search depth d", ylabel="Leaf evaluations per decision", xticks=ds)
+ax2.legend(loc="upper left")
+fig.tight_layout()
+plt.show()
+```
+
+#### Every planner on Hex World
+
+@tbl-scorecard scores each planner on the 21 decision tiles. It gives the share of decisions that match the optimal action, the value given up per decision ($U^*(s) - Q^*(s, a)$ for the chosen $a$), and the time per decision on the machine that built this page. "Exact model" methods read the full transition table; "simulator" methods only sample from it.
+
+```{python}
+#| label: tbl-scorecard
+#| tbl-cap: "Online planners on Hex World: share of optimal choices, average value lost per decision, and milliseconds per decision (sampling planners averaged over 10 random seeds)."
+rows = ["| Planner | Uses | Optimal | Value lost | ms per decision |", "|:---|---|---|---|---|"]
+for name, sc in scores.items():
+    uses = "exact model" if sc["model"] == "exact" else "simulator"
+    rows.append(f"| {name} | {uses} | {sc['optimal']:.0%} | {max(sc['lost'], 0):.3f} | {sc['ms']:.1f} |")
+Markdown("\n".join(rows))
+```
+
+A small, fully known problem like Hex World favors the exact-model methods. The sampling methods earn their keep when there's no transition table, only a simulator, or when there are too many next states to enumerate.
+
+#### Heuristic search converges from above
+
+```{python}
+#| include: false
+# Heuristic search from the middle tile: value estimate at the start after each walk, averaged over seeds.
+WALKS, SEEDS = 60, 20
+traces = {}
+for name, start in (("distance heuristic", U_hi), ("U = 10 everywhere", np.full(len(T), 10.0))):
+    runs = []
+    for seed in range(SEEDS):
+        rng = np.random.default_rng(seed)
+        U, trace = np.array(start, float), []
+        for _ in range(WALKS):
+            state = S0
+            for _ in range(10):
+                a, U[state] = greedy(mdp, U, state)
+                state, _ = sample_step(mdp, state, a, rng)
+            trace.append(U[S0])
+        runs.append(trace)
+    traces[name] = np.array(runs)
+lhs_sims = [labeled_heuristic_search(mdp, S0, U_hi, 10, 0.01, np.random.default_rng(seed))[2] for seed in range(SEEDS)]
+lhs_sims10 = [labeled_heuristic_search(mdp, S0, np.full(len(T), 10.0), 10, 0.01, np.random.default_rng(seed))[2]
+              for seed in range(SEEDS)]
+```
+
+```{python}
+#| label: fig-heuristic
+#| fig-cap: "Heuristic search from the middle tile: the estimate of the start tile's value after each greedy walk (mean over 20 seeds, shaded from the lowest to the highest run). It starts optimistic and comes down to the true value U*(s) (dashed), never below it. The tighter distance heuristic gets there in far fewer walks."
+#| fig-alt: "Line chart with walks from 1 to 60 across and the estimated value of the start tile up the side. A dashed horizontal line marks the true value, about 3. The U equals 10 curve starts near 9 and declines gradually, reaching the dashed line after about 50 walks; the distance-heuristic curve starts near 5 and reaches the dashed line after about 20 walks. Neither curve goes below the dashed line."
+fig, ax = plt.subplots(figsize=(6.4, 3.4))
+walks = np.arange(1, WALKS + 1)
+for (name, runs), color in zip(traces.items(), (blue, orange)):
+    ax.plot(walks, runs.mean(axis=0), color=color, label=name)
+    ax.fill_between(walks, runs.min(axis=0), runs.max(axis=0), color=color, alpha=0.2, linewidth=0)
+ax.axhline(U_star[S0], color=style.INK, linestyle="--", linewidth=1)
+ax.text(1, U_star[S0] - 0.35, "true value U*(s)", ha="left", fontsize=9, color=style.INK_SECONDARY)
+ax.set_ylim(U_star[S0] - 0.6, None)
+ax.set(xlabel="Greedy walks", ylabel="Estimated value of the start tile")
+ax.legend(loc="upper right")
+plt.show()
+```
+
+From the middle tile, labeled heuristic search with the distance heuristic declares the start solved after `{python} f"{np.mean(lhs_sims):.1f}"` simulations on average (over 20 seeds). With $U = 10$ everywhere, it needs `{python} f"{np.mean(lhs_sims10):.1f}"`.
+
+#### Model predictive control with a moving obstacle
+
+```{python}
+#| include: false
+# A point robot drives from (0, 0) to (8, 6) and must stop there, avoiding a circular obstacle (radius 1.5)
+# that crosses its path. MPC replans a 12-step plan at every step. Planner A assumes the obstacle
+# stays where it is now; planner B is told its velocity and predicts where it will be.
+GOAL, RADIUS, HORIZON, A_MAX = np.array([8.0, 6.0, 0.0, 0.0]), 1.5, 12, 0.5
+OBST0, OBST_V = np.array([4.5, 0.5]), np.array([0.0, 0.3])
+mpc_runs = {}
+for predict in (False, True):
+    s, obst, warm = np.zeros(4), OBST0.copy(), None
+    path, obstacles, first_plan = [s[:2].copy()], [obst.copy()], None
+    for k in range(25):
+        steps_ahead = np.arange(1, HORIZON + 1)[:, None]
+        centers = obst + steps_ahead * OBST_V if predict else np.repeat(obst[None], HORIZON, axis=0)
+        a = mpc_plan(s, GOAL, centers, RADIUS, A_MAX, warm=warm)
+        if first_plan is None:
+            first_plan = double_integrator(s, a)[0]
+        v = s[2:] + a[0]                                  # apply only the first action
+        s = np.concatenate([s[:2] + v, v])
+        obst = obst + OBST_V                              # the obstacle keeps moving
+        warm = np.vstack([a[1:], a[-1:]])                 # start the next solve from the shifted plan
+        path.append(s[:2].copy())
+        obstacles.append(obst.copy())
+    path, obstacles = np.array(path), np.array(obstacles)
+    gaps = np.linalg.norm(path - obstacles, axis=1)
+    mpc_runs[predict] = dict(path=path, obstacles=obstacles, first_plan=first_plan, gap=gaps.min(),
+                             closest=int(gaps.argmin()), end=path[-1])
+```
+
+The robot must reach $(8, 6)$ and stop, spending as little acceleration as possible, while a circular obstacle of radius 1.5 drifts upward across its path. At each step, MPC solves a 12-step plan and applies only its first action. @fig-mpc compares two planners:
+
+- **Obstacle assumed to stay put.** This planner keeps planning around where the obstacle *is*. The obstacle moves into its path, and the closest approach is `{python} f"{mpc_runs[False]['gap']:.2f}"`, inside the radius of 1.5: a collision.
+- **Obstacle motion predicted.** Given the obstacle's velocity, this planner keeps a clearance of `{python} f"{mpc_runs[True]['gap']:.2f}"`.
+
+Replanning can't fix a wrong model of the world.
+
+```{python}
+#| label: fig-mpc
+#| fig-cap: "Model predictive control of a point robot (orange path, from the black dot to the goal star) around an obstacle that drifts upward (gray circles, every 4 steps; the dark circle is at the moment of closest approach). The thin blue line is the first 12-step plan. Left: the planner assumes the obstacle stays put and cuts into it. Right: the planner predicts the obstacle's motion and keeps clear."
+#| fig-alt: "Two square panels with x and y from 0 to about 9. Each shows gray circles of radius 1.5 stacked vertically along x equals 4.5, moving upward over time, an orange robot path from the origin to a star at (8, 6), and a thin blue line for the first plan. In the left panel the orange path passes through the dark circle drawn at the closest approach. In the right panel the path bends around the circle without touching it."
+fig, axes = plt.subplots(1, 2, figsize=(10, 4.6), sharey=True)
+for ax, predict, title in zip(axes, (False, True), ("Obstacle assumed to stay put", "Obstacle motion predicted")):
+    run = mpc_runs[predict]
+    for k in range(0, len(run["obstacles"]), 4):
+        ax.add_patch(Circle(run["obstacles"][k], RADIUS, facecolor="none", edgecolor=style.MUTED, linewidth=0.8))
+    ax.add_patch(Circle(run["obstacles"][run["closest"]], RADIUS, facecolor="#e1e0d9", edgecolor=style.INK, alpha=0.8))
+    ax.plot(*run["first_plan"].T, color=blue, linewidth=1, label="first plan")
+    ax.plot(*run["path"].T, "-o", color=orange, markersize=3, label="actual path")
+    ax.plot(0, 0, "o", color=style.INK)
+    ax.plot(*GOAL[:2], "*", color=style.INK, markersize=12)
+    ax.set(title=f"{title} (closest {run['gap']:.2f})", xlim=(-0.5, 9.5), ylim=(-0.5, 9.5), aspect="equal", xlabel="x")
+axes[0].set_ylabel("y")
+axes[0].legend(loc="upper left", fontsize=8)
+fig.tight_layout()
+plt.show()
+```
+
+## Solved problems
+
+**Problem 1: pruning by hand.** At a state, the upper bounds on three actions are $\overline{Q} = 5.0, 4.0, 2.0$. Branch and bound examines the first and finds it's worth 3.5 (with lower-bound leaves). Which actions must still be examined?
+
+::: {.callout-tip collapse="true" title="Solution"}
+Actions are examined in order of their upper bounds. The second action's upper bound, 4.0, is above 3.5, so it could still win and must be examined. Suppose it turns out worth 3.8. Then the third action's upper bound, 2.0, is below the best found, 3.8, so it and anything after it are pruned. If the second action had been worth less than 3.5, the third would still be pruned, since 2.0 < 3.5.
+:::
+
+**Problem 2: when sparse sampling saves nothing.** In Hex World each action has at most 3 possible outcomes. Compare the number of leaves of forward search and of sparse sampling with $m = 3$ at depth $d$. When does sparse sampling pay off?
+
+::: {.callout-tip collapse="true" title="Solution"}
+Forward search branches on 6 actions and at most 3 outcomes: up to $18^d$ leaves. Sparse sampling with $m = 3$ branches on 6 actions and 3 samples: exactly $18^d$ leaves, and its values are noisy. On Hex World, sampling buys nothing. It pays off when actions have *many* possible outcomes (hundreds, or a continuum), since sparse sampling's $(m|\mathcal{A}|)^d$ doesn't grow with the number of outcomes, while forward search's does.
+:::
+
+**Problem 3: combining heuristics.** Hex World has two admissible heuristics: $h_1(s) = 10$ everywhere, and $h_2$, the reward discounted by the fewest moves. Is $\min(h_1, h_2)$ admissible? Is it better than either? What about $\max(h_1, h_2)$?
+
+::: {.callout-tip collapse="true" title="Solution"}
+Both are at least $U^*$ everywhere, so their minimum is too: it's admissible. It's also at least as tight as each, since it's never above either. Here $h_2 \le 10 = h_1$ everywhere, so $\min(h_1, h_2) = h_2$. The maximum is also admissible, but it's the looser of the two, so it would slow the search down (compare the two curves in @fig-heuristic).
+:::
+
+**Problem 4: the value of waiting to see.** In the drone example, how large must the valley's payoff be before closed-loop planning also prefers the valley? And below what valley payoff does open-loop planning choose the ridge?
+
+::: {.callout-tip collapse="true" title="Solution"}
+Closed-loop planning values the ridge at 40 (it turns with the wind), so it prefers the valley only if the valley pays more than 40. Open-loop planning values the ridge at 22.5, so it chooses the ridge only if the valley pays less than 22.5. Between 22.5 and 40, the two disagree. That gap is the value of being able to react, the value of information from Chapter 6.
+:::
+
+**Problem 5: scaling the exploration constant.** If every reward in Hex World were multiplied by 100, what should happen to MCTS's exploration constant $c$ to keep the same behavior? Why did $c = 1$ work poorly here?
+
+::: {.callout-tip collapse="true" title="Solution"}
+UCB1 adds $Q(s, a)$, which would scale by 100, to $c \sqrt{\log N(s)/N(s, a)}$, which doesn't depend on the rewards. To keep the same balance, $c$ must also be multiplied by 100. In Hex World, the action values differ by a few units, and $c = 1$ adds a bonus below 1 after a few visits. So the search locks onto whichever action looked best early, and rarely revisits the others.
+:::
+
+## Recap
+
+1. **Online planning chooses an action for the current state only, in a receding-horizon loop (@eq-forward-search).**
+   *Why it matters:* it scales to problems where no offline policy fits, because only reachable states matter, and it's how game engines, robots and POMDP planners (Chapter 22) act.
+2. **The deeper the search, the less the leaf values matter, but cost grows exponentially; good leaf values make shallow searches good.**
+   *Why it matters:* combining offline approximations (Chapter 8) with online search is the standard recipe for large problems.
+3. **Bounds prune (@eq-bnb), samples replace sums (@eq-sparse), and UCB1 steers simulations toward promising actions (@eq-ucb1).**
+   *Why it matters:* each trades exactness for speed differently. MCTS's exploration bonus is the same idea as in exploration (Chapter 15).
+4. **Optimistic values drive heuristic search, and labeling stops it when the answer has settled (@eq-heuristic, @eq-solved).**
+   *Why it matters:* tighter admissible heuristics mean less search, which is why designing good bounds is worth the effort.
+5. **Open-loop plans and MPC optimize action sequences quickly but can't value reacting later (@eq-open-loop, @eq-mpc).**
+   *Why it matters:* MPC is the workhorse of engineering control, and knowing its blind spot (and the model's) tells you when replanning is enough.
+
+## Cheat sheet & connections
+
+| Name | Formula | Ref |
+|---|---|---|
+| Forward search | $U_d(s) = \max_a R(s,a) + \gamma \sum_{s'} T(s' \mid s,a) U_{d-1}(s')$, $U_0 = U$ | @eq-forward-search |
+| Rollout estimate | $\hat U^\pi(s) = \sum_{t=1}^d \gamma^{t-1} r_t$ | @eq-rollout |
+| Branch and bound | skip $a$ if $\overline{Q}(s,a) <$ best found | @eq-bnb |
+| Sparse sampling | $\hat Q_d(s,a) = \frac1m \sum_i \big(r^{(i)} + \gamma \max_{a'} \hat Q_{d-1}(s'^{(i)}, a')\big)$ | @eq-sparse |
+| ★ UCB1 | $Q(s,a) + c\sqrt{\log N(s) / N(s,a)}$ | @eq-ucb1 |
+| MCTS update | $Q \leftarrow Q + (q - Q)/N$ | @eq-mcts-update |
+| Heuristic search | greedy walks; $U(s) \leftarrow \max_a (R + \gamma \sum T U)$ from $\overline U \ge U^*$ | @eq-heuristic |
+| Solved state | residual $< \delta$ on the greedy envelope | @eq-solved |
+| Open-loop planning | $\max_{a_{1:d}} \mathbb{E}\big[\sum_t \gamma^{t-1} R\big]$ | @eq-open-loop |
+| Deterministic MPC | $\max \sum_t \gamma^t R(s_t,a_t)$ s.t. $s_{t+1} = T(s_t,a_t)$ | @eq-mpc |
+
+: Key equations from this page (★ = well-known by name). {#tbl-cheatsheet}
+
+**Common pitfalls**
+
+- **Valuing leaves at zero when the goal is far away.** Every plan then looks the same (the mountain car explorer), and the planner acts arbitrarily.
+- **An exploration constant on the wrong scale.** Set MCTS's $c$ relative to the spread of action values.
+- **An "upper bound" that isn't one.** An inadmissible heuristic can make heuristic search settle on a suboptimal policy.
+- **Trusting open-loop values under uncertainty.** An open-loop plan undervalues actions whose payoff comes from reacting to what happens.
+- **Replanning with the wrong model.** MPC replans every step, but if it predicts the world wrongly (a static obstacle that actually moves), it can still crash.
+
+**Connections**
+
+- [Ch 7 · Exact Solution Methods](ch07-exact-solution-methods.qmd): forward search is depth-limited value iteration from one state.
+- [Ch 8 · Approximate Value Functions](ch08-approximate-value-functions.qmd): offline value estimates to put at the leaves.
+- [Ch 6 · Simple Decisions](../part1/ch06-simple-decisions.qmd): the gap between open- and closed-loop plans is a value of information.
+- [Ch 15 · Exploration and Exploitation](../part3/ch15-exploration-and-exploitation.qmd): UCB1 and optimism in the face of uncertainty.
+- [Ch 22 · Online Belief State Planning](../part4/ch22-online-belief-state-planning.qmd): the same planners over beliefs.
+- [Appendix F · Hex World](../appendices/f-problems.qmd#hex-world) and [Mountain car](../appendices/f-problems.qmd#mountain-car): the problems used here.

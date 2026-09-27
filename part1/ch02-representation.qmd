@@ -351,7 +351,7 @@ $X$ and $Y$ are **d-separated** by $Z$ if every path between them is blocked som
 
 ## Worked example
 
-The commute network's tables, in code:
+The commute network's tables, in code. (The network also has an entry in the [problem gallery](../appendices/f-problems.qmd#morning-commute), where it can be loaded ready-made.)
 
 ::: {.panel-tabset group="lang"}
 ## Python
@@ -578,6 +578,7 @@ show_source(probability, joint_table, num_parameters)
 ## Julia
 ```{.julia .snippet}
 # P(assignment) by the chain rule: one CPT entry per variable.
+# `...` splats the parents' values into separate indices; x's own value comes last.
 probability(bn, a) = prod(bn.cpt[x][(a[q] for q in pa)..., a[x]] for (x, pa) in bn.parents)
 
 # The full joint distribution as an array, with axes in the given order.

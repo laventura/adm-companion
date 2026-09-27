@@ -1,8 +1,848 @@
 ---
 title: "3 · Inference"
 subtitle: "Part I — Probabilistic Reasoning"
+jupyter: python3
+execute:
+  echo: false
 ---
 
 ::: {.callout-note appearance="minimal"}
-**In progress.** This page will cover ADM Ch. 3, *Inference*.
+**Executed in:** Python · **Book:** ADM Ch. 3 · **Lecture:** to be added
 :::
+<!-- TODO(video): link the official Stanford AA228 lecture on inference. -->
+
+```{python}
+#| include: false
+from itertools import product
+
+import numpy as np
+import matplotlib.pyplot as plt
+import plotly.graph_objects as go
+from IPython.display import Markdown
+from scipy import stats
+
+from adm import style
+from adm.inference import (
+    Factor, blanket_distribution, condition, cpt_factor, direct_sample, exact_inference,
+    factor_product, gaussian_condition, gibbs_sampling, likelihood_weighted_sampling,
+    naive_bayes_posterior, normalize, rejection_sampling, sum_out, topological_order,
+    variable_elimination, _cpt_row,
+)
+from adm.io import write_json
+from adm.page import show_source
+from adm.problems.coffee import CLASSES, COFFEE, LIKELIHOODS, PRIOR, SYMPTOMS
+from adm.problems.commute import COMMUTE, COMMUTE_TIMES_COV, COMMUTE_TIMES_MEAN, NAMES
+
+style.apply()
+blue, orange, green = style.CATEGORICAL[:3]
+EVIDENCE = {"L": 1, "A": 1}                  # late, and the radio warned of a storm
+EXACT = exact_inference(COMMUTE, ("S",), EVIDENCE).table[1]
+```
+
+## Big picture
+
+[Chapter 2](ch02-representation.qmd) built a language for beliefs: a Bayesian network stores a big joint distribution as small local tables. This chapter *uses* it. **Inference** answers questions of the form "given what I've observed, how likely is this?": $P(\text{query} \mid \text{evidence})$. You're late and the radio warned of a storm; how likely is it that there actually was a storm?
+
+The one-sentence idea: **every inference question is answered by summing the joint distribution over the variables you don't care about. Doing that exactly can be exponential, so you either organize the sums cleverly (variable elimination) or estimate them by simulation (sampling).**
+
+```{dot}
+//| label: fig-ch03-map
+//| fig-width: 7
+//| fig-height: 4.33
+//| fig-cap: "Map of this chapter. Exact methods organize the sums; sampling methods estimate them. Two special structures, naive Bayes and Gaussian models, have fast closed forms."
+//| fig-alt: "Tree diagram. A blue box, the query P(q given e), branches into three groups. Exact: enumeration, then variable elimination. Approximate by sampling: rejection sampling, then likelihood weighting, then Gibbs sampling. Special structure: naive Bayes as one product, and Gaussian models in closed form."
+digraph ch03 {
+  rankdir=TB; bgcolor="#fcfcfb"; pad=0.25; nodesep=0.3; ranksep=0.4;
+  node [shape=box, style="rounded,filled", fillcolor="white", color="#c3c2b7", penwidth=1.2,
+        fontname="Helvetica", fontsize=13, fontcolor="#0b0b0b", margin="0.12,0.06"];
+  edge [color="#52514e", penwidth=1.2, arrowsize=0.7, fontname="Helvetica", fontsize=11, fontcolor="#52514e"];
+  q [label=<<B>P(query | evidence)</B>>, fillcolor="#cde2fb", color="#2a78d6"];
+  exact [label=<<B>Exact</B><BR/><FONT POINT-SIZE="11">organize the sums</FONT>>];
+  approx [label=<<B>Sampling</B><BR/><FONT POINT-SIZE="11">estimate the sums</FONT>>];
+  special [label=<<B>Special structure</B><BR/><FONT POINT-SIZE="11">closed forms</FONT>>];
+  enum [label="Enumeration"]; ve [label="Variable elimination"];
+  rej [label="Rejection"]; lw [label="Likelihood weighting"]; gibbs [label="Gibbs"];
+  nb [label="Naive Bayes"]; gauss [label="Gaussian conditioning"];
+  q -> exact; q -> approx; q -> special;
+  exact -> enum; enum -> ve [label="reorder sums"];
+  approx -> rej; rej -> lw [label="fix evidence"]; lw -> gibbs [label="walk"];
+  special -> nb; special -> gauss;
+}
+```
+
+## Intuition
+
+::: {.callout-tip title="Analogy"}
+A detective asks: "Given the clues, how likely is it that the butler did it?"
+
+**The exact way:** list every possible story consistent with the clues, weigh each by how plausible it is, and add up the weight of the stories in which the butler did it. That's correct, but the number of stories explodes. **Variable elimination** is the detective who notices that many stories share sub-plots, and works each sub-plot out once instead of in every story.
+
+**The sampling way:** run thousands of simulated evenings from the model and look at the ones that match the clues.
+
+- **Rejection sampling** throws away every simulation that doesn't match. That's wasteful when the clues are rare.
+- **Likelihood weighting** forces every simulation to match the clues, then gives less weight to the ones where that forcing was implausible.
+- **Gibbs sampling** starts from any story that matches the clues, then keeps revising one detail at a time. It wanders through the plausible stories in proportion to how plausible they are.
+:::
+
+## Formalism
+
+### Inference by enumeration
+
+Split the variables into the **query** $q$, the **evidence** $e$ (observed values), and everything else, the **hidden** variables $h$ (ADM §3.1).
+
+::: {.key-equation data-name="Inference by enumeration"}
+$$
+P(q \mid e) = \frac{P(q, e)}{P(e)} = \frac{\sum_{h} P(q, h, e)}{\sum_{q'} \sum_{h} P(q', h, e)}
+$$ {#eq-enumeration}
+:::
+
+**In words.** Add up the probability of every complete situation that matches the query value and the evidence. Then divide by the same total taken over every query value.
+
+**Term by term.**
+
+- $P(q, h, e)$ is one entry of the joint, computed by the chain rule of [Ch 2](ch02-representation.qmd).
+- $\sum_h$ **marginalizes** out the hidden variables: it adds up over all their values.
+- The denominator $P(e)$ doesn't depend on $q$. In practice you compute the numerator for every value of $q$ and **normalize**.
+
+The cost is the problem: with $n$ binary hidden variables, there are $2^n$ terms.
+
+### Naive Bayes: one product
+
+A **naive Bayes** model has one class variable $C$ and observations $o_1, \ldots, o_n$ that each depend only on $C$ (ADM §3.2). The structure is shown in @fig-naive-structure. Enumeration then collapses to a single product.
+
+::: {.key-equation .famous data-name="Naive Bayes posterior"}
+$$
+P(c \mid o_{1:n}) \;\propto\; P(c) \prod_{i=1}^{n} P(o_i \mid c)
+$$ {#eq-naive-bayes}
+:::
+
+**In words.** Start from how common each class is, then multiply in how well each observation fits that class. Normalize at the end.
+
+**Term by term.** $P(c)$ is the class prior, and $P(o_i \mid c)$ is the likelihood of observation $i$ under class $c$. The product is exact *because* the observations are assumed independent given the class. That is the "naive" part: it's often not quite true, but it usually still ranks the classes well.
+
+```{dot}
+//| label: fig-naive-structure
+//| fig-width: 3.82
+//| fig-height: 1.65
+//| fig-cap: "The coffee-machine naive Bayes model: the machine's condition C causes each symptom independently."
+//| fig-alt: "Diagram with a Condition box at the top and three arrows down to Slow flow, Loud noise, and Weak taste."
+digraph nb {
+  bgcolor="#fcfcfb"; pad=0.15; nodesep=0.25; ranksep=0.35;
+  node [shape=box, style="rounded,filled", fillcolor="white", color="#52514e", fontname="Helvetica", fontsize=12, fontcolor="#0b0b0b"];
+  edge [color="#52514e", arrowsize=0.6];
+  C [label="Condition (C)", fillcolor="#cde2fb", color="#2a78d6"];
+  F [label="Slow flow"]; N [label="Loud noise"]; W [label="Weak taste"];
+  C -> F; C -> N; C -> W;
+}
+```
+
+### Variable elimination: pushing sums inside
+
+Most joint entries share factors. Summing over a variable only involves the factors that mention it, so you can move each sum inward, past the factors that don't depend on it (ADM §3.3). The tables involved are called **factors** $\phi$: a CPT, a product of CPTs, or any partial result.
+
+::: {.key-equation .famous data-name="Sum-product (variable elimination)"}
+$$
+P(l^1, a^1) = \sum_{s} P(s)\, P(a^1 \mid s) \sum_{r} P(r) \sum_{j} P(j \mid s, r)\, P(l^1 \mid j)
+$$ {#eq-sum-product}
+:::
+
+**In words.** Instead of one giant sum over all combinations of $s$, $r$ and $j$, do the innermost sum first ($j$), then use its result in the next sum out ($r$), and so on. Each step creates a small factor that replaces the variable it summed out.
+
+**Term by term.**
+
+- The innermost $\sum_j P(j \mid s, r) P(l^1 \mid j)$ multiplies the two factors that mention $j$ and sums $j$ out. The result is a new factor $\phi_1(s, r)$ with 4 entries.
+- $\sum_r P(r)\, \phi_1(s, r)$ does the same for $r$, giving $\phi_2(s)$.
+- The outer sum over $s$ combines the rest.
+- The two operations throughout are **factor product** (multiply entries that agree on shared variables) and **summing out**. That's where the name "sum-product" comes from.
+
+The work depends on the **elimination order**: a bad order creates big intermediate factors. Finding the best order is itself hard. In fact, exact inference in general Bayesian networks is NP-hard (ADM §3.5). On tree-shaped networks, **belief propagation** passes messages along the edges and gets every marginal efficiently (ADM §3.4).
+
+### Sampling
+
+When exact inference is too costly, estimate the answer from samples.
+
+**Direct sampling** (ADM §3.6) draws a complete sample by visiting the variables in *topological order*, parents before children, and drawing each one from its CPT row given the parents already drawn. **Rejection sampling** keeps only the samples that match the evidence:
+
+::: {.key-equation data-name="Rejection-sampling estimate"}
+$$
+\hat{P}(q \mid e) = \frac{\#\{\text{samples with } q \text{ and } e\}}{\#\{\text{samples with } e\}}
+$$ {#eq-rejection}
+:::
+
+**In words.** Among the simulated situations that match the evidence, the fraction where the query holds.
+
+**Term by term.** Both counts come from the same stream of direct samples. The estimate converges to the truth as samples accumulate, but only the matching samples count. With evidence of probability $P(e)$, you keep only about $N \cdot P(e)$ of $N$ samples. For "late and radio alert", $P(e) = 0.039$, so 96% are wasted.
+
+**Likelihood weighting** (ADM §3.7) never wastes a sample. It *sets* the evidence variables to their observed values instead of sampling them, and corrects for that with a weight:
+
+::: {.key-equation data-name="Likelihood weight"}
+$$
+w = \prod_{e_i \in e} P\big(e_i \mid \mathrm{pa}(e_i)\big)
+\qquad
+\hat{P}(q \mid e) = \frac{\sum_{\text{samples with } q} w}{\sum_{\text{all samples}} w}
+$$ {#eq-likelihood-weight}
+:::
+
+**In words.** A sample's weight is how likely the observed evidence would have been, given the values sampled for its parents. Samples where the evidence was plausible count more.
+
+**Term by term.** The product runs over the evidence variables only, and $\mathrm{pa}(e_i)$ takes the values drawn in *this* sample. For example, if a sample drew "storm" and "jam", its weight for evidence (late, alert) is $P(l^1 \mid j^1)\, P(a^1 \mid s^1) = 0.5 \times 0.95 = 0.475$.
+
+**Gibbs sampling** (ADM §3.8) builds a *Markov chain*. It starts from any assignment consistent with the evidence, then repeatedly resamples one hidden variable given all the others:
+
+::: {.key-equation data-name="Gibbs update (Markov blanket)"}
+$$
+P(x_i \mid x_{-i}) \;\propto\; P\big(x_i \mid \mathrm{pa}(x_i)\big) \prod_{c \,\in\, \mathrm{children}(x_i)} P\big(c \mid \mathrm{pa}(c)\big)
+$$ {#eq-gibbs}
+:::
+
+**In words.** To resample $x_i$, weigh each of its values by how well it fits its parents, and how well its children fit it.
+
+**Term by term.**
+
+- $x_{-i}$ is every variable except $x_i$.
+- Only $x_i$'s **Markov blanket** matters: its parents, its children, and its children's other parents. Every other factor of the joint is the same for all values of $x_i$, so it cancels when you normalize.
+- Consecutive samples are correlated, and the chain needs time to forget its starting point. The early sweeps are discarded (**burn-in**), and sometimes only every $k$-th sweep is kept (**thinning**).
+
+### Gaussian models: conditioning in closed form
+
+If the variables are jointly Gaussian, inference needs no sums at all (ADM §3.9). Split the variables into a query block $\mathbf{a}$ and an observed block $\mathbf{b}$:
+
+::: {.key-equation .famous data-name="Conditioning a Gaussian"}
+$$
+\boldsymbol{\mu}_{a \mid b} = \boldsymbol{\mu}_a + \boldsymbol{\Sigma}_{ab} \boldsymbol{\Sigma}_{bb}^{-1} (\mathbf{b} - \boldsymbol{\mu}_b)
+\qquad
+\boldsymbol{\Sigma}_{a \mid b} = \boldsymbol{\Sigma}_{aa} - \boldsymbol{\Sigma}_{ab} \boldsymbol{\Sigma}_{bb}^{-1} \boldsymbol{\Sigma}_{ba}
+$$ {#eq-gaussian-condition}
+:::
+
+**In words.** Seeing $\mathbf{b}$ shifts your estimate of $\mathbf{a}$ in proportion to how surprising $\mathbf{b}$ was and how strongly the two are correlated. It also shrinks your uncertainty, by the same amount whatever value you saw.
+
+**Term by term.**
+
+- $\mathbf{b} - \boldsymbol{\mu}_b$ is the surprise: the observation minus its expected value.
+- $\boldsymbol{\Sigma}_{ab} \boldsymbol{\Sigma}_{bb}^{-1}$ is the regression coefficient: how far $\mathbf{a}$ moves per unit of surprise. In 1D it is $\rho\, \sigma_a / \sigma_b$.
+- $\boldsymbol{\Sigma}_{a \mid b}$ doesn't depend on the observed value. In 1D it is $\sigma_a^2 (1 - \rho^2)$.
+- This is exactly the Kalman filter's correct step from [Ch 19](../part4/ch19-beliefs.qmd), with the prediction playing the role of the prior.
+
+## Worked example
+
+### Exact inference by hand
+
+Using the commute network from [Ch 2](ch02-representation.qmd) (its tables are also in the [problem gallery](../appendices/f-problems.qmd#morning-commute)): you're late and the radio warned of a storm. How likely is a storm? Follow @eq-sum-product, innermost sum first.
+
+**Step 1: sum out the jam** $j$, for each combination of storm and roadwork: $\phi_1(s, r) = \sum_j P(j \mid s, r) P(l^1 \mid j)$.
+
+| | $r^0$ | $r^1$ |
+|---|---|---|
+| $s^0$ | $0.1(0.5) + 0.9(0.05) = 0.095$ | $0.6(0.5) + 0.4(0.05) = 0.320$ |
+| $s^1$ | $0.7(0.5) + 0.3(0.05) = 0.365$ | $0.9(0.5) + 0.1(0.05) = 0.455$ |
+
+: $\phi_1(s, r)$: the probability of being late, given storm and roadwork. {#tbl-phi1}
+
+**Step 2: sum out roadwork** $r$: $\phi_2(s) = \sum_r P(r) \phi_1(s, r)$.
+$\phi_2(s^0) = 0.8(0.095) + 0.2(0.320) = 0.140$ and $\phi_2(s^1) = 0.8(0.365) + 0.2(0.455) = 0.383$.
+
+**Step 3: combine** with the storm prior and the radio:
+
+- $P(s^1, l^1, a^1) = 0.1 \times 0.95 \times 0.383 = 0.03639$
+- $P(s^0, l^1, a^1) = 0.9 \times 0.02 \times 0.140 = 0.00252$
+
+**Normalize:** $P(s^1 \mid l^1, a^1) = 0.03639 / (0.03639 + 0.00252) \approx$ **0.935**. The radio alert is strong evidence: an alert without a storm happens only 2% of the time. Enumeration would have summed 8 full joint entries for each storm value. Variable elimination never built anything bigger than a 4-entry table.
+
+### Naive Bayes: diagnosing a coffee machine
+
+A machine is fine 80% of the time, has scale buildup 15% of the time, and a worn pump 5% of the time. Each condition shows three symptoms with different probabilities:
+
+```{python}
+#| label: tbl-coffee
+#| tbl-cap: "The coffee-machine model: prior and P(symptom present | condition)."
+rows = ["| Condition | Prior | " + " | ".join(SYMPTOMS.values()) + " |", "|---|---|---|---|---|"]
+for c, name in enumerate(CLASSES):
+    rows.append(f"| {name} | {PRIOR[c]:.2f} | " + " | ".join(f"{L[c, 1]:.2f}" for L in LIKELIHOODS) + " |")
+Markdown("\n".join(rows))
+```
+
+The coffee flows slowly and the machine is loud, but the taste is fine. By @eq-naive-bayes:
+
+- ok: $0.80 \times 0.05 \times 0.10 \times 0.90 = 0.0036$
+- scale buildup: $0.15 \times 0.70 \times 0.20 \times 0.40 = 0.0084$
+- worn pump: $0.05 \times 0.60 \times 0.80 \times 0.70 = 0.0168$
+
+These sum to $0.0288$, so the posterior is $(0.125, 0.292, 0.583)$. The worn pump, the *rarest* condition a priori, is now the most likely, because the noise fits it so much better. @fig-naive-bayes shows the belief shifting as each symptom arrives.
+
+```{python}
+#| label: fig-naive-bayes
+#| fig-cap: "Naive Bayes posterior over the machine's condition as symptoms are observed one at a time: the prior, then slow flow, then loud noise, then taste fine."
+#| fig-alt: "Grouped bar chart with four groups: prior, plus slow flow, plus loud noise, plus taste fine. Each group has three bars for ok, scale buildup, and worn pump. In the prior, ok dominates at 0.80. After slow flow, scale buildup leads. After loud noise, worn pump leads. After taste fine, worn pump is at about 0.58, scale buildup about 0.29, and ok about 0.13."
+stages = ["Prior", "+ slow flow", "+ loud noise", "+ taste fine"]
+observed = [1, 1, 0]
+posteriors = [PRIOR] + [naive_bayes_posterior(PRIOR, LIKELIHOODS[:k], observed[:k]) for k in (1, 2, 3)]
+fig, ax = plt.subplots(figsize=(6.4, 3.4))
+width = 0.26
+for c, (name, color) in enumerate(zip(CLASSES, style.CATEGORICAL)):
+    ax.bar(np.arange(4) + (c - 1) * width, [p[c] for p in posteriors], width, color=color, label=name)
+ax.set(xticks=range(4), xticklabels=stages, ylabel="P(condition | symptoms)", ylim=(0, 1))
+ax.legend(ncol=3, loc="upper right")
+plt.show()
+```
+
+### Gaussian conditioning
+
+Morning and evening commute times (in minutes) are jointly Gaussian: morning $\mathcal{N}(35, 8^2)$, evening $\mathcal{N}(40, 10^2)$, with correlation $\rho = 0.6$ (bad traffic days tend to be bad all day). This morning took **50 minutes**. By @eq-gaussian-condition, in 1D:
+
+- Shift: $\rho\, \sigma_e / \sigma_m \times (50 - 35) = 0.6 \times \tfrac{10}{8} \times 15 = 11.25$, so the expected evening time is $40 + 11.25 = 51.25$ minutes.
+- Spread: $10^2 (1 - 0.6^2) = 64$, so the standard deviation is 8 minutes, down from 10.
+
+@fig-gaussian shows the joint and the conditional.
+
+```{python}
+#| label: fig-gaussian
+#| fig-cap: "Conditioning a Gaussian. Left: joint density of morning and evening commute times; the dashed line is the observation morning = 50. Right: the evening-time belief before (dashed) and after (solid) seeing the morning."
+#| fig-alt: "Two panels. The left shows tilted elliptical contours, with a vertical dashed line at morning 50 minutes and a dot at evening 51.25 on that line. The right shows two bell curves over evening time: a wide dashed one centered at 40 and a narrower solid one centered at about 51."
+mu_e, var_e = gaussian_condition(COMMUTE_TIMES_MEAN, COMMUTE_TIMES_COV, [1], [0], [50.0])
+m, e = np.meshgrid(np.linspace(5, 65, 200), np.linspace(5, 75, 200))
+joint = stats.multivariate_normal(COMMUTE_TIMES_MEAN, COMMUTE_TIMES_COV).pdf(np.dstack([m, e]))
+fig, axes = plt.subplots(1, 2, figsize=(10, 3.4))
+axes[0].contour(m, e, joint, levels=6, cmap=style.sequential_cmap(), linewidths=1.5)
+axes[0].axvline(50, color=style.MUTED, linestyle="--", linewidth=1)
+axes[0].plot([50], mu_e, "o", color=orange)
+axes[0].set(xlabel="Morning (min)", ylabel="Evening (min)", title="Joint", aspect="equal")
+axes[0].grid(False)
+t = np.linspace(5, 85, 300)
+axes[1].plot(t, stats.norm(40, 10).pdf(t), color=style.MUTED, linestyle="--", label="Before: N(40, 10²)")
+axes[1].plot(t, stats.norm(mu_e[0], np.sqrt(var_e[0, 0])).pdf(t), color=orange,
+             label=f"Given morning = 50: N({mu_e[0]:.2f}, {np.sqrt(var_e[0, 0]):.0f}²)")
+axes[1].set(xlabel="Evening (min)", ylabel="Density", title="Evening commute")
+axes[1].legend(loc="upper left", fontsize=9)
+fig.tight_layout()
+plt.show()
+```
+
+## Interactive
+
+### Race the samplers
+
+This runs rejection sampling and likelihood weighting live in your browser, on the commute network, to estimate $P(\text{storm} \mid \text{evidence})$. Choose the evidence and the number of samples. Rare evidence (late *and* a radio alert) leaves rejection sampling with very few samples to count. Likelihood weighting uses every sample.
+
+```{python}
+#| include: false
+# Exact answers for every combination of evidence on L, A and J, keyed like "A1,L1".
+exact_table = {}
+for values in product([None, 0, 1], repeat=3):
+    ev = {v: x for v, x in zip(("L", "A", "J"), values) if x is not None}
+    exact_table[",".join(f"{v}{ev[v]}" for v in sorted(ev))] = exact_inference(COMMUTE, ("S",), ev).table[1]
+write_json({
+    "order": topological_order(COMMUTE.parents),
+    "parents": {x: list(pa) for x, pa in COMMUTE.parents.items()},
+    "cpt": {x: t.tolist() for x, t in COMMUTE.cpt.items()},     # nested: parent values..., then [P(no), P(yes)]
+    "exact": exact_table,
+    "style": {"surface": style.SURFACE, "ink": style.INK, "blue": blue, "orange": orange, "muted": style.MUTED},
+}, "data/ch03-sampling.json")
+```
+
+```{ojs}
+race = FileAttachment("data/ch03-sampling.json").json()
+viewof lateEv = Inputs.radio(["unknown", "yes", "no"], {label: "Late", value: "yes"})
+viewof alertEv = Inputs.radio(["unknown", "yes", "no"], {label: "Radio alert", value: "yes"})
+viewof jamEv = Inputs.radio(["unknown", "yes", "no"], {label: "Traffic jam", value: "unknown"})
+viewof n = Inputs.range([100, 20000], {step: 100, value: 1000, label: "Samples N"})
+viewof redraw = Inputs.button("Draw new samples")
+```
+
+```{ojs}
+estimates = {
+  redraw;   // mentioning the button re-runs this cell each time it is pressed
+  const ev = {};
+  for (const [v, x] of [["L", lateEv], ["A", alertEv], ["J", jamEv]]) if (x !== "unknown") ev[v] = x === "yes" ? 1 : 0;
+  // Walk down a nested CPT by the parents' sampled values to reach [P(no), P(yes)].
+  const row = (x, s) => race.parents[x].reduce((t, p) => t[s[p]], race.cpt[x]);
+  let kept = 0, keptStorm = 0, wTotal = 0, wStorm = 0;
+  for (let i = 0; i < n; i++) {
+    const s = {};                                   // rejection: sample everything...
+    for (const x of race.order) s[x] = Math.random() < row(x, s)[1] ? 1 : 0;
+    if (Object.entries(ev).every(([v, val]) => s[v] === val)) { kept++; keptStorm += s.S; }   // ...keep matches
+    const t = {}; let w = 1;                        // likelihood weighting: fix evidence, weight it
+    for (const x of race.order) {
+      const p = row(x, t);
+      if (x in ev) { t[x] = ev[x]; w *= p[ev[x]]; } else t[x] = Math.random() < p[1] ? 1 : 0;
+    }
+    wTotal += w; wStorm += w * t.S;
+  }
+  const key = Object.keys(ev).sort().map(v => v + ev[v]).join(",");
+  return {exact: race.exact[key], rejection: kept ? keptStorm / kept : null, lw: wStorm / wTotal, kept};
+}
+```
+
+```{ojs}
+md`Rejection sampling kept **${estimates.kept}** of ${n} samples (${(100 * estimates.kept / n).toFixed(1)}%). Likelihood weighting used all ${n}.`
+```
+
+```{ojs}
+//| label: fig-sampler-race
+//| fig-cap: "Estimates of P(storm | evidence) from rejection sampling and likelihood weighting, against the exact value (dashed line)."
+//| fig-alt: "Interactive horizontal bar chart with three bars: the exact probability, the rejection-sampling estimate, and the likelihood-weighting estimate, plus a dashed vertical line at the exact value. Radio buttons set the evidence, a slider sets the number of samples, and a button draws new samples."
+{
+  const rows = [
+    {method: "Exact", p: estimates.exact},
+    {method: "Rejection", p: estimates.rejection},
+    {method: "Likelihood weighting", p: estimates.lw}
+  ];
+  return Plot.plot({
+    width: 640, height: 170, marginLeft: 150,
+    style: {background: race.style.surface, color: race.style.ink},
+    x: {domain: [0, 1], label: "P(storm | evidence)", grid: true},
+    y: {domain: rows.map(d => d.method), label: null},
+    marks: [
+      Plot.barX(rows.filter(d => d.p !== null), {x: "p", y: "method", fill: d => d.method === "Exact" ? race.style.muted
+        : d.method === "Rejection" ? race.style.blue : race.style.orange, rx: 3}),
+      Plot.text(rows, {x: d => d.p ?? 0, y: "method", text: d => d.p === null ? "no samples kept" : d.p.toFixed(3),
+        dx: 6, textAnchor: "start"}),
+      Plot.ruleX([estimates.exact], {stroke: race.style.ink, strokeDasharray: "4,3"})
+    ]
+  });
+}
+```
+
+### Condition on the morning commute
+
+Choose how long this morning's commute took. The evening-time belief shifts with the surprise, but its width stays the same: $\sigma = 8$ minutes, whatever you observe.
+
+```{python}
+#| label: fig-condition-slider
+#| fig-cap: "The evening commute-time belief given the morning's time. The dashed curve is the belief before seeing the morning."
+#| fig-alt: "Interactive line chart of density against evening commute time, with a slider for the morning time from 20 to 60 minutes. A dashed wide curve centered at 40 stays fixed. A solid narrower curve slides right as the morning time increases, keeping the same width."
+t = np.linspace(0, 90, 300)
+mornings = list(range(20, 61, 5))
+fig = go.Figure()
+fig.add_trace(go.Scatter(x=t, y=stats.norm(40, 10).pdf(t), name="Before: N(40, 10²)",
+                         line={"color": style.MUTED, "dash": "dash"}))
+for mm in mornings:
+    mu_c, var_c = gaussian_condition(COMMUTE_TIMES_MEAN, COMMUTE_TIMES_COV, [1], [0], [float(mm)])
+    fig.add_trace(go.Scatter(x=t, y=stats.norm(mu_c[0], np.sqrt(var_c[0, 0])).pdf(t), visible=(mm == 50),
+                             name=f"Given morning = {mm}: mean {mu_c[0]:.2f}", line={"color": orange, "width": 2.5}))
+fig.update_layout(**style.plotly_layout())
+fig.update_layout(
+    height=360, xaxis={"title": "Evening commute (min)"}, yaxis={"title": "Density", "range": [0, 0.055]},
+    legend={"orientation": "h", "y": 1.12},
+    sliders=[{
+        "active": mornings.index(50), "currentvalue": {"prefix": "Morning commute (min): "}, "pad": {"t": 40},
+        "steps": [{"label": str(mm), "method": "update",
+                   "args": [{"visible": [True] + [v == mm for v in mornings]}]} for mm in mornings],
+    }],
+)
+fig.show()
+```
+
+## Algorithms & code
+
+### Factors
+
+A factor is a table with one named axis per variable. Everything else is built from three operations on factors: product, summing out, and conditioning.
+
+::: {.panel-tabset group="lang"}
+## Python
+```{python}
+#| output: asis
+show_source(Factor, cpt_factor, factor_product, sum_out, condition, normalize)
+```
+## Julia
+```{.julia .snippet}
+using ADM, Distributions, Random
+
+# A factor: a table with one named axis per variable.
+struct Factor
+    vars::Vector{Symbol}
+    table::Array{Float64}
+end
+
+cpt_factor(bn, x) = Factor([bn.parents[x]..., x], bn.cpt[x])
+
+function factor_product(f, g)
+    vars = [f.vars; [v for v in g.vars if !(v in f.vars)]]
+    # Put each table's axes in `vars` order, with a size-1 axis for every variable it
+    # doesn't mention; broadcasting (.*) then matches shared variables and repeats the rest.
+    function expand(h)
+        axis(v) = findfirst(==(v), h.vars)
+        t = isempty(h.vars) ? h.table : permutedims(h.table, [axis(v) for v in vars if v in h.vars])
+        return reshape(t, Tuple(v in h.vars ? size(h.table, axis(v)) : 1 for v in vars))
+    end
+    return Factor(vars, expand(f) .* expand(g))
+end
+
+function sum_out(f, x)
+    i = findfirst(==(x), f.vars)
+    return Factor(deleteat!(copy(f.vars), i), dropdims(sum(f.table; dims = i); dims = i))
+end
+
+function condition(f, evidence)
+    # An integer picks one value (dropping that axis); Colon() keeps the whole axis.
+    idx = [haskey(evidence, v) ? evidence[v] : Colon() for v in f.vars]
+    t = f.table[idx...]
+    return Factor([v for v in f.vars if !haskey(evidence, v)], t isa Array ? t : fill(t))
+end
+
+# Scale to sum to 1, with axes in the given order. (Named `normalized` to avoid
+# clashing with LinearAlgebra's `normalize`.)
+function normalized(f, order = f.vars)
+    t = permutedims(f.table, [findfirst(==(v), f.vars) for v in order])
+    return Factor(collect(order), t ./ sum(t))
+end
+```
+:::
+
+### Exact inference and variable elimination
+
+`exact_inference` multiplies every CPT into the full joint first. `variable_elimination` never does: before summing out each hidden variable, it multiplies only the factors that mention it.
+
+::: {.panel-tabset group="lang"}
+## Python
+```{python}
+#| output: asis
+show_source(exact_inference, variable_elimination)
+```
+## Julia
+```{.julia .snippet}
+function exact_inference(bn, query, evidence)
+    ϕ = reduce(factor_product, [cpt_factor(bn, x) for x in keys(bn.parents)])
+    ϕ = condition(ϕ, evidence)
+    for v in setdiff(ϕ.vars, query)       # sum out every hidden variable
+        ϕ = sum_out(ϕ, v)
+    end
+    return normalized(ϕ, query)
+end
+
+function variable_elimination(bn, query, evidence, order)
+    factors = [condition(cpt_factor(bn, x), evidence) for x in keys(bn.parents)]
+    for h in order
+        # Multiply only the factors that mention h, then sum h out;
+        # every other factor is left alone.
+        involved = filter(f -> h in f.vars, factors)
+        filter!(f -> !(h in f.vars), factors)
+        isempty(involved) || push!(factors, sum_out(reduce(factor_product, involved), h))
+    end
+    return normalized(reduce(factor_product, factors), query)
+end
+```
+:::
+
+### Rejection sampling and likelihood weighting
+
+::: {.panel-tabset group="lang"}
+## Python
+```{python}
+#| output: asis
+show_source(topological_order, _cpt_row, direct_sample, rejection_sampling, likelihood_weighted_sampling)
+```
+## Julia
+```{.julia .snippet}
+function topological_order(parents)
+    order = Symbol[]
+    while length(order) < length(parents)
+        for (x, pa) in parents
+            !(x in order) && all(p in order for p in pa) && push!(order, x)
+        end
+    end
+    return order
+end
+
+# Distribution of x given the parents' values in sample s: index the CPT by the
+# parents' values (splatted), then take the whole last axis.
+cpt_row(bn, s, x) = bn.cpt[x][(s[q] for q in bn.parents[x])..., :]
+
+function direct_sample(bn, rng, order = topological_order(bn.parents))
+    s = Dict{Symbol, Int}()
+    for x in order                      # parents are always drawn before children
+        s[x] = rand(rng, Categorical(cpt_row(bn, s, x)))
+    end
+    return s
+end
+
+function rejection_sampling(bn, query, evidence, n, rng)
+    order, counts = topological_order(bn.parents), zeros(bn.card[query])
+    for _ in 1:n
+        s = direct_sample(bn, rng, order)
+        all(s[v] == val for (v, val) in evidence) && (counts[s[query]] += 1)   # keep matches only
+    end
+    return counts ./ sum(counts)
+end
+
+function likelihood_weighted_sampling(bn, query, evidence, n, rng)
+    order, weights = topological_order(bn.parents), zeros(bn.card[query])
+    for _ in 1:n
+        s, w = Dict{Symbol, Int}(), 1.0
+        for x in order
+            p = cpt_row(bn, s, x)
+            if haskey(evidence, x)
+                s[x] = evidence[x]
+                w *= p[s[x]]            # P(observed value | sampled parents)
+            else
+                s[x] = rand(rng, Categorical(p))
+            end
+        end
+        weights[s[query]] += w
+    end
+    return weights ./ sum(weights)
+end
+```
+:::
+
+### Gibbs sampling
+
+::: {.panel-tabset group="lang"}
+## Python
+```{python}
+#| output: asis
+show_source(blanket_distribution, gibbs_sampling)
+```
+## Julia
+```{.julia .snippet}
+# P(x | everything else): only x's own CPT row and its children's rows depend on x.
+function blanket_distribution(bn, s, x)
+    children = [c for (c, pa) in bn.parents if x in pa]
+    p = map(1:bn.card[x]) do value
+        t = merge(s, Dict(x => value))            # try x = value, keep the rest
+        prod(cpt_row(bn, t, y)[t[y]] for y in [x; children])
+    end
+    return p ./ sum(p)
+end
+
+function gibbs_sampling(bn, query, evidence, n, rng; burn_in = 200)
+    s = merge(direct_sample(bn, rng), evidence)   # any start consistent with the evidence
+    hidden = [x for x in keys(bn.parents) if !haskey(evidence, x)]
+    counts = zeros(bn.card[query])
+    for k in 1:(burn_in + n)
+        for x in hidden
+            s[x] = rand(rng, Categorical(blanket_distribution(bn, s, x)))
+        end
+        k > burn_in && (counts[s[query]] += 1)    # skip the burn-in sweeps
+    end
+    return counts ./ sum(counts)
+end
+```
+:::
+
+### Naive Bayes and Gaussian conditioning
+
+::: {.panel-tabset group="lang"}
+## Python
+```{python}
+#| output: asis
+show_source(naive_bayes_posterior, gaussian_condition)
+```
+## Julia
+```{.julia .snippet}
+function naive_bayes_posterior(prior, likelihoods, observations)
+    p = copy(prior)
+    for (L, o) in zip(likelihoods, observations)
+        p .*= L[:, o]              # L[c, o] = P(feature = o | class c)
+    end
+    return p ./ sum(p)
+end
+
+function gaussian_condition(μ, Σ, a, b, values)
+    K = Σ[a, b] / Σ[b, b]          # Σ_ab Σ_bb⁻¹, computed without forming the inverse
+    return μ[a] + K * (values - μ[b]), Σ[a, a] - K * Σ[b, a]
+end
+```
+:::
+
+### Run them all
+
+::: {.panel-tabset group="lang"}
+## Python
+```{python}
+#| echo: true
+from adm.problems.commute import COMMUTE
+evidence = {"L": 1, "A": 1}                       # late, and the radio warned of a storm
+exact = exact_inference(COMMUTE, ("S",), evidence)
+ve = variable_elimination(COMMUTE, ("S",), evidence, order=["J", "R"])
+rng = np.random.default_rng(3)
+rejection = rejection_sampling(COMMUTE, ("S",), evidence, 20_000, rng)
+weighted = likelihood_weighted_sampling(COMMUTE, ("S",), evidence, 20_000, rng)
+gibbs = gibbs_sampling(COMMUTE, ("S",), evidence, 20_000, rng)
+coffee = naive_bayes_posterior(PRIOR, LIKELIHOODS, [1, 1, 0])
+evening_mean, evening_var = gaussian_condition(COMMUTE_TIMES_MEAN, COMMUTE_TIMES_COV, [1], [0], [50.0])
+```
+## Julia
+```{.julia .snippet}
+commute = commute_network()
+evidence = Dict(:L => 2, :A => 2)                 # late, and the radio warned of a storm (2 = yes)
+exact = exact_inference(commute, [:S], evidence).table
+@assert exact[2] ≈ 0.036385 / 0.038905
+@assert variable_elimination(commute, [:S], evidence, [:J, :R]).table ≈ exact
+rng = MersenneTwister(3)
+@assert abs(rejection_sampling(commute, :S, evidence, 20_000, rng)[2] - exact[2]) < 0.03
+@assert abs(likelihood_weighted_sampling(commute, :S, evidence, 20_000, rng)[2] - exact[2]) < 0.02
+@assert abs(gibbs_sampling(commute, :S, evidence, 20_000, rng)[2] - exact[2]) < 0.03
+coffee = coffee_network()
+likelihoods = [coffee.cpt[s] for s in (:F, :N, :W)]
+@assert naive_bayes_posterior(COFFEE_PRIOR, likelihoods, [2, 2, 1]) ≈ [0.0036, 0.0084, 0.0168] ./ 0.0288
+μ, Σ = gaussian_condition(COMMUTE_TIMES_MEAN, COMMUTE_TIMES_COV, [2], [1], [50.0])
+@assert μ ≈ [51.25] && Σ ≈ fill(64.0, 1, 1)
+```
+:::
+
+```{python}
+print(f"P(storm | late, alert):  exact {exact.table[1]:.4f}   variable elimination {ve.table[1]:.4f}")
+print(f"  rejection {rejection.table[1]:.4f}   likelihood weighting {weighted.table[1]:.4f}   Gibbs {gibbs.table[1]:.4f}")
+print(f"Coffee machine (ok, scale, pump): {np.round(coffee, 3)}")
+print(f"Evening given morning = 50: mean {evening_mean[0]:.2f}, sd {np.sqrt(evening_var[0, 0]):.1f}")
+```
+
+::: {.callout-note collapse="true" title="Reading the Julia code (for Python programmers)"}
+- **`reduce(factor_product, factors)`** folds a list with a two-argument function, like Python's `functools.reduce`.
+- **`filter(f -> cond, xs)`** keeps the matching items; `filter!` does it in place. `f -> …` is Julia's `lambda`.
+- **`cond && action`** runs `action` only if `cond` is true. `x || action` runs it only if `x` is false.
+- **`map(1:n) do value … end`** is the same as `map(value -> …, 1:n)`, written as a block.
+- **`merge(d1, d2)`** combines dictionaries, with `d2` winning on shared keys, like `{**d1, **d2}`.
+- **`dropdims(sum(A; dims = i); dims = i)`**: Julia's `sum` keeps the summed axis with size 1, so `dropdims` removes it. NumPy's `sum` drops it for you.
+:::
+
+### Results: how fast do the samplers converge?
+
+@fig-sampling-error measures each sampler's average error on $P(\text{storm} \mid \text{late}, \text{alert})$ as the number of samples grows, averaged over 10 independent runs. All three improve roughly like $1 / \sqrt{N}$, the usual Monte Carlo rate: about 3 times less error for 10 times more samples. Rejection sampling pays for the evidence's rarity and is the least accurate at every $N$. Likelihood weighting is best for most sample sizes. Gibbs sampling starts behind, because of its correlated early samples, but catches up by $N = 10{,}000$.
+
+```{python}
+#| label: fig-sampling-error
+#| fig-cap: "Mean absolute error of three samplers estimating P(storm | late, alert), over 10 runs per point, for a growing number of samples N (log-log axes). Rejection sampling keeps only about 4% of its samples; at N = 100 some runs keep none, which is why its error barely improves at first."
+#| fig-alt: "Log-log line chart of mean absolute error against number of samples from 100 to 10,000. Rejection sampling is highest throughout and flat between 100 and 300 samples. Likelihood weighting is lowest for most sample sizes. Gibbs sampling starts between them, falls faster, and is lowest at 10,000."
+sizes = [100, 300, 1000, 3000, 10_000]
+methods = {
+    "Rejection": rejection_sampling,
+    "Likelihood weighting": likelihood_weighted_sampling,
+    "Gibbs": gibbs_sampling,
+}
+errors = {name: [] for name in methods}
+for name, method in methods.items():
+    for n_samples in sizes:
+        runs = []
+        for seed in range(10):
+            try:
+                estimate = method(COMMUTE, ("S",), EVIDENCE, n_samples, np.random.default_rng(seed)).table[1]
+                runs.append(abs(estimate - EXACT))
+            except ValueError:              # rejection kept no samples at all
+                runs.append(EXACT)          # count it as a total miss
+        errors[name].append(np.mean(runs))
+fig, ax = plt.subplots(figsize=(6.4, 3.6))
+for color, (name, errs) in zip([blue, orange, green], errors.items()):
+    ax.loglog(sizes, errs, marker="o", color=color, label=name)
+ax.set(xlabel="Samples N", ylabel="Mean absolute error")
+ax.legend()
+plt.show()
+```
+
+@fig-gibbs-trace shows why Gibbs sampling needs a burn-in. Three chains start from different assignments. Their running estimates disagree at first, then settle on the same answer.
+
+```{python}
+#| label: fig-gibbs-trace
+#| fig-cap: "Running estimate of P(storm | late, alert) from three Gibbs chains with different starting points. The early sweeps depend on the start; that's what burn-in throws away."
+#| fig-alt: "Line chart of the running estimate against sweep number from 1 to 1000, on a log axis. Three lines start far apart, one near 0 and two near 1, and converge toward a dashed horizontal line at about 0.935 within a few hundred sweeps."
+def gibbs_trace(start, sweeps, seed):
+    """Running estimate of P(S = 1 | EVIDENCE) along one Gibbs chain."""
+    rng = np.random.default_rng(seed)
+    sample = {**start, **EVIDENCE}
+    hidden = [x for x in COMMUTE.parents if x not in EVIDENCE]
+    storm = []
+    for _ in range(sweeps):
+        for x in hidden:
+            p = blanket_distribution(COMMUTE, sample, x)
+            sample[x] = rng.choice(len(p), p=p)
+        storm.append(sample["S"])
+    return np.cumsum(storm) / np.arange(1, sweeps + 1)
+
+starts = [{"S": 0, "R": 0, "J": 0}, {"S": 1, "R": 1, "J": 1}, {"S": 0, "R": 1, "J": 1}]
+fig, ax = plt.subplots(figsize=(6.4, 3.4))
+for color, start, seed in zip([blue, orange, green], starts, [1, 2, 3]):
+    label = "start: " + ", ".join(f"{NAMES[v]} = {'yes' if start[v] else 'no'}" for v in ("S", "R", "J"))
+    ax.semilogx(np.arange(1, 1001), gibbs_trace(start, 1000, seed), color=color, label=label)
+ax.axhline(EXACT, color=style.INK, linestyle="--", linewidth=1)
+ax.set(xlabel="Sweep", ylabel="Running estimate", ylim=(-0.02, 1.02))
+ax.legend(fontsize=8, loc="lower right")
+plt.show()
+```
+
+## Solved problems
+
+**Problem 1: a query through a fork.** In the commute network, the radio issues an alert. What's the probability of a traffic jam, $P(j^1 \mid a^1)$?
+
+::: {.callout-tip collapse="true" title="Solution"}
+First update the storm belief: $P(s^1 \mid a^1) \propto 0.1 \times 0.95 = 0.095$ and $P(s^0 \mid a^1) \propto 0.9 \times 0.02 = 0.018$, so $P(s^1 \mid a^1) = 0.095 / 0.113 = 0.841$.
+
+Then sum out storm and roadwork. $P(j^1 \mid s^1) = 0.8(0.7) + 0.2(0.9) = 0.74$ and $P(j^1 \mid s^0) = 0.8(0.1) + 0.2(0.6) = 0.20$. So
+
+$$
+P(j^1 \mid a^1) = 0.841 \times 0.74 + 0.159 \times 0.20 = \mathbf{0.654},
+$$
+
+up from the prior $P(j^1) = 0.254$. Information flows from the alert, through the storm, to the jam: the fork pattern of [Ch 2](ch02-representation.qmd).
+:::
+
+**Problem 2: why elimination order matters.** A chain of 30 binary variables, $X_1 \to X_2 \to \cdots \to X_{30}$. How many joint entries does enumeration sum to get $P(x_{30})$? How big is the largest factor if you eliminate $X_1, X_2, \ldots$ in order?
+
+::: {.callout-tip collapse="true" title="Solution"}
+Enumeration sums over the $2^{29} \approx 5.4 \times 10^8$ combinations of the hidden variables, for each value of $X_{30}$.
+
+Eliminating in order: summing out $X_1$ multiplies $P(x_1)$ and $P(x_2 \mid x_1)$, a factor over $(X_1, X_2)$ with 4 entries, and leaves $\phi(x_2)$. Every later step is the same size. So the largest factor has **4 entries**, and the total work is about $29 \times 4$ multiplications: linear instead of exponential.
+
+A bad order is costly. Eliminating $X_{15}$ first leaves a factor linking $X_{14}$ and $X_{16}$, and each such choice can grow the factors further.
+:::
+
+**Problem 3: likelihood weights.** With evidence "late and alert", compute the weights of two samples: (a) storm = yes, jam = yes; (b) storm = no, jam = no. How many (b)-type samples equal one (a)-type sample?
+
+::: {.callout-tip collapse="true" title="Solution"}
+By @eq-likelihood-weight, the weight is $P(l^1 \mid j)\, P(a^1 \mid s)$:
+
+- (a) $0.5 \times 0.95 = 0.475$
+- (b) $0.05 \times 0.02 = 0.001$
+
+One (a) sample counts as much as **475** (b) samples. Likelihood weighting still *draws* (b)-type samples often, since $P(s^0, j^0) = 0.67$ a priori, but it nearly ignores them. When the evidence is very unlikely under the prior, most samples get tiny weights, and likelihood weighting degrades too. That's one motivation for Gibbs sampling.
+:::
+
+**Problem 4: conditioning the other way.** This evening's commute took 60 minutes. What's your belief about this morning's?
+
+::: {.callout-tip collapse="true" title="Solution"}
+Swap the roles in @eq-gaussian-condition. The shift is $\rho\, \sigma_m / \sigma_e \times (60 - 40) = 0.6 \times \tfrac{8}{10} \times 20 = 9.6$, so the mean is $35 + 9.6 =$ **44.6 minutes**. The variance is $8^2 (1 - 0.6^2) = 40.96$, a standard deviation of **6.4 minutes**. The shrinkage factor $1 - \rho^2 = 0.64$ is the same in both directions.
+:::
+
+## Recap
+
+1. **Every inference query is a sum over the joint (@eq-enumeration):** fix the evidence, sum out the hidden variables, normalize.
+   *Why it matters:* belief updates in [Ch 19](../part4/ch19-beliefs.qmd), the value of information in [Ch 6](ch06-simple-decisions.qmd), and learning with missing data in [Ch 4](ch04-parameter-learning.qmd) are all this computation.
+2. **Variable elimination (@eq-sum-product) pushes sums inside products,** so it only builds factors as big as each step needs. The elimination order sets the cost, and exact inference is NP-hard in general.
+   *Why it matters:* it is the practical exact method, and the same "sum out one variable at a time" idea is the predict step of every filter.
+3. **Naive Bayes (@eq-naive-bayes) is one product,** exact when the observations are independent given the class.
+   *Why it matters:* it's a fast, surprisingly strong baseline for diagnosis and classification.
+4. **Sampling trades exactness for scalability.** Rejection sampling wastes samples when the evidence is rare (@eq-rejection); likelihood weighting fixes the evidence and weights instead (@eq-likelihood-weight); Gibbs sampling walks a Markov chain using only each variable's Markov blanket (@eq-gibbs).
+   *Why it matters:* sampling is how inference scales to large models, and the same ideas reappear in particle filters (Ch 19) and Monte Carlo planning (Ch 9).
+5. **Gaussian models condition in closed form (@eq-gaussian-condition):** shift by the regression on the surprise, and shrink the variance by $1 - \rho^2$.
+   *Why it matters:* this is the Kalman filter's update, and the backbone of estimation for continuous systems.
+
+## Cheat sheet & connections
+
+| Name | Formula | Ref | Cost |
+|---|---|---|---|
+| Enumeration | $P(q \mid e) \propto \sum_h P(q, h, e)$ | @eq-enumeration | exponential in hidden variables |
+| ★ Naive Bayes | $P(c \mid o_{1:n}) \propto P(c) \prod_i P(o_i \mid c)$ | @eq-naive-bayes | $O(n \lvert C \rvert)$ |
+| ★ Sum-product | Push each $\sum$ inside the factors that don't mention it | @eq-sum-product | set by the largest factor |
+| Rejection estimate | $\#(q, e) / \#(e)$ | @eq-rejection | wastes a fraction $1 - P(e)$ |
+| Likelihood weight | $w = \prod_{e_i} P(e_i \mid \mathrm{pa}(e_i))$ | @eq-likelihood-weight | every sample used |
+| Gibbs update | $P(x_i \mid x_{-i}) \propto P(x_i \mid \mathrm{pa}) \prod_{\text{children}} P(c \mid \mathrm{pa}(c))$ | @eq-gibbs | per sweep: $O(n)$ blanket updates |
+| ★ Gaussian conditioning | $\boldsymbol\mu_{a \mid b} = \boldsymbol\mu_a + \boldsymbol\Sigma_{ab} \boldsymbol\Sigma_{bb}^{-1}(\mathbf{b} - \boldsymbol\mu_b)$ | @eq-gaussian-condition | $O(d^3)$ |
+
+: Key equations from this page (★ = well-known by name). {#tbl-cheatsheet}
+
+**Which method?** Use variable elimination for small or tree-like networks. Use likelihood weighting when the evidence sits near the network's roots and isn't too surprising. Use Gibbs sampling for large networks with deep or surprising evidence. For Gaussian models, condition in closed form.
+
+**Common pitfalls**
+
+- **Forgetting to normalize.** A sum over the joint gives $P(q, e)$, not $P(q \mid e)$.
+- **Rejection sampling with rare evidence.** The effective sample size is about $N \cdot P(e)$. Check how many samples you actually kept.
+- **Trusting early Gibbs samples.** Discard a burn-in, and remember that consecutive samples are correlated, so $N$ Gibbs samples are worth fewer than $N$ independent ones.
+- **A bad elimination order.** Eliminate variables with few neighbors first, which keeps the factors small.
+
+**Connections**
+
+- [Ch 2 · Representation](ch02-representation.qmd) defines the networks queried here.
+- [Ch 4 · Parameter Learning](ch04-parameter-learning.qmd) needs inference to learn from data with missing values.
+- [Ch 6 · Simple Decisions](ch06-simple-decisions.qmd) uses inference to compute expected utilities and the value of information.
+- [Ch 19 · Beliefs](../part4/ch19-beliefs.qmd): the discrete filter is variable elimination over time, the Kalman filter is Gaussian conditioning, and the particle filter is likelihood weighting with resampling.

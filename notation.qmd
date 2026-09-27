@@ -18,6 +18,12 @@ This site uses the book's notation. Symbols are added here as chapters are writt
 | $x_{1:n}$ | The values $x_1, \ldots, x_n$ | Ch 2 |
 | $\mathrm{pa}(x_i)$ | Values of the parents of $X_i$ in a Bayesian network | Ch 2 |
 | $(X \perp Y \mid Z)$ | $X$ and $Y$ are conditionally independent given $Z$ | Ch 2 |
+| $q$, $e$, $h$ | Query, evidence, and hidden variables in an inference problem | Ch 3 |
+| $\phi$ | A factor: a table over some variables (a CPT, or any partial product) | Ch 3 |
+| $P(c \mid o_{1:n})$ | Naive Bayes posterior of class $c$ given observations $o_1, \ldots, o_n$ | Ch 3 |
+| $w$ | Likelihood weight of a sample | Ch 3 |
+| $x_{-i}$ | All variables except $x_i$ | Ch 3 |
+| $\boldsymbol{\mu}_{a \mid b}$, $\boldsymbol{\Sigma}_{a \mid b}$ | Mean and covariance of Gaussian block $\mathbf{a}$ given block $\mathbf{b}$ | Ch 3 |
 | $\mathcal{S}$ | State space | Ch 7 |
 | $\mathcal{A}$ | Action space | Ch 7 |
 | $T(s' \mid s, a)$ | Transition model: probability of reaching $s'$ from $s$ after action $a$ | Ch 7 |

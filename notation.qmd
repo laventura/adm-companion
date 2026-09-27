@@ -19,6 +19,13 @@ This site uses the book's notation. Symbols are added here as chapters are writt
 | $\mathrm{pa}(x_i)$ | Values of the parents of $X_i$ in a Bayesian network | Ch 2 |
 | $(X \perp Y \mid Z)$ | $X$ and $Y$ are conditionally independent given $Z$ | Ch 2 |
 | $q$, $e$, $h$ | Query, evidence, and hidden variables in an inference problem | Ch 3 |
+| $\theta$ | Model parameters, such as CPT entries | Ch 4 |
+| $\ell(\theta)$ | Log-likelihood of the data under parameters $\theta$ | Ch 4 |
+| $m_{ijk}$ | Count of records with variable $i$ at value $k$ and its parents at combination $j$ | Ch 4 |
+| $\hat\theta$ | An estimate of $\theta$ | Ch 4 |
+| $\mathrm{Beta}(\theta \mid \alpha, \beta)$ | Beta distribution over a probability $\theta$; $\alpha$, $\beta$ act as pseudocounts | Ch 4 |
+| $\mathrm{Dir}(\theta_{1:n} \mid \alpha_{1:n})$ | Dirichlet distribution over $n$ probabilities that sum to 1 | Ch 4 |
+| $\phi$, $h$ | Kernel and bandwidth in kernel density estimation | Ch 4 |
 | $\phi$ | A factor: a table over some variables (a CPT, or any partial product) | Ch 3 |
 | $P(c \mid o_{1:n})$ | Naive Bayes posterior of class $c$ given observations $o_1, \ldots, o_n$ | Ch 3 |
 | $w$ | Likelihood weight of a sample | Ch 3 |

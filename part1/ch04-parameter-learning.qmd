@@ -1,8 +1,768 @@
 ---
 title: "4 · Parameter Learning"
 subtitle: "Part I — Probabilistic Reasoning"
+jupyter: python3
+execute:
+  echo: false
 ---
 
 ::: {.callout-note appearance="minimal"}
-**In progress.** This page will cover ADM Ch. 4, *Parameter Learning*.
+**Executed in:** Python · **Book:** ADM Ch. 4 · **Lecture:** to be added
 :::
+<!-- TODO(video): link the official Stanford AA228 lecture on parameter learning. -->
+
+```{python}
+#| include: false
+import numpy as np
+import matplotlib.pyplot as plt
+import plotly.graph_objects as go
+from IPython.display import Markdown
+from scipy import stats
+
+from adm import style
+from adm.io import write_json
+from adm.learning import (
+    _completions, bayes_estimate, beta_update, count_table, expectation_maximization,
+    expected_counts, gaussian_ml, impute_mode, kernel_density, log_likelihood,
+    ml_estimate, normalize_rows, sample_dataset,
+)
+from adm.page import show_source
+from adm.problems.commute import COMMUTE, PARENTS
+
+style.apply()
+blue, orange, green, yellow = style.CATEGORICAL[:4]
+CARD = COMMUTE.card
+
+
+def hide(data, variable, fraction, rng):
+    """Copy the records, blanking `variable` (setting it to None) in about `fraction` of them."""
+    return [{**r, variable: None} if rng.random() < fraction else dict(r) for r in data]
+
+
+# Commute times for the nonparametric example: 75% normal days N(30, 4^2), 25% jam days N(50, 8^2).
+times_rng = np.random.default_rng(8)
+jam_day = times_rng.random(200) < 0.25
+commute_times = np.where(jam_day, times_rng.normal(50, 8, 200), times_rng.normal(30, 4, 200))
+```
+
+## Big picture
+
+### Where this chapter fits
+
+[Chapter 2](ch02-representation.qmd) described a world with a Bayesian network: a graph, plus a table of probabilities for each variable. [Chapter 3](ch03-inference.qmd) used those tables to answer questions. Both chapters simply *assumed* the numbers were known: $P(\text{storm}) = 0.1$, $P(\text{jam} \mid \text{storm}) = 0.7$, and so on. In practice nobody hands you those numbers. You have **data**: a log of past mornings. This chapter turns data into the numbers.
+
+The structure of the graph is still assumed known here; [Chapter 5](ch05-structure-learning.qmd) learns that too. And the same ideas come back whenever an agent must learn a model from experience, most directly in [model-based reinforcement learning](../part3/ch16-model-based-methods.qmd) (Ch 16), which learns transition probabilities by counting.
+
+**The question:** given a record of past observations, what should the probabilities in my model be, and how sure should I be about them?
+
+```{dot}
+//| label: fig-ch04-map
+//| fig-width: 7
+//| fig-height: 2.94
+//| fig-cap: "Map of this chapter. Data comes in on the left. Depending on how much you trust the data, what shape you assume, and whether values are missing, a different method turns it into model parameters."
+//| fig-alt: "Flow diagram. A blue Data box leads to four method boxes. Maximum likelihood (count and divide) and Bayesian learning (prior pseudocounts plus counts) both lead to Parameters theta. Kernel density estimation (a bump on every point) leads to a density with no fixed shape. Expectation-maximization (fill in, re-estimate, repeat) handles missing values and also leads to Parameters."
+digraph ch04 {
+  rankdir=LR; bgcolor="#fcfcfb"; pad=0.25; nodesep=0.3; ranksep=0.6;
+  node [shape=box, style="rounded,filled", fillcolor="white", color="#c3c2b7", penwidth=1.2,
+        fontname="Helvetica", fontsize=13, fontcolor="#0b0b0b", margin="0.14,0.07"];
+  edge [color="#52514e", penwidth=1.2, arrowsize=0.7, fontname="Helvetica", fontsize=11, fontcolor="#52514e"];
+  data [label=<<B>Data</B><BR/><FONT POINT-SIZE="11">a log of past<BR/>observations</FONT>>, fillcolor="#cde2fb", color="#2a78d6"];
+  ml [label=<<B>Maximum likelihood</B><BR/><FONT POINT-SIZE="11">count and divide</FONT>>];
+  bayes [label=<<B>Bayesian learning</B><BR/><FONT POINT-SIZE="11">prior pseudocounts + counts</FONT>>];
+  kde [label=<<B>Kernel density</B><BR/><FONT POINT-SIZE="11">a bump on every point</FONT>>];
+  em [label=<<B>Expectation-maximization</B><BR/><FONT POINT-SIZE="11">fill in, re-estimate, repeat</FONT>>];
+  theta [label=<<B>Parameters θ</B><BR/><FONT POINT-SIZE="11">the model's numbers</FONT>>, fillcolor="#cde2fb", color="#2a78d6"];
+  dens [label=<<B>A density</B><BR/><FONT POINT-SIZE="11">no fixed shape</FONT>>];
+  data -> ml [label="plenty of data"]; data -> bayes [label="little data"];
+  data -> kde [label="unknown shape"]; data -> em [label="values missing"];
+  ml -> theta; bayes -> theta; em -> theta; kde -> dens;
+}
+```
+
+### The key ideas at a glance
+
+1. **Parameters and the likelihood.** A model's numbers are its *parameters*, written $\theta$ (theta). The **likelihood** of a set of parameters is the probability they assign to the data you actually saw. Good parameters make the observed data likely. Because the probabilities of independent records multiply, and multiplying many small numbers is awkward, we work with the **log-likelihood**, a sum of logs.
+
+2. **Maximum likelihood (ML) is counting.** The parameters that make the data most likely are just the observed frequencies. If a jam happened on 3 of 5 roadwork mornings, the estimate of $P(\text{jam} \mid \text{roadwork})$ is $3/5$. For a Bayesian network, every row of every table is estimated separately, from the records that match that row's parent values. For a Gaussian, ML gives the sample mean and the average squared deviation. ML is simple and becomes exact with enough data. With little data it overreacts: a combination seen once gets probability 1, and one never seen gets no estimate at all.
+
+3. **Bayesian learning adds prior knowledge as pretend data.** Instead of a single best number, keep a whole distribution over the parameter. For a yes/no probability that distribution is the **Beta distribution**, and updating it is just adding: start with $\alpha$ pretend "yes" and $\beta$ pretend "no" observations (the **pseudocounts**), then add the real counts. The estimate becomes (yes + pseudo-yes) / (all + pseudo-all). It never reaches exactly 0 or 1, and it is sensible even with no data. The **Dirichlet distribution** does the same for variables with more than two values.
+
+4. **Nonparametric learning lets the data set the shape.** Sometimes no simple shape fits. Commute times are a lump of normal days *plus* a lump of jam days, and a single bell curve would sit between the lumps. **Kernel density estimation** puts a small bump on every data point and adds them up. The only choice is the bump width, the **bandwidth**: too narrow and you get spikes, too wide and you blur the lumps together.
+
+5. **Missing data: don't guess once, guess softly and repeat.** Real logs have gaps: some mornings nobody recorded whether there was a storm. Dropping incomplete records wastes data. Filling each gap with the most common value biases the answer. **Expectation-maximization (EM)** fills each gap with *fractional* counts ("this morning was 97% storm, 3% no storm", computed by inference from Chapter 3). It then re-estimates the parameters from those counts and repeats. Each round can only make the data more likely, and it settles close to what complete data would have given.
+
+### Vocabulary
+
+| Term | Plain meaning |
+|:---|:---|
+| Parameters $\theta$ | The numbers in a model, such as the entries of a CPT |
+| Likelihood | How probable the observed data is under particular parameters |
+| Maximum likelihood estimate | The parameters that make the data most probable: observed frequencies |
+| Prior / posterior | Belief about the parameters before / after seeing the data |
+| Pseudocounts | The prior, expressed as pretend observations added to the real counts |
+| Conjugate prior | A prior whose posterior has the same form, like Beta → Beta, so updating is just adding counts |
+| Bandwidth | The width of each bump in kernel density estimation |
+| Imputation | Filling in missing values |
+| E-step / M-step | EM's two halves: Expected counts from the current model, then Maximum-likelihood re-estimation |
+
+: Terms used on this page. {#tbl-vocab}
+
+### After this chapter you can
+
+- Estimate every table of a Bayesian network from data by counting, and know when that goes wrong.
+- Choose a prior, read it as pseudocounts, and see how much it matters for a given amount of data.
+- Fit a Gaussian by maximum likelihood, or a shape-free density with a kernel.
+- Learn from records with missing values using EM, and explain why it beats dropping or guessing.
+
+## Intuition
+
+::: {.callout-tip title="Analogy"}
+You're judging a new café from its customer ratings.
+
+- **Maximum likelihood:** average the ratings. With 200 ratings that's excellent. With one rating of 5 stars, it claims the café is perfect.
+- **Bayesian:** start from what a *typical* café scores, say 3.5 stars, and count that as if it were a few ratings. One 5-star review nudges you up a little; 200 of them overwhelm your starting belief. The more data, the less the prior matters.
+- **Kernel density:** instead of one average, draw the whole spread of ratings, smoothing the raw tally so that a 4.5 also lends a little weight to 4 and 5.
+- **Missing data:** some reviews lost their star rating but kept their text. Rather than ignore them, you read each text, estimate "probably 4 stars, maybe 3", count each review *fractionally*, and refine your reading of the texts as your picture of the café sharpens. That is EM.
+:::
+
+### Maximum likelihood: the frequencies you saw
+
+Suppose 20 logged mornings split by storm and roadwork like this: 12 mornings with neither (1 jam), 5 with roadwork only (3 jams), 3 with a storm only (2 jams), and none with both. Maximum likelihood estimates $P(\text{jam})$ for each combination as jams / mornings: $1/12$, $3/5$, $2/3$, and for "both", $0/0$, no estimate at all. The first three are sensible, if noisy. The last shows ML's weak spot: it has nothing to say about situations the data never covered. Formally, this is @eq-ml-counts.
+
+### Bayesian learning: pseudocounts pull toward the prior
+
+Add one pretend jam and one pretend no-jam to every row, a uniform prior. The estimates become $2/14 = 0.14$, $4/7 = 0.57$, $3/5 = 0.60$, and $1/2 = 0.50$ for the never-seen row. Rows with lots of data barely move; rows with little data move toward 0.5; the empty row gets a cautious 0.5 instead of nothing. Stronger priors (more pseudocounts) pull harder. That's @eq-beta-update and @eq-dirichlet.
+
+### Kernel density: a bump on every point
+
+With 200 recorded commute times, a single Gaussian fit centers near 35 minutes. Yet almost no commute takes 35 minutes: normal days cluster near 30, jam days near 50. A kernel density estimate puts a small bell curve on each of the 200 times and adds them up, and the two clusters appear on their own. Try the bandwidth slider [below](#kde-slider). That's @eq-kde.
+
+### EM: soft guesses, refined
+
+A morning's record says "late, radio alert, jam, no roadwork", but the storm entry is blank. Given the current model, a storm explains that record far better than no storm: $P(\text{storm} \mid \text{the rest}) \approx 0.97$ (see the [worked example](#em-by-hand)). So EM counts this morning as 0.97 of a storm morning and 0.03 of a calm one. After doing that for every blank, it re-estimates the tables from these fractional counts, which changes the next round's guesses slightly, and so on until nothing changes. That's @eq-em.
+
+## Formalism
+
+### The likelihood
+
+Let the data be $m$ independent records $x_1, \ldots, x_m$ and the parameters $\theta$ (ADM §4.1).
+
+::: {.key-equation data-name="Log-likelihood"}
+$$
+\ell(\theta) = \log P(x_{1:m} \mid \theta) = \sum_{i=1}^{m} \log P(x_i \mid \theta)
+$$ {#eq-log-likelihood}
+:::
+
+**In words.** Score a set of parameters by how probable they make the observed data. Use logs so the product over records becomes a sum.
+
+**Term by term.**
+
+- $P(x_i \mid \theta)$ is the probability of record $i$ under the parameters $\theta$. For a Bayesian network, it's the chain-rule product from [Ch 2](ch02-representation.qmd).
+- The records are assumed independent, so their probabilities multiply. The log turns that product into a sum, which is numerically safer and easier to maximize.
+- Maximizing $\ell$ and maximizing the likelihood itself give the same $\theta$, because log is increasing.
+
+### Maximum likelihood
+
+For a discrete variable in a Bayesian network, let $m_{ijk}$ be the number of records in which variable $i$ takes its $k$-th value while its parents take their $j$-th combination of values.
+
+::: {.key-equation .famous data-name="Maximum likelihood estimate (counts)"}
+$$
+\hat\theta_{ijk} = \frac{m_{ijk}}{\sum_{k'} m_{ijk'}}
+$$ {#eq-ml-counts}
+:::
+
+**In words.** The estimated probability of each value, for each combination of parent values, is how often it happened divided by how often that parent combination happened.
+
+**Term by term.**
+
+- $i$ picks the variable (say, "jam"), $j$ the parent combination (say, "storm, no roadwork"), $k$ the value (say, "yes").
+- The denominator counts every record with that parent combination. If it's 0, the estimate is undefined (0/0).
+- The hat on $\hat\theta$ marks an estimate.
+
+**Why it holds.** The log-likelihood of a Bayesian network splits into one separate term per table row: $\sum_{ijk} m_{ijk} \log \theta_{ijk}$. Each row's probabilities must sum to 1. Maximizing $\sum_k m_k \log \theta_k$ subject to $\sum_k \theta_k = 1$ (with a Lagrange multiplier) gives $\theta_k \propto m_k$: proportional to the counts.
+
+For continuous data assumed Gaussian, the same principle gives:
+
+::: {.key-equation data-name="Gaussian maximum likelihood"}
+$$
+\hat\mu = \frac{1}{m} \sum_{i=1}^{m} x_i
+\qquad
+\hat\sigma^2 = \frac{1}{m} \sum_{i=1}^{m} (x_i - \hat\mu)^2
+$$ {#eq-gaussian-ml}
+:::
+
+**In words.** The best-fitting bell curve is centered at the average, and its variance is the average squared distance from that average.
+
+**Term by term.** $\hat\sigma^2$ divides by $m$, not $m - 1$. It's slightly too small on average, because $\hat\mu$ was fitted to the same data, a bias that fades as $m$ grows. The familiar "sample variance" divides by $m - 1$ to remove it.
+
+### Bayesian parameter learning
+
+Treat the unknown parameter itself as uncertain, and keep a distribution over it (ADM §4.2). For a probability $\theta$ of "yes":
+
+::: {.key-equation .famous data-name="Beta prior and its conjugate update"}
+$$
+\mathrm{Beta}(\theta \mid \alpha, \beta) \propto \theta^{\alpha - 1} (1 - \theta)^{\beta - 1}
+\quad\xrightarrow{\;m_1 \text{ yes},\ m_0 \text{ no}\;}\quad
+\mathrm{Beta}(\theta \mid \alpha + m_1,\ \beta + m_0),
+\qquad
+\mathbb{E}[\theta] = \frac{\alpha + m_1}{\alpha + \beta + m_1 + m_0}
+$$ {#eq-beta-update}
+:::
+
+**In words.** A Beta distribution describes belief about a probability. Seeing data just adds the counts of yes and no to its two parameters. Its mean is "yes" counts over total counts, real plus pretend.
+
+**Term by term.**
+
+- $\theta^{\alpha - 1}(1-\theta)^{\beta-1}$ is the shape: it peaks near $\frac{\alpha - 1}{\alpha + \beta - 2}$, and it is flat when $\alpha = \beta = 1$.
+- The data's likelihood is $\theta^{m_1}(1-\theta)^{m_0}$. Multiplying it into the prior adds the exponents, and that's the whole update. A prior that stays in the same family after updating is called **conjugate**.
+- $\alpha$ and $\beta$ act as **pseudocounts**: pretend observations of yes and no. $\alpha + \beta$ is how many observations the prior is "worth".
+- $\mathbb{E}[\theta]$ is the posterior mean, the usual single-number estimate. It lies between the prior mean $\frac{\alpha}{\alpha+\beta}$ and the ML estimate $\frac{m_1}{m_1 + m_0}$, moving toward the latter as data accumulates.
+
+For a variable with $n$ values, the Beta generalizes to the Dirichlet:
+
+::: {.key-equation data-name="Dirichlet prior and posterior mean"}
+$$
+\mathrm{Dir}(\theta_{1:n} \mid \alpha_{1:n}) \propto \prod_{k=1}^{n} \theta_k^{\alpha_k - 1}
+\qquad
+\mathbb{E}[\theta_k \mid \text{data}] = \frac{\alpha_k + m_k}{\sum_{k'} (\alpha_{k'} + m_{k'})}
+$$ {#eq-dirichlet}
+:::
+
+**In words.** Same idea, more categories: one pseudocount per value, and the estimate is (pseudocount + count) over the total.
+
+**Term by term.** $\theta_{1:n}$ are the $n$ probabilities, summing to 1. $\alpha_k$ is value $k$'s pseudocount. With every $\alpha_k = 1$ (the uniform prior), the posterior mean is **Laplace smoothing**: add one to every count. For a Bayesian network, each row of each table gets its own Dirichlet, updated with that row's counts $m_{ijk}$.
+
+### Nonparametric learning
+
+When no fixed shape is right, let the data define the density (ADM §4.3):
+
+::: {.key-equation data-name="Kernel density estimate"}
+$$
+\hat p(x) = \frac{1}{m} \sum_{i=1}^{m} \phi(x - x_i),
+\qquad
+\phi(d) = \mathcal{N}(d \mid 0, h^2)
+$$ {#eq-kde}
+:::
+
+**In words.** Place a small bell curve on every data point, and average them.
+
+**Term by term.**
+
+- $\phi$ is the **kernel**, the shape of each bump; here a Gaussian.
+- $h$ is the **bandwidth**, the bump width. It trades detail against noise: small $h$ follows every quirk of the sample, large $h$ blurs real structure away.
+- Averaging $m$ densities that each integrate to 1 gives a density that integrates to 1.
+- Nothing is fitted, but every data point must be kept, and evaluating $\hat p$ costs $O(m)$.
+
+### Learning with missing data
+
+When some values are missing (ADM §4.4), the likelihood sums over every way the missing values could have been filled in. There's no counting formula for it any more. **Expectation-maximization** climbs it by alternating two easy steps:
+
+::: {.key-equation .famous data-name="Expectation-maximization (EM)"}
+$$
+\text{E-step: } \hat m_{ijk} = \sum_{\text{records } r} P\big(x_i = k,\ \mathrm{pa}_i = j \mid \text{observed part of } r,\ \theta\big)
+\qquad
+\text{M-step: } \theta_{ijk} \leftarrow \frac{\hat m_{ijk}}{\sum_{k'} \hat m_{ijk'}}
+$$ {#eq-em}
+:::
+
+**In words.** E-step: using the current parameters, work out how likely each possible fill-in of each record's gaps is, and add up *fractional* counts. M-step: re-estimate the parameters from those counts exactly as in @eq-ml-counts. Repeat.
+
+**Term by term.**
+
+- For a record with nothing missing, the probability is 1 for the observed values and 0 otherwise, so it contributes whole counts, as before.
+- For a record with gaps, it's an inference query from [Ch 3](ch03-inference.qmd): $P(\text{missing} \mid \text{observed})$.
+- $\hat m_{ijk}$ are **expected counts**, possibly fractional.
+
+**Why it works.** Each EM iteration never decreases the log-likelihood of the observed data. It stops at a (possibly local) maximum, so different starting points can end in different places.
+
+Two simpler alternatives are **dropping** incomplete records, which is unbiased when values go missing at random but wastes data, and **imputation**, filling each gap with a single guess. Imputing the most common value is simplest, but it systematically distorts the data.
+
+## Worked example
+
+### Counting a table by hand
+
+The 20 mornings from the Intuition section give these counts for the jam variable, and these estimates:
+
+| Storm, roadwork | Mornings | Jams | ML @eq-ml-counts | Bayes, uniform prior @eq-dirichlet |
+|---|---|---|---|---|
+| no, no | 12 | 1 | $1/12 = 0.08$ | $2/14 = 0.14$ |
+| no, yes | 5 | 3 | $3/5 = 0.60$ | $4/7 = 0.57$ |
+| yes, no | 3 | 2 | $2/3 = 0.67$ | $3/5 = 0.60$ |
+| yes, yes | 0 | 0 | undefined | $1/2 = 0.50$ |
+
+: Estimating P(jam | storm, roadwork) from 20 mornings. The true values are 0.1, 0.6, 0.7 and 0.9. {#tbl-hand-counts}
+
+### A Beta posterior by hand
+
+A new bus route has been late on 3 of its first 10 runs.
+
+- ML: $3/10 = 0.30$.
+- Uniform prior Beta(1, 1): the posterior is Beta(4, 8), with mean $4/12 = 0.33$.
+- A prior centered on 50%, worth 10 runs, Beta(5, 5): the posterior is Beta(8, 12), with mean $8/20 = 0.40$.
+
+The stronger the prior, the more 10 runs are pulled toward its center. Try other values in the [interactive below](#beta-explorer).
+
+### Gaussian maximum likelihood by hand
+
+Five commutes: 30, 34, 29, 52 and 35 minutes. By @eq-gaussian-ml, $\hat\mu = 180/5 = 36$ and $\hat\sigma^2 = (36 + 4 + 49 + 256 + 1)/5 = 69.2$, a standard deviation of 8.3 minutes. The single 52-minute trip, likely a jam day, pulls the mean up and inflates the spread. That's a hint that one bell curve is the wrong shape here.
+
+### One EM step by hand {#em-by-hand}
+
+A record has the storm value missing: late, radio alert, jam, no roadwork. Under the true tables, the probability of each fill-in is proportional to the chain-rule product. Factors that don't involve the storm are the same for both fill-ins and cancel.
+
+- Storm: $P(s^1)\, P(j^1 \mid s^1, r^0)\, P(a^1 \mid s^1) = 0.1 \times 0.7 \times 0.95 = 0.0665$
+- No storm: $P(s^0)\, P(j^1 \mid s^0, r^0)\, P(a^1 \mid s^0) = 0.9 \times 0.1 \times 0.02 = 0.0018$
+
+So $P(s^1 \mid \text{record}) = 0.0665 / 0.0683 = 0.974$. This record adds 0.974 to the storm counts and 0.026 to the no-storm counts, in every table the storm variable appears in.
+
+```{python}
+#| label: tbl-em-step
+#| tbl-cap: "The same E-step computed by the code: every completion of the record and its weight."
+record = {"S": None, "R": 0, "J": 1, "L": 1, "A": 1}
+fills = list(_completions(COMMUTE, record))
+total = sum(p for _, p in fills)
+rows = ["| Fill-in | Joint probability | Weight (P given the record) |", "|---|---|---|"]
+for full, p in fills:
+    rows.append(f"| storm = {'yes' if full['S'] else 'no'} | {p:.6f} | {p / total:.3f} |")
+Markdown("\n".join(rows))
+```
+
+(The joint probabilities include the factors that cancel, so they're smaller than the hand numbers; the weights are the same.)
+
+## Interactive
+
+### Beta posterior explorer {#beta-explorer}
+
+Set a Beta prior with its pseudocounts, then add data. Watch the posterior move from the prior toward the data as the counts grow. With little data the prior dominates; with a lot, it barely matters.
+
+```{ojs}
+viewof a0 = Inputs.range([0.5, 30], {step: 0.5, value: 1, label: "Prior α (pseudo-yes)"})
+viewof b0 = Inputs.range([0.5, 30], {step: 0.5, value: 1, label: "Prior β (pseudo-no)"})
+viewof yes = Inputs.range([0, 100], {step: 1, value: 3, label: "Observed yes"})
+viewof no = Inputs.range([0, 100], {step: 1, value: 7, label: "Observed no"})
+```
+
+```{ojs}
+beta = {
+  // Evaluate densities on a grid and normalize numerically, so no special
+  // functions are needed: density ∝ θ^(a-1) (1-θ)^(b-1).
+  const grid = d3.range(0.0025, 1, 0.005);
+  const shape = (a, b) => {
+    const logs = grid.map(t => (a - 1) * Math.log(t) + (b - 1) * Math.log(1 - t));
+    const top = d3.max(logs);                          // subtract the max to avoid overflow
+    const vals = logs.map(l => Math.exp(l - top));
+    const area = d3.sum(vals) * 0.005;
+    return vals.map(v => v / area);
+  };
+  const prior = shape(a0, b0), post = shape(a0 + yes, b0 + no);
+  const rows = grid.flatMap((t, i) => [{t, p: prior[i], curve: "Prior"}, {t, p: post[i], curve: "Posterior"}]);
+  // 95% credible interval: where the posterior's running total crosses 2.5% and 97.5%.
+  const cum = d3.cumsum(post.map(v => v * 0.005));
+  const lo = grid[d3.bisectLeft(cum, 0.025)], hi = grid[d3.bisectLeft(cum, 0.975)];
+  return {rows, lo, hi, mean: (a0 + yes) / (a0 + b0 + yes + no), ml: yes + no ? yes / (yes + no) : null};
+}
+```
+
+```{ojs}
+md`Posterior Beta(${a0 + yes}, ${b0 + no}): mean **${beta.mean.toFixed(3)}**, 95% interval [${beta.lo.toFixed(2)}, ${beta.hi.toFixed(2)}]. Maximum likelihood: ${beta.ml === null ? "undefined (no data)" : beta.ml.toFixed(3)}.`
+```
+
+```{ojs}
+//| label: fig-beta-explorer
+//| fig-cap: "Prior and posterior Beta distributions for a probability θ. The dashed line is the posterior mean."
+//| fig-alt: "Interactive chart of two density curves over theta from 0 to 1, a gray prior and a blue posterior, with sliders for the prior pseudocounts and the observed yes and no counts. A dashed vertical line marks the posterior mean."
+Plot.plot({
+  width: 640, height: 280,
+  style: {background: "#fcfcfb", color: "#0b0b0b"},
+  x: {domain: [0, 1], label: "θ (probability of yes)"}, y: {label: "Density", grid: true},
+  color: {legend: true, domain: ["Prior", "Posterior"], range: ["#898781", "#2a78d6"]},
+  marks: [
+    Plot.line(beta.rows, {x: "t", y: "p", stroke: "curve", strokeWidth: 2.5}),
+    Plot.ruleX([beta.mean], {stroke: "#2a78d6", strokeDasharray: "4,3"}),
+    Plot.ruleY([0])
+  ]
+})
+```
+
+### Kernel bandwidth {#kde-slider}
+
+Two hundred commute times: three quarters normal days near 30 minutes, one quarter jam days near 50. The dashed curve is the single Gaussian fitted by maximum likelihood. It puts its peak where almost no commute actually falls. Change the kernel bandwidth $h$ and look for the value that shows two lumps without turning noisy.
+
+```{python}
+#| label: fig-kde
+#| fig-cap: "Kernel density estimates of 200 commute times for several bandwidths h, against the maximum likelihood Gaussian (dashed). Ticks along the bottom are the data."
+#| fig-alt: "Interactive line chart of density against commute time from 10 to 80 minutes, with a slider for the bandwidth from 0.5 to 12 minutes. A dashed single bell curve peaks near 35. A solid curve shows the kernel estimate: spiky at small bandwidths, two clear peaks near 30 and 50 at medium bandwidths, and one broad hump at large ones. Short ticks along the bottom mark the 200 data points."
+grid = np.linspace(10, 80, 400)
+mu_ml, var_ml = gaussian_ml(commute_times)
+bandwidths = [0.5, 1, 2, 3, 5, 8, 12]
+fig = go.Figure()
+fig.add_trace(go.Scatter(x=grid, y=stats.norm(mu_ml, np.sqrt(var_ml)).pdf(grid),
+                         name=f"ML Gaussian N({mu_ml:.0f}, {np.sqrt(var_ml):.0f}²)",
+                         line={"color": style.MUTED, "dash": "dash"}))
+fig.add_trace(go.Scatter(x=commute_times, y=np.zeros_like(commute_times), mode="markers", name="Data",
+                         marker={"symbol": "line-ns-open", "size": 8, "color": style.INK_SECONDARY}))
+# One trace per bandwidth, all hidden but one; the slider switches visibility.
+for h in bandwidths:
+    fig.add_trace(go.Scatter(x=grid, y=kernel_density(commute_times, h)(grid), visible=(h == 3),
+                             name=f"Kernel estimate, h = {h}", line={"color": blue, "width": 2.5}))
+fig.update_layout(**style.plotly_layout())
+fig.update_layout(
+    height=380, xaxis={"title": "Commute time (min)"}, yaxis={"title": "Density", "range": [-0.003, 0.1]},
+    legend={"orientation": "h", "y": 1.12},
+    sliders=[{
+        "active": bandwidths.index(3), "currentvalue": {"prefix": "Bandwidth h (min) = "}, "pad": {"t": 40},
+        "steps": [{"label": f"{h:g}", "method": "update",
+                   "args": [{"visible": [True, True] + [b == h for b in bandwidths]}]} for h in bandwidths],
+    }],
+)
+fig.show()
+```
+
+## Algorithms & code
+
+Data is a list of records, each a dictionary from variable to value, with `None` for a missing value.
+
+### Counting, maximum likelihood, and Bayesian estimates
+
+::: {.panel-tabset group="lang"}
+## Python
+```{python}
+#| output: asis
+show_source(count_table, normalize_rows, ml_estimate, bayes_estimate, beta_update)
+```
+## Julia
+```{.julia .snippet}
+using ADM, Distributions, Random
+
+# A dataset is a vector of records: Dicts from variable to value (1, 2, ...) or `missing`.
+
+# m_ijk: counts with the same shape as each CPT (parent values..., own value).
+function count_table(card, parents, data)
+    counts = Dict(x => zeros((card[q] for q in pa)..., card[x]) for (x, pa) in parents)
+    for r in data, (x, pa) in parents
+        family = [[r[q] for q in pa]; r[x]]
+        # Skip the record for x if x or a parent is missing; otherwise add 1 to that cell.
+        any(ismissing, family) || (counts[x][family...] += 1)
+    end
+    return counts
+end
+
+# Divide each row (the last axis) by its total. A row with no data has no estimate
+# (0/0), so it falls back to uniform. max.(…, eps()) just avoids dividing by zero.
+function normalize_rows(counts)
+    totals = sum(counts; dims = ndims(counts))
+    return ifelse.(totals .> 0, counts ./ max.(totals, eps()), 1 / size(counts, ndims(counts)))
+end
+
+tables(counts) = Dict{Symbol, Array{Float64}}(x => normalize_rows(m) for (x, m) in counts)
+
+# Maximum likelihood: observed frequencies.
+ml_estimate(card, parents, data) = BayesNet(card, parents, tables(count_table(card, parents, data)))
+
+# Posterior mean under a Dirichlet prior: add α pseudocounts to every cell.
+bayes_estimate(card, parents, data; α = 1.0) =
+    BayesNet(card, parents, tables(Dict(x => m .+ α for (x, m) in count_table(card, parents, data))))
+
+# Beta(α, β) + (successes, failures) → Beta(α + successes, β + failures).
+beta_update(α, β, successes, failures) = (α + successes, β + failures)
+```
+:::
+
+### Gaussian maximum likelihood and kernel density estimation
+
+::: {.panel-tabset group="lang"}
+## Python
+```{python}
+#| output: asis
+show_source(gaussian_ml, kernel_density)
+```
+## Julia
+```{.julia .snippet}
+# ML mean, and variance that divides by m (not m - 1).
+function gaussian_ml(x)
+    μ = sum(x) / length(x)
+    return μ, sum(abs2, x .- μ) / length(x)     # abs2(d) = d^2
+end
+
+# Returns a function: the average of Gaussian bumps of width h centered on the samples.
+kernel_density(samples, h) =
+    x -> sum(exp(-((x - xi) / h)^2 / 2) for xi in samples) / (length(samples) * h * sqrt(2π))
+```
+:::
+
+### Imputation and expectation-maximization
+
+`_completions` lists every way to fill in a record's gaps, with each filled-in record's probability under the chain rule. The E-step normalizes those probabilities within each record to get fractional counts.
+
+::: {.panel-tabset group="lang"}
+## Python
+```{python}
+#| output: asis
+show_source(impute_mode, _completions, log_likelihood, expected_counts, expectation_maximization)
+```
+## Julia
+```{.julia .snippet}
+# Fill each gap with the variable's most common observed value.
+function impute_mode(data)
+    mode = Dict(x => begin
+                    seen = collect(skipmissing(r[x] for r in data))
+                    vals = unique(seen)
+                    vals[argmax([count(==(v), seen) for v in vals])]
+                end for x in keys(first(data)))
+    return [Dict{Symbol, Union{Int, Missing}}(x => ismissing(v) ? mode[x] : v for (x, v) in r) for r in data]
+end
+
+# Every way to fill in a record's missing values, with its probability (chain rule).
+# Iterators.product over the missing variables' ranges lists every combination
+# (one empty combination when nothing is missing).
+function completions(bn, r)
+    gaps = [x for (x, v) in r if ismissing(v)]
+    return vec(map(Iterators.product((1:bn.card[x] for x in gaps)...)) do vals
+        full = merge(r, Dict(zip(gaps, vals)))
+        (full, probability(bn, full))
+    end)
+end
+
+log_likelihood(bn, data) = sum(log(sum(p for (_, p) in completions(bn, r))) for r in data)
+
+# E-step: split each record across its completions, weighted by P(completion | observed).
+function expected_counts(bn, data)
+    counts = Dict(x => zero(t) for (x, t) in bn.cpt)
+    for r in data
+        fills = completions(bn, r)
+        total = sum(p for (_, p) in fills)
+        for (full, p) in fills, (x, pa) in bn.parents
+            counts[x][(full[q] for q in pa)..., full[x]] += p / total
+        end
+    end
+    return counts
+end
+
+# Alternate E (expected counts) and M (normalize them, as in maximum likelihood).
+function expectation_maximization(bn, data; iterations = 30)
+    history = [log_likelihood(bn, data)]
+    for _ in 1:iterations
+        bn = BayesNet(bn.card, bn.parents, tables(expected_counts(bn, data)))
+        push!(history, log_likelihood(bn, data))
+    end
+    return bn, history
+end
+```
+:::
+
+### Run them on simulated mornings
+
+::: {.panel-tabset group="lang"}
+## Python
+```{python}
+#| echo: true
+from adm.problems.commute import COMMUTE, PARENTS
+rng = np.random.default_rng(4)
+mornings = sample_dataset(COMMUTE, 3000, rng)               # complete records
+ml = ml_estimate(COMMUTE.card, PARENTS, mornings)
+bayes = bayes_estimate(COMMUTE.card, PARENTS, mornings, alpha=1.0)
+# Hide the storm value in 70% of the records, then learn with EM from uniform tables.
+partial = hide(mornings, "S", 0.7, rng)
+start = bayes_estimate(COMMUTE.card, PARENTS, [])            # no data: all rows uniform
+em, history = expectation_maximization(start, partial, iterations=60)
+```
+## Julia
+```{.julia .snippet}
+# Direct sampling (Ch 3): draw each variable given its already-drawn parents.
+function topological_order(parents)
+    order = Symbol[]
+    while length(order) < length(parents)
+        for (x, pa) in parents
+            !(x in order) && all(p in order for p in pa) && push!(order, x)
+        end
+    end
+    return order
+end
+function sample_dataset(bn, m, rng)
+    order = topological_order(bn.parents)
+    return map(1:m) do _
+        r = Dict{Symbol, Union{Int, Missing}}()
+        for x in order
+            r[x] = rand(rng, Categorical(bn.cpt[x][(r[q] for q in bn.parents[x])..., :]))
+        end
+        r
+    end
+end
+
+commute = commute_network()
+rng = MersenneTwister(4)
+mornings = sample_dataset(commute, 2000, rng)
+ml = ml_estimate(commute.card, commute.parents, mornings)
+@assert abs(ml.cpt[:S][2] - 0.1) < 0.03
+@assert bayes_estimate(commute.card, commute.parents, []).cpt[:J][1, 1, :] ≈ [0.5, 0.5]
+@assert beta_update(1, 1, 3, 7) == (4, 8)
+@assert gaussian_ml([30.0, 34, 29, 52, 35]) == (36.0, 69.2)
+partial = [rand(rng) < 0.7 ? merge(r, Dict(:S => missing)) : r for r in mornings]
+start = bayes_estimate(commute.card, commute.parents, [])
+em, history = expectation_maximization(start, partial; iterations = 40)
+@assert all(diff(history) .>= -1e-9)              # EM never lowers the likelihood
+@assert abs(em.cpt[:S][2] - ml.cpt[:S][2]) < 0.03
+```
+:::
+
+```{python}
+print(f"P(storm):          true 0.100   ML {ml.cpt['S'][1]:.3f}   Bayes {bayes.cpt['S'][1]:.3f}   EM (70% missing) {em.cpt['S'][1]:.3f}")
+print(f"P(alert | storm):  true 0.950   ML {ml.cpt['A'][1, 1]:.3f}   Bayes {bayes.cpt['A'][1, 1]:.3f}   EM (70% missing) {em.cpt['A'][1, 1]:.3f}")
+print(f"EM log-likelihood: {history[0]:.1f} at the start, {history[-1]:.1f} after {len(history) - 1} iterations")
+```
+
+::: {.callout-note collapse="true" title="Reading the Julia code (for Python programmers)"}
+- **`missing`** is Julia's built-in marker for a missing value. `ismissing(v)` tests for it, and `skipmissing(xs)` iterates past it. `Union{Int, Missing}` means "an integer or missing".
+- **`ifelse.(cond, a, b)`** is the element-wise version of `cond ? a : b`, like `np.where(cond, a, b)`.
+- **`Iterators.product(r1, r2, …)`** lists every combination, like `itertools.product`.
+- **`begin … end`** groups several lines into one expression; here it computes each variable's mode inside a dictionary comprehension.
+- **`x -> …`** is an anonymous function, so `kernel_density` returns a function, just as the Python version does.
+:::
+
+### Results
+
+#### Learning a table as data arrives
+
+@fig-learning-curve feeds mornings to the learner one batch at a time and tracks two entries of the jam table. The common case, no storm and no roadwork, is learned quickly. The rare case, storm *and* roadwork, happens on only 2% of mornings. Maximum likelihood has nothing to go on for about 100 mornings. After its first few examples, all jams, it claims certainty (1.0) for hundreds more mornings. The Bayesian estimate starts at a cautious 0.5 and rises gradually. By about 1,000 mornings, when the row has been seen about 20 times, the two agree. Both end a little below 0.9, because even 10,000 mornings contain only about 200 storm-and-roadwork examples.
+
+```{python}
+#| label: fig-learning-curve
+#| fig-cap: "Estimates of two entries of P(jam | storm, roadwork) as more mornings are observed, by maximum likelihood and by Bayesian learning with a uniform prior. Dashed lines are the true values. The storm-and-roadwork row is rare (2% of mornings)."
+#| fig-alt: "Two panels with a logarithmic horizontal axis of mornings observed, from 10 to 10,000. Left, the common no-storm, no-roadwork row: both estimates settle near the true value 0.1 after a few hundred mornings. Right, the rare storm-and-roadwork row: the maximum likelihood line sits at the 0.5 fallback until about 100 mornings, jumps to 1.0 and stays there until about 700, then settles between 0.8 and 0.9; the Bayesian line also starts at 0.5 but rises gradually, and the two agree from about 1,000 mornings on."
+stream = sample_dataset(COMMUTE, 10_000, np.random.default_rng(12))
+sizes = np.unique(np.logspace(1, 4, 40).astype(int))
+cases = [((0, 0), "No storm, no roadwork (common)", 0.1), ((1, 1), "Storm and roadwork (rare)", 0.9)]
+fig, axes = plt.subplots(1, 2, figsize=(10, 3.4), sharey=True)
+for ax, (row, title, truth) in zip(axes, cases):
+    ml_path = [ml_estimate(CARD, PARENTS, stream[:n]).cpt["J"][row + (1,)] for n in sizes]
+    bayes_path = [bayes_estimate(CARD, PARENTS, stream[:n]).cpt["J"][row + (1,)] for n in sizes]
+    ax.semilogx(sizes, ml_path, color=blue, label="Maximum likelihood")
+    ax.semilogx(sizes, bayes_path, color=orange, label="Bayesian, uniform prior")
+    ax.axhline(truth, color=style.INK, linestyle="--", linewidth=1)
+    ax.set(title=title, xlabel="Mornings observed", ylim=(-0.03, 1.03))
+axes[0].set_ylabel("Estimated P(jam)")
+axes[1].legend(loc="lower right")
+fig.tight_layout()
+plt.show()
+```
+
+#### Missing data: EM against the alternatives
+
+@fig-em hides the storm value in 70% of the records. The left panel shows EM's log-likelihood climbing and settling. The right panel compares four ways of learning the storm-related tables, averaged over 12 simulated datasets of 1,000 mornings:
+
+- having *all* the data (the best possible);
+- EM;
+- dropping incomplete records;
+- filling each gap with the most common value.
+
+```{python}
+#| label: fig-em
+#| fig-cap: "Learning with the storm value missing from 70% of records. Left: EM's log-likelihood per iteration, which never decreases. Right: mean absolute error of the learned storm-related tables (storm, jam, alert), averaged over 12 datasets of 1,000 mornings."
+#| fig-alt: "Two panels. The left is a line chart of log-likelihood rising steeply over the first few iterations and flattening within about 10 iterations. The right is a bar chart of mean absolute error for four methods: full data lowest at about 0.016, EM close behind at about 0.02, dropping incomplete records at about 0.03, and mode imputation highest at about 0.06."
+def table_error(bn):
+    """Mean absolute error over the tables that involve the storm variable."""
+    return np.mean([np.abs(bn.cpt[x] - COMMUTE.cpt[x]).mean() for x in ("S", "J", "A")])
+
+errors = {"Full data": [], "EM": [], "Drop incomplete": [], "Impute mode": []}
+for seed in range(12):
+    rng_s = np.random.default_rng(100 + seed)
+    full = sample_dataset(COMMUTE, 1000, rng_s)
+    part = hide(full, "S", 0.7, rng_s)
+    errors["Full data"].append(table_error(ml_estimate(CARD, PARENTS, full)))
+    em_s, _ = expectation_maximization(bayes_estimate(CARD, PARENTS, []), part, iterations=40)
+    errors["EM"].append(table_error(em_s))
+    errors["Drop incomplete"].append(table_error(ml_estimate(CARD, PARENTS, [r for r in part if r["S"] is not None])))
+    errors["Impute mode"].append(table_error(ml_estimate(CARD, PARENTS, impute_mode(part))))
+
+fig, axes = plt.subplots(1, 2, figsize=(10, 3.4))
+axes[0].plot(range(len(history)), history, color=blue)
+axes[0].set(xlabel="EM iteration", ylabel="Log-likelihood of observed data", title="EM climbs, then settles")
+names = list(errors)
+axes[1].bar(names, [np.mean(errors[n]) for n in names], color=[style.MUTED, blue, orange, yellow], width=0.6)
+axes[1].set(ylabel="Mean absolute error", title="Error of learned tables")
+axes[1].tick_params(axis="x", labelsize=9)
+fig.tight_layout()
+plt.show()
+```
+
+EM's error is only about 25% higher than with complete data, even though it sees only 30% of the storm values. Dropping records is unbiased here, because values were hidden at random, but it throws away most of the evidence. Mode imputation is the worst. "No storm" is by far the most common value, so it fills every gap with it, and that makes storms look three times rarer than they are.
+
+## Solved problems
+
+**Problem 1: ML and Bayes for one row.** In the coffee machine of [Ch 3](ch03-inference.qmd), you service 8 machines that turn out to have scale buildup, and 2 of them were making a loud noise. Estimate $P(\text{noise} \mid \text{scale})$ by maximum likelihood, and as a posterior mean with a uniform Beta(1, 1) prior.
+
+::: {.callout-tip collapse="true" title="Solution"}
+ML: $2/8 = 0.25$. Bayesian: the posterior is Beta(1 + 2, 1 + 6) = Beta(3, 7), with mean $3/10 = 0.30$. The prior's two pseudocounts pull the estimate slightly toward 0.5. With 80 machines and 20 noisy ones, the posterior mean would be $21/82 = 0.256$, almost the ML value.
+:::
+
+**Problem 2: what a prior is worth.** An expert says a sensor fails about 10% of the time, and you encode that as Beta(1, 9). (a) How many observations is the prior worth? (b) You then test 10 sensors and all 10 fail. What's the posterior mean?
+
+::: {.callout-tip collapse="true" title="Solution"}
+(a) $\alpha + \beta = 10$ pseudo-observations.
+
+(b) The posterior is Beta(1 + 10, 9 + 0) = Beta(11, 9), with mean $11/20 = 0.55$. Ten real observations weigh as much as the whole prior, so the estimate lands halfway between 0.1 and the data's 1.0. If you trust the expert more, encode the same 10% as Beta(10, 90), worth 100 observations. Then the posterior mean is $20/110 = 0.18$.
+:::
+
+**Problem 3: the ML variance is biased.** For the data 2, 4, 6, compute the maximum likelihood variance and the "sample variance" that divides by $m - 1$. Why does ML come out smaller?
+
+::: {.callout-tip collapse="true" title="Solution"}
+$\hat\mu = 4$, and the squared deviations are 4, 0 and 4, summing to 8. ML: $8/3 \approx 2.67$. Sample variance: $8/2 = 4$.
+
+ML measures spread around $\hat\mu$, the center that fits *this* sample best. That is always at least as close to the data as the true mean. So squared deviations from $\hat\mu$ understate the real spread on average, by exactly the factor $(m-1)/m$. The difference fades as $m$ grows.
+:::
+
+**Problem 4: one E-step, other evidence.** A record has the storm value missing: roadwork, a jam, *not* late, *no* radio alert. Using the true commute tables, how much does this record add to the storm counts?
+
+::: {.callout-tip collapse="true" title="Solution"}
+Keep only the factors that involve the storm (the others cancel):
+
+- Storm: $0.1 \times P(j^1 \mid s^1, r^1) \times P(a^0 \mid s^1) = 0.1 \times 0.9 \times 0.05 = 0.0045$
+- No storm: $0.9 \times P(j^1 \mid s^0, r^1) \times P(a^0 \mid s^0) = 0.9 \times 0.6 \times 0.98 = 0.5292$
+
+$P(s^1 \mid \text{record}) = 0.0045 / 0.5337 \approx$ **0.008**. The missing radio alert is strong evidence against a storm, and the roadwork already explains the jam. So this record counts as almost entirely a calm morning.
+:::
+
+## Recap
+
+1. **Learning means choosing parameters that make the observed data likely** (@eq-log-likelihood).
+   *Why it matters:* every model on this site, from these tables to transition models in [Ch 16](../part3/ch16-model-based-methods.qmd), must come from data somewhere, and the likelihood is the common yardstick.
+2. **For discrete tables, maximum likelihood is counting** (@eq-ml-counts), row by row; for a Gaussian, it's the sample mean and average squared deviation (@eq-gaussian-ml).
+   *Why it matters:* it's fast and exact in the limit, but with little data it overfits and says nothing about unseen situations.
+3. **Bayesian learning keeps a distribution over the parameter:** a Beta (@eq-beta-update) or Dirichlet (@eq-dirichlet) prior acts as pseudocounts, and updating is adding counts.
+   *Why it matters:* it gives sensible estimates from little data, and it measures how uncertain they are. That uncertainty is exactly what drives exploration in [Ch 15](../part3/ch15-exploration-and-exploitation.qmd).
+4. **Kernel density estimation (@eq-kde) makes no shape assumption;** the bandwidth sets the detail.
+   *Why it matters:* real data is often lumpy, and forcing one bell curve on it gives confident, wrong answers.
+5. **EM learns with missing values (@eq-em):** inference fills gaps with fractional counts, maximum likelihood re-estimates from them, repeat. The likelihood never decreases.
+   *Why it matters:* real logs are incomplete. EM uses all the evidence, where dropping wastes it and naive filling biases it. The same E/M pattern appears in clustering and hidden-state models.
+
+## Cheat sheet & connections
+
+| Name | Formula | Ref |
+|---|---|---|
+| Log-likelihood | $\ell(\theta) = \sum_i \log P(x_i \mid \theta)$ | @eq-log-likelihood |
+| ★ ML estimate (counts) | $\hat\theta_{ijk} = m_{ijk} / \sum_{k'} m_{ijk'}$ | @eq-ml-counts |
+| Gaussian ML | $\hat\mu = \frac1m \sum x_i$, $\ \hat\sigma^2 = \frac1m \sum (x_i - \hat\mu)^2$ | @eq-gaussian-ml |
+| ★ Beta update | $\mathrm{Beta}(\alpha, \beta) \to \mathrm{Beta}(\alpha + m_1, \beta + m_0)$; mean $\frac{\alpha + m_1}{\alpha + \beta + m}$ | @eq-beta-update |
+| Dirichlet posterior mean | $\frac{\alpha_k + m_k}{\sum_{k'} (\alpha_{k'} + m_{k'})}$ | @eq-dirichlet |
+| Kernel density | $\hat p(x) = \frac1m \sum_i \mathcal{N}(x \mid x_i, h^2)$ | @eq-kde |
+| ★ EM | E: expected counts from $P(\text{missing} \mid \text{observed}, \theta)$; M: normalize them | @eq-em |
+
+: Key equations from this page (★ = well-known by name). {#tbl-cheatsheet}
+
+**Which method?** Use maximum likelihood with plenty of data for every parent combination. Use a Bayesian estimate when some combinations are rare, or when you have real prior knowledge. Use kernel density estimation for continuous data with an unknown, possibly lumpy shape. Use EM when values are missing.
+
+**Common pitfalls**
+
+- **Zero counts.** ML gives probability 0 to anything unseen, which makes any record containing it "impossible" and breaks inference. Add pseudocounts.
+- **Forgetting that the prior is data.** Beta(50, 50) is worth 100 observations; it can swamp a small experiment.
+- **Assuming values are missing at random.** Dropping records and EM both rely on it. If storms are *more* likely to go unrecorded, both are biased.
+- **Trusting one EM run.** EM finds a local maximum. Try several starting points on hard problems.
+- **Picking the bandwidth by eye alone.** Cross-validation (choosing $h$ to predict held-out data well) is the standard fix.
+
+**Connections**
+
+- [Ch 2 · Representation](ch02-representation.qmd) defines the tables learned here.
+- [Ch 3 · Inference](ch03-inference.qmd) supplies EM's E-step.
+- [Ch 5 · Structure Learning](ch05-structure-learning.qmd) scores whole graphs with the same Dirichlet counts.
+- [Ch 15 · Exploration and Exploitation](../part3/ch15-exploration-and-exploitation.qmd) uses Beta posteriors to decide which option to try next.
+- [Ch 16 · Model-Based Methods](../part3/ch16-model-based-methods.qmd) learns an MDP's transition probabilities by exactly this kind of counting.

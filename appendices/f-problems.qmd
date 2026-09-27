@@ -246,7 +246,7 @@ commute = commute_network()                   # a BayesNet: card, parents, cpt
 ```
 :::
 
-**Where it's used.** [Ch 2](../part1/ch02-representation.qmd): the chain rule, parameter counts, explaining away, d-separation. [Ch 3](../part1/ch03-inference.qmd): every inference method answers $P(\text{storm} \mid \text{late}, \text{alert}) = 0.935$.
+**Where it's used.** [Ch 2](../part1/ch02-representation.qmd): the chain rule, parameter counts, explaining away, d-separation. [Ch 3](../part1/ch03-inference.qmd): every inference method answers $P(\text{storm} \mid \text{late}, \text{alert}) = 0.935$. [Ch 4](../part1/ch04-parameter-learning.qmd): its tables are learned back from simulated mornings, including with the storm value missing (EM).
 
 ### Coffee machine {#coffee-machine}
 

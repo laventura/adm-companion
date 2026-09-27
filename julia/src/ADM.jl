@@ -8,14 +8,19 @@ include("style.jl")
 include("beliefs/discrete_filter.jl")
 include("beliefs/kalman_filter.jl")
 include("beliefs/particle_filter.jl")
+include("bayes_net.jl")
 include("problems/discrete_mdp.jl")
 include("problems/hex_world.jl")
+include("problems/commute.jl")
+include("problems/coffee.jl")
 
 export write_json, show_source
 export predict_discrete, correct_discrete, update_discrete
 export LinearGaussianModel, kalman_predict, kalman_correct, kalman_update
 export update_particles
 export DiscreteMDP, hex_mdp, hex_world, straight_line_hex_world
+export BayesNet, binary_cpt, commute_network, COMMUTE_TIMES_MEAN, COMMUTE_TIMES_COV
+export coffee_network, COFFEE_CLASSES, COFFEE_PRIOR, COFFEE_P_SYMPTOM
 
 """
     write_json(obj, path) -> path

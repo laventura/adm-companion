@@ -34,3 +34,9 @@ COMMUTE = BayesNet(
         "A": _binary([0.02, 0.95]),    # S = 0, S = 1
     },
 )
+
+# Commute times in minutes as a joint Gaussian (Ch 3): index 0 = morning,
+# index 1 = evening. Standard deviations 8 and 10, correlation 0.6, so the
+# covariance is 0.6 * 8 * 10 = 48.
+COMMUTE_TIMES_MEAN = np.array([35.0, 40.0])
+COMMUTE_TIMES_COV = np.array([[64.0, 48.0], [48.0, 100.0]])

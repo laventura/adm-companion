@@ -1,8 +1,212 @@
 ---
 title: "F · Problems"
 subtitle: "Appendices"
+jupyter: python3
+execute:
+  echo: false
 ---
 
 ::: {.callout-note appearance="minimal"}
-**In progress.** This page will cover ADM Appendix F, *Problems*.
+**Executed in:** Python · **Book:** ADM Appendix F
 :::
+
+```{python}
+#| include: false
+import numpy as np
+import matplotlib.pyplot as plt
+from matplotlib.cm import ScalarMappable
+from matplotlib.colors import TwoSlopeNorm
+from matplotlib.patches import RegularPolygon
+
+from adm import style
+from adm.mdp import greedy, value_iteration
+from adm.problems.hex_world import DIRECTIONS, hex_world, straight_line_hex_world
+
+style.apply()
+NORM = TwoSlopeNorm(vmin=-10, vcenter=0, vmax=10)
+CMAP = style.diverging_cmap()
+ANGLE = {d: np.deg2rad(60 * i) for i, d in enumerate(DIRECTIONS)}   # E = 0°, counterclockwise
+
+
+def center(tile):
+    """Screen position of an (row, col) tile in odd-r offset coordinates."""
+    r, c = tile
+    return c + 0.5 * (r % 2), -r * np.sqrt(3) / 2
+
+
+def draw_hexes(ax, mdp, values=None, policy=None, rewards_only=False, labels=True):
+    """Draw the tiles of a hex MDP, colored by value (or by reward), with optional arrows."""
+    for i, tile in enumerate(mdp.states[:-1]):
+        x, y = center(tile)
+        reward = mdp.R[i, 0] if np.all(mdp.T[i, :, -1] == 1) else None
+        u = (reward or 0.0) if rewards_only else values[i]
+        face = CMAP(NORM(u)) if (not rewards_only or reward is not None) else style.SURFACE
+        ax.add_patch(RegularPolygon((x, y), 6, radius=0.55, orientation=0, facecolor=face,
+                                    edgecolor=style.AXIS, linewidth=1))
+        ink = "white" if abs(u) > 6 else style.INK
+        if reward is not None and labels:
+            ax.text(x, y, f"{reward:+g}", ha="center", va="center", fontsize=9, fontweight="bold", color=ink)
+        elif policy is not None:
+            dx, dy = 0.28 * np.cos(ANGLE[mdp.actions[policy[i]]]), 0.28 * np.sin(ANGLE[mdp.actions[policy[i]]])
+            ax.annotate("", xy=(x + dx, y + dy), xytext=(x - dx, y - dy),
+                        arrowprops={"arrowstyle": "-|>", "color": ink, "lw": 1.2, "mutation_scale": 8,
+                                    "shrinkA": 0, "shrinkB": 0})
+    ax.set_aspect("equal")
+    ax.autoscale_view()
+    ax.axis("off")
+```
+
+This page collects the benchmark problems from Appendix F of the book, implemented from their descriptions in both Python (`adm/problems/`) and Julia (`julia/src/problems/`). Each problem is added when a chapter first uses it. The table shows what's available so far.
+
+| Problem | Kind | Status |
+|---|---|---|
+| F.1 Hex World | MDP, discrete | ✅ [below](#hex-world) |
+| F.2 2048 | MDP, discrete (huge) | added when first used |
+| F.3 Cart-Pole | MDP, continuous state | added when first used |
+| F.4 Mountain Car | MDP, continuous state | added when first used |
+| F.5 Simple Regulator | MDP, linear-quadratic | added when first used |
+| F.6 Aircraft Collision Avoidance | MDP, discrete | added when first used |
+| F.7 Crying Baby | POMDP | added when first used |
+| F.8 Machine Replacement | POMDP | added when first used |
+| F.9 Catch | POMDP | added when first used |
+| F.10–F.12 Prisoner's Dilemma, Rock-Paper-Scissors, Traveler's Dilemma | Simple games | added with Part V |
+| F.13–F.15 Predator-Prey Hex World, Multicaregiver Crying Baby, Collaborative Predator-Prey | Multiagent | added with Part V |
+
+: Appendix F problems on this site. {#tbl-problems}
+
+## How problems are packaged
+
+Every finite MDP comes as a `DiscreteMDP` with five fields:
+
+| Field | Meaning |
+|---|---|
+| `T` | Transition array: `T[s, a, s′]` $= T(s' \mid s, a)$ |
+| `R` | Reward array: `R[s, a]` $= R(s, a)$ |
+| `gamma` (Python), `γ` (Julia) | Discount factor |
+| `states` | A readable label for each state index, such as a tile's `(row, col)` |
+| `actions` | A readable label for each action index, such as `"NE"` |
+
+: Fields of a `DiscreteMDP`. The arrays use the same layout as [Chapter 7](../part2/ch07-exact-solution-methods.qmd). {#tbl-fields}
+
+So any solver written for `(T, R, γ)` works on any problem. For example, here is Chapter 7's value iteration solving Hex World:
+
+::: {.panel-tabset group="lang"}
+## Python
+```{python}
+#| echo: true
+from adm.mdp import greedy, value_iteration
+from adm.problems.hex_world import hex_world
+
+mdp = hex_world()
+U, _ = value_iteration(mdp.T, mdp.R, mdp.gamma)
+policy, _ = greedy(mdp.T, mdp.R, mdp.gamma, U)
+```
+## Julia
+```{.julia .snippet}
+using ADM
+
+mdp = hex_world()    # fields: T, R, γ, states, actions
+
+# Value iteration (Ch 7): repeat Bellman backups until the values settle.
+function solve(m; δ = 1e-6)
+    U = zeros(length(m.states))
+    while true
+        Q = [m.R[s, a] + m.γ * sum(m.T[s, a, :] .* U) for s in axes(m.R, 1), a in axes(m.R, 2)]
+        U′ = vec(maximum(Q, dims = 2))
+        maximum(abs.(U′ - U)) < δ && return U′, argmax.(eachrow(Q))
+        U = U′
+    end
+end
+U, policy = solve(mdp)
+@assert mdp.states[argmax(U)] == (2, 9)    # the +10 tile is worth the most
+```
+:::
+
+```{python}
+best = int(np.argmax(U))
+print(f"{len(mdp.states)} states ({len(mdp.states) - 1} tiles + terminal), {len(mdp.actions)} actions, γ = {mdp.gamma}")
+print(f"Most valuable tile: {mdp.states[best]} with U* = {U[best]:.2f}")
+```
+
+## Hex World {#hex-world}
+
+**The story.** A robot crosses a floor of hexagonal tiles. Three tiles are special: one pays +10, one pays +5, and one costs −10. Acting on a special tile collects its value and ends the episode. The floor is slippery, so a move sometimes veers off course, and walking into the edge of the map wastes a turn and costs 1.
+
+It is a good first benchmark because it is small enough to solve exactly (25 states), yet it has real trade-offs. The +5 is closer than the +10 for part of the map, and the −10 sits beside a useful path.
+
+| | |
+|---|---|
+| States | 24 tiles, plus one terminal state reached after collecting a reward |
+| Actions | Move in one of 6 directions: E, NE, NW, W, SW, SE |
+| Rewards | +10, +5 and −10 on three tiles; −1 for bumping into the edge |
+| Discount | $\gamma = 0.9$ |
+
+: Hex World at a glance (ADM §F.1). {#tbl-hex}
+
+::: {.key-equation data-name="Hex World transition model"}
+$$
+T(s' \mid s, a) = 0.7\,\big[s' = \mathrm{step}(s, a)\big] + 0.15\,\big[s' = \mathrm{step}(s, a^{-})\big] + 0.15\,\big[s' = \mathrm{step}(s, a^{+})\big]
+$$ {#eq-hex-transition}
+:::
+
+**In words.** The robot goes the way it chose 70% of the time. Otherwise it veers 60° to the left or to the right, 15% each.
+
+**Term by term.**
+
+- $\mathrm{step}(s, a)$ is the tile one step from $s$ in direction $a$. If that step would leave the map, $\mathrm{step}(s, a) = s$: the robot stays put.
+- $a^{-}$ and $a^{+}$ are the two directions next to $a$. For $a = \text{E}$ they are NE and SE.
+- $[\cdot]$ is 1 if the condition inside is true and 0 otherwise, so the three terms add up the ways of landing on $s'$.
+- On a reward tile, every action instead moves to the terminal state with probability 1.
+
+The reward is $R(s, a) = r(s)$ on a reward tile. Elsewhere it is $-1$ times the probability of bumping into the edge. For example, heading east from the top-left tile veers off the map with probability 0.15, so $R = -0.15$.
+
+@fig-hex-world shows the map and its optimal policy.
+
+```{python}
+#| label: fig-hex-world
+#| fig-cap: "Hex World. Left: the map, with the three reward tiles colored. Right: the optimal values (color) and policy (arrows) from value iteration with γ = 0.9."
+#| fig-alt: "Two hex maps side by side, each with three rows of hexagonal tiles: ten on top, six in the middle, eight on the bottom. On the left map, a +5 tile at the left of the middle row is light blue, a −10 tile in the bottom row is red, and a +10 tile at the bottom right is dark blue. On the right map, every tile is shaded by its value, from pale near the −10 to darker blue near the +10, and arrows show the best move. Tiles in the left third point toward the +5, tiles in the right two-thirds point toward the +10, and no tile next to the −10 aims at it."
+fig, axes = plt.subplots(1, 2, figsize=(10, 2.8))
+draw_hexes(axes[0], mdp, rewards_only=True)
+axes[0].set_title("Map", fontsize=10)
+draw_hexes(axes[1], mdp, values=U, policy=policy)
+axes[1].set_title(r"Optimal policy and values ($\gamma = 0.9$)", fontsize=10)
+fig.colorbar(ScalarMappable(norm=NORM, cmap=CMAP), ax=axes, shrink=0.8, label=r"$U^*(s)$")
+plt.show()
+```
+
+### Straight-line Hex World
+
+A smaller variant has seven tiles in a row, with +10 on the rightmost tile. Its only purpose is to make one thing visible: how value iteration spreads reward backward, one tile per sweep (@fig-hex-line).
+
+```{python}
+#| label: fig-hex-line
+#| fig-cap: "Value iteration on straight-line Hex World (γ = 0.9). Each row is one sweep. The +10 reaches one more tile to the left per sweep, fading as it goes. Tiles it hasn't reached yet are slightly negative: in a single row every move risks veering off the edge, which costs 1. The values settle after 26 sweeps."
+#| fig-alt: "Seven stacked rows of seven hexagons each, labeled sweep 1 to sweep 7. In sweep 1 the rightmost tile, labeled +10, is dark blue and the other six are faintly red. In each later row, blue reaches one more tile to the left, each tile paler than the one to its right. By sweep 7 every tile except the leftmost is blue."
+line = straight_line_hex_world()
+_, line_history = value_iteration(line.T, line.R, line.gamma)
+fig, axes = plt.subplots(7, 1, figsize=(5.2, 4.6))
+for k, ax in enumerate(axes, start=1):
+    draw_hexes(ax, line, values=line_history[k], labels=(k == 1))
+    ax.text(-0.9, 0, f"Sweep {k}", ha="right", va="center", fontsize=9, color=style.INK_SECONDARY)
+    ax.set_xlim(-2.2, 6.6)
+plt.show()
+```
+
+**Where it's used.** No page on this site uses Hex World yet. The book uses it as a running example, so it will appear as later chapters are written.
+
+## Also on this site
+
+Several chapters define their own small, original problems. They live next to the chapters that use them:
+
+| Problem | Kind | Page | Code |
+|---|---|---|---|
+| Rover grid | MDP, 4×5 grid with slip | [Ch 7](../part2/ch07-exact-solution-methods.qmd) | `adm/problems/gridworld.py` |
+| Delivery drone | MDP, 2 states | [Ch 7](../part2/ch07-exact-solution-methods.qmd) | on the page |
+| Factory machine | MDP, 2 states (solved problem) | [Ch 7](../part2/ch07-exact-solution-methods.qmd) | on the page |
+| Tram loop | Discrete filter, 12 states | [Ch 19](../part4/ch19-beliefs.qmd) | on the page |
+| Kayak | Linear-Gaussian, 1D | [Ch 19](../part4/ch19-beliefs.qmd) | on the page |
+| Drifting buoy | Linear-Gaussian, 4D | [Ch 19](../part4/ch19-beliefs.qmd) | on the page |
+| Range-only rover | Nonlinear, particle filter | [Ch 19](../part4/ch19-beliefs.qmd) | on the page |
+
+: Original problems used on this site. {#tbl-originals}

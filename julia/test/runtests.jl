@@ -51,6 +51,16 @@ end
     @test_throws ErrorException update_particles([0.0], 0.0, 0.0, (r, s, a) -> s, (o, a, s) -> 0.0, rng)
 end
 
+@testset "Hex World" begin
+    m = hex_world()
+    @test size(m.T) == (25, 6, 25) && m.γ == 0.9 && m.states[end] == "terminal"
+    @test all(sum(m.T, dims = 3) .≈ 1)
+    @test ADM.hex_neighbor((1, 8), "SE") == (2, 9)
+    i, east = findfirst(==((0, 0)), m.states), findfirst(==("E"), m.actions)
+    @test m.R[i, east] ≈ -0.15
+    @test size(straight_line_hex_world().T) == (8, 6, 8)
+end
+
 @testset "show_source" begin
     out = sprint(io -> show_source("beliefs/discrete_filter.jl", io))
     @test startswith(out, "```julia\n") && endswith(rstrip(out), "```")

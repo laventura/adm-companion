@@ -8,11 +8,14 @@ include("style.jl")
 include("beliefs/discrete_filter.jl")
 include("beliefs/kalman_filter.jl")
 include("beliefs/particle_filter.jl")
+include("problems/discrete_mdp.jl")
+include("problems/hex_world.jl")
 
 export write_json, show_source
 export predict_discrete, correct_discrete, update_discrete
 export LinearGaussianModel, kalman_predict, kalman_correct, kalman_update
 export update_particles
+export DiscreteMDP, hex_mdp, hex_world, straight_line_hex_world
 
 """
     write_json(obj, path) -> path

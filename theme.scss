@@ -7,6 +7,14 @@ figcaption {
   font-size: 0.9rem;
 }
 
+// Buttons created by OJS `Inputs.button` get Quarto's .btn-quarto class, which
+// rendered dark text on a dark background. Use the theme's primary color instead.
+.btn-quarto {
+  color: #fff;
+  background-color: $primary;
+  border-color: $primary;
+}
+
 // Boxed equations: ::: {.key-equation data-name="..."}. Add .famous for well-known ones.
 .key-equation {
   border-left: 4px solid $primary;

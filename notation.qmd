@@ -26,6 +26,13 @@ This site uses the book's notation. Symbols are added here as chapters are writt
 | $\mathrm{Beta}(\theta \mid \alpha, \beta)$ | Beta distribution over a probability $\theta$; $\alpha$, $\beta$ act as pseudocounts | Ch 4 |
 | $\mathrm{Dir}(\theta_{1:n} \mid \alpha_{1:n})$ | Dirichlet distribution over $n$ probabilities that sum to 1 | Ch 4 |
 | $\phi$, $h$ | Kernel and bandwidth in kernel density estimation | Ch 4 |
+| $G$, $D$ | A graph (network structure) and a dataset | Ch 5 |
+| $\ln P(G \mid D)$ | Bayesian score of graph $G$ on data $D$ | Ch 5 |
+| $\Gamma(x)$ | Gamma function; $\Gamma(n) = (n-1)!$ for whole numbers | Ch 5 |
+| $\alpha_{ijk}$, $\alpha_{ij0}$, $m_{ij0}$ | Pseudocount for a cell, and the row totals of pseudocounts and counts | Ch 5 |
+| $q_i$, $r_i$ | Number of parent combinations and number of values of variable $i$ | Ch 5 |
+| $\kappa$ | Equivalent sample size of a BDeu prior | Ch 5 |
+| $\mathrm{pa}_G(x_i)$ | Parents of $x_i$ in graph $G$ | Ch 5 |
 | $\phi$ | A factor: a table over some variables (a CPT, or any partial product) | Ch 3 |
 | $P(c \mid o_{1:n})$ | Naive Bayes posterior of class $c$ given observations $o_1, \ldots, o_n$ | Ch 3 |
 | $w$ | Likelihood weight of a sample | Ch 3 |

@@ -14,6 +14,7 @@ execute:
 #| include: false
 import numpy as np
 import matplotlib.pyplot as plt
+from IPython.display import Markdown
 from matplotlib.cm import ScalarMappable
 from matplotlib.colors import TwoSlopeNorm
 from matplotlib.patches import RegularPolygon
@@ -56,7 +57,7 @@ def draw_hexes(ax, mdp, values=None, policy=None, rewards_only=False, labels=Tru
     ax.axis("off")
 ```
 
-This page collects the benchmark problems from Appendix F of the book, implemented from their descriptions in both Python (`adm/problems/`) and Julia (`julia/src/problems/`). Each problem is added when a chapter first uses it. The table shows what's available so far.
+This page collects every problem used on the site, implemented in both Python (`adm/problems/`) and Julia (`julia/src/problems/`), with tests that check the two languages agree. It has two parts: the benchmark problems from Appendix F of the book, implemented from their descriptions, and the [small original problems](#problems-made-for-this-site) built for this site's chapters. Each problem is added when a chapter first uses it. The table shows which Appendix F problems are available so far.
 
 | Problem | Kind | Status |
 |---|---|---|
@@ -195,14 +196,123 @@ plt.show()
 
 **Where it's used.** No page on this site uses Hex World yet. The book uses it as a running example, so it will appear as later chapters are written.
 
-## Also on this site
+## Problems made for this site
 
-Several chapters define their own small, original problems. They live next to the chapters that use them:
+The chapters also use small original problems, built to make one idea easy to see. The ones reused across pages get a full entry here, in both languages; the rest are listed in @tbl-originals.
+
+### Morning commute {#morning-commute}
+
+**The story.** Five yes/no facts about a morning: was there a storm, roadwork, a traffic jam; were you late; did the radio warn of a storm. Storms and roadwork cause jams, jams make you late, and storms trigger radio alerts. It is small enough to check every answer by hand, yet it contains all three d-separation patterns: a chain, a fork and a collider.
+
+```{dot}
+//| label: fig-gallery-commute
+//| fig-width: 3.62
+//| fig-height: 2.79
+//| fig-cap: "The morning-commute Bayesian network."
+//| fig-alt: "A directed graph with five boxes. Storm and Roadwork both point to Traffic jam, which points to Late. Storm also points to Radio alert."
+digraph commute {
+  bgcolor="#fcfcfb"; pad=0.2; nodesep=0.5; ranksep=0.45;
+  node [shape=box, style="rounded,filled", fillcolor="white", color="#52514e", penwidth=1.2,
+        fontname="Helvetica", fontsize=13, fontcolor="#0b0b0b"];
+  edge [color="#52514e", penwidth=1.2, arrowsize=0.7];
+  S [label="Storm (S)"]; R [label="Roadwork (R)"]; J [label="Traffic jam (J)"];
+  L [label="Late (L)"]; A [label="Radio alert (A)"];
+  S -> J; R -> J; J -> L; S -> A;
+}
+```
+
+| Variable | Parents | P(yes \| parents) |
+|---|---|---|
+| Storm $S$ | — | 0.1 |
+| Roadwork $R$ | — | 0.2 |
+| Traffic jam $J$ | $S, R$ | 0.1 (neither), 0.6 (roadwork only), 0.7 (storm only), 0.9 (both) |
+| Late $L$ | $J$ | 0.05 (no jam), 0.5 (jam) |
+| Radio alert $A$ | $S$ | 0.02 (no storm), 0.95 (storm) |
+
+: The commute network's conditional probability tables. {#tbl-commute-cpts}
+
+::: {.panel-tabset group="lang"}
+## Python
+```{python}
+#| echo: true
+from adm.problems.commute import COMMUTE     # a BayesNet: card, parents, cpt
+p_jam_given_storm_only = COMMUTE.cpt["J"][1, 0, 1]   # axes: S, R, then J; value 1 = yes
+```
+## Julia
+```{.julia .snippet}
+using ADM
+commute = commute_network()                   # a BayesNet: card, parents, cpt
+@assert commute.cpt[:J][2, 1, 2] == 0.7       # axes: S, R, then J; value 2 = yes (1-based)
+```
+:::
+
+**Where it's used.** [Ch 2](../part1/ch02-representation.qmd): the chain rule, parameter counts, explaining away, d-separation. [Ch 3](../part1/ch03-inference.qmd): every inference method answers $P(\text{storm} \mid \text{late}, \text{alert}) = 0.935$.
+
+### Coffee machine {#coffee-machine}
+
+**The story.** An espresso machine is fine, has scale buildup, or has a worn pump. You can't see which, but you can notice three symptoms: slow flow, a loud noise, and weak-tasting coffee. Each symptom depends only on the machine's condition, which makes this a **naive Bayes** model. It shows how a rare cause can become the most likely one once the evidence fits it well.
+
+```{python}
+#| label: tbl-gallery-coffee
+#| tbl-cap: "The coffee-machine model: prior over the condition and P(symptom present | condition)."
+from adm.problems.coffee import CLASSES, LIKELIHOODS, PRIOR, SYMPTOMS
+rows = ["| Condition | Prior | " + " | ".join(SYMPTOMS.values()) + " |", "|---|---|---|---|---|"]
+for c, name in enumerate(CLASSES):
+    rows.append(f"| {name} | {PRIOR[c]:.2f} | " + " | ".join(f"{L[c, 1]:.2f}" for L in LIKELIHOODS) + " |")
+Markdown("\n".join(rows))
+```
+
+::: {.panel-tabset group="lang"}
+## Python
+```{python}
+#| echo: true
+from adm.problems.coffee import COFFEE, LIKELIHOODS, PRIOR   # BayesNet, plus the naive Bayes arrays
+# LIKELIHOODS[i][c, o] = P(symptom i = o | condition c); o = 1 means present
+```
+## Julia
+```{.julia .snippet}
+using ADM
+coffee = coffee_network()                    # C has 3 values; each symptom is binary
+@assert coffee.card[:C] == 3 && sum(COFFEE_PRIOR) ≈ 1
+@assert coffee.cpt[:N][3, 2] == 0.8          # P(loud noise | worn pump)
+```
+:::
+
+**Where it's used.** [Ch 3](../part1/ch03-inference.qmd): naive Bayes inference.
+
+### Commute times {#commute-times}
+
+**The story.** Morning and evening commute times, in minutes, are jointly Gaussian: morning $\mathcal{N}(35, 8^2)$ and evening $\mathcal{N}(40, 10^2)$, with correlation $\rho = 0.6$, because a bad traffic day tends to be bad all day. It is the smallest example of conditioning a Gaussian: one observation shifts the other's mean and shrinks its spread.
+
+| | Morning | Evening |
+|---|---|---|
+| Mean (min) | 35 | 40 |
+| Standard deviation (min) | 8 | 10 |
+| Covariance matrix $\boldsymbol\Sigma$ | $\begin{pmatrix} 64 & 48 \\ 48 & 100 \end{pmatrix}$ | ($48 = 0.6 \times 8 \times 10$) |
+
+: Commute times as a bivariate Gaussian. {#tbl-commute-times}
+
+::: {.panel-tabset group="lang"}
+## Python
+```{python}
+#| echo: true
+from adm.problems.commute import COMMUTE_TIMES_COV, COMMUTE_TIMES_MEAN   # index 0 = morning, 1 = evening
+```
+## Julia
+```{.julia .snippet}
+using ADM
+@assert COMMUTE_TIMES_MEAN == [35.0, 40.0]   # 1 = morning, 2 = evening
+@assert COMMUTE_TIMES_COV[1, 2] == 0.6 * 8 * 10
+```
+:::
+
+**Where it's used.** [Ch 3](../part1/ch03-inference.qmd): Gaussian conditioning.
+
+### Other problems on this site
 
 | Problem | Kind | Page | Code |
 |---|---|---|---|
-| Morning commute | Bayesian network, 5 binary variables | [Ch 2](../part1/ch02-representation.qmd) | `adm/problems/commute.py` |
-| Rover grid | MDP, 4×5 grid with slip | [Ch 7](../part2/ch07-exact-solution-methods.qmd) | `adm/problems/gridworld.py` |
+| Rover grid | MDP, 4×5 grid with slip |
 | Delivery drone | MDP, 2 states | [Ch 7](../part2/ch07-exact-solution-methods.qmd) | on the page |
 | Factory machine | MDP, 2 states (solved problem) | [Ch 7](../part2/ch07-exact-solution-methods.qmd) | on the page |
 | Tram loop | Discrete filter, 12 states | [Ch 19](../part4/ch19-beliefs.qmd) | on the page |
@@ -210,4 +320,4 @@ Several chapters define their own small, original problems. They live next to th
 | Drifting buoy | Linear-Gaussian, 4D | [Ch 19](../part4/ch19-beliefs.qmd) | on the page |
 | Range-only rover | Nonlinear, particle filter | [Ch 19](../part4/ch19-beliefs.qmd) | on the page |
 
-: Original problems used on this site. {#tbl-originals}
+: Other original problems, defined next to the chapters that use them. {#tbl-originals}

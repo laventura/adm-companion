@@ -50,6 +50,7 @@ def apply() -> None:
         "axes.spines.top": False,
         "axes.spines.right": False,
         "axes.grid": True,
+        "axes.axisbelow": True,
         "grid.color": GRID,
         "grid.linewidth": 0.8,
         "xtick.color": MUTED,

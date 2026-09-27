@@ -52,7 +52,7 @@ format:
       light: [cosmo, theme.scss]
       dark: [darkly, theme.scss]
     toc: true
-    code-copy: true
+    code-copy: hover
     syntax-highlighting: github   # Quarto picks github-light / github-dark to match the theme
     syntax-definitions:
       - _syntax/python.xml        # Pandoc's Python grammar plus function-name highlighting

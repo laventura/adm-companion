@@ -13,6 +13,7 @@ include("problems/discrete_mdp.jl")
 include("problems/hex_world.jl")
 include("problems/commute.jl")
 include("problems/coffee.jl")
+include("problems/mountain_car.jl")
 
 export write_json, show_source
 export predict_discrete, correct_discrete, update_discrete
@@ -22,6 +23,7 @@ export DiscreteMDP, hex_mdp, hex_world, straight_line_hex_world
 export BayesNet, binary_cpt, probability, commute_network, COMMUTE_TIMES_MEAN, COMMUTE_TIMES_COV
 export commute_decision_network, COMMUTE_ACTIONS, COMMUTE_UTILITY
 export coffee_network, COFFEE_CLASSES, COFFEE_PRIOR, COFFEE_P_SYMPTOM
+export mountain_car_step, mountain_car_goal, MOUNTAIN_CAR_X, MOUNTAIN_CAR_V, MOUNTAIN_CAR_ACTIONS
 
 """
     write_json(obj, path) -> path

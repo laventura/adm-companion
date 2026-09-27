@@ -66,6 +66,14 @@ end
     @test probability(c, Dict(:S => 2, :R => 1, :J => 2, :L => 2, :A => 2)) ≈ 0.1 * 0.8 * 0.7 * 0.5 * 0.95
 end
 
+@testset "Mountain car" begin
+    s = mountain_car_step([-0.5, 0.0], 1)
+    @test s ≈ [-0.5 + (0.001 - 0.0025cos(-1.5)), 0.001 - 0.0025cos(-1.5)]
+    @test mountain_car_step([0.59, 0.07], 1)[1] == 0.6 && mountain_car_goal([0.6, 0.0])
+    @test mountain_car_step([-1.2, -0.07], -1)[1] == -1.2   # position clamped at the left wall
+    @test mountain_car_step([-1.0, 0.07], 1)[2] == 0.07     # speed clamped at its maximum
+end
+
 @testset "show_source" begin
     out = sprint(io -> show_source("beliefs/discrete_filter.jl", io))
     @test startswith(out, "```julia\n") && endswith(rstrip(out), "```")

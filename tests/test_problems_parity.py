@@ -8,6 +8,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 
+from adm.problems import mountain_car
 from adm.problems.coffee import COFFEE
 from adm.problems.commute import (
     COMMUTE, COMMUTE_DECISION, COMMUTE_TIMES_COV, COMMUTE_TIMES_MEAN, COMMUTE_UTILITY,
@@ -27,6 +28,15 @@ print(JSON.json(Dict(
     "commute_times" => [COMMUTE_TIMES_MEAN; rowmajor(COMMUTE_TIMES_COV)],
     "commute_decision" => cpts(commute_decision_network()),
     "commute_utility" => rowmajor(COMMUTE_UTILITY),
+    # `let` makes s and path local, avoiding Julia's soft-scope rule for loops.
+    "mountain_car" => let s = [-0.5, 0.0], path = Float64[]
+        # A fixed action sequence from the valley floor; record every state.
+        for t in 1:150
+            s = mountain_car_step(s, (-1, 0, 1)[mod1(t ÷ 20, 3)])
+            append!(path, s)
+        end
+        path
+    end,
 )))
 """
 
@@ -53,6 +63,15 @@ def test_bayes_nets_match(julia_problems, name, bn):
 
 def test_commute_utility_matches(julia_problems):
     assert np.allclose(julia_problems["commute_utility"], COMMUTE_UTILITY.ravel())
+
+
+def test_mountain_car_matches(julia_problems):
+    s, path = np.array([-0.5, 0.0]), []
+    for t in range(1, 151):
+        # Same sequence as the Julia side: mod1(t ÷ 20, 3) picks action 1..3.
+        s = mountain_car.step(s, (-1, 0, 1)[(t // 20 - 1) % 3])
+        path.extend(s)
+    assert np.allclose(julia_problems["mountain_car"], path, rtol=0, atol=1e-12)
 
 
 def test_commute_times_match(julia_problems):

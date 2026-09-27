@@ -1,5 +1,5 @@
 ---
-title: "ADM Companion"
+title: "Algorithms for Decision Making - Companion"
 subtitle: "Concepts, pictures, and code for *Algorithms for Decision Making*"
 ---
 

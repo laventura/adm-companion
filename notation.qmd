@@ -153,6 +153,12 @@ This site uses the book's notation. Symbols are added here as chapters are writt
 | $V$, $u_E$ | Stored belief-utility pairs (sawtooth), and the corner beliefs' utilities | Ch 21 |
 | $\rho(b, b')$ | Minimum ratio $\min_i b_i/b'_i$ in the sawtooth bound | Ch 21 |
 | $m$, $\lambda_i$ | Grid granularity and interpolation weights of a triangulation | Ch 21 |
+| $Q_d(b, a)$, $U_d(b)$ | Forward-search action value and value with $d$ steps left | Ch 22 |
+| $m$ (online) | Samples per action (sparse sampling), simulations (MCTS) or scenarios (determinized search) | Ch 22 |
+| $h$ | A history: the actions and observations since the current belief | Ch 22 |
+| $N(h, a)$, $Q(h, a)$ | Visit count and value estimate of action $a$ after history $h$ (MCTS) | Ch 22 |
+| $\Phi$, $\phi = (s, i, j)$ | Determinizing matrix of uniform numbers; a particle's state, scenario and depth | Ch 22 |
+| $\delta$ (gap) | Gap below which heuristic search stops refining a belief | Ch 21 |
 | $o$ | An observation | Ch 19 |
 | $O(o \mid a, s')$ | Observation model: probability of observing $o$ after taking $a$ and landing in $s'$ | Ch 19 |
 | $b(s)$ | Belief: probability that the current state is $s$, given the history | Ch 19 |

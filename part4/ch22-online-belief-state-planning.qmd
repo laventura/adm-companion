@@ -1,8 +1,882 @@
 ---
 title: "22 · Online Belief State Planning"
 subtitle: "Part IV — State Uncertainty"
+engine: julia
+execute:
+  echo: false
 ---
 
 ::: {.callout-note appearance="minimal"}
-**In progress.** This page will cover ADM Ch. 22, *Online Belief State Planning*.
+**Executed in:** Julia · **Book:** ADM Ch. 22 · **Lecture:** to be added
 :::
+<!-- TODO(video): link the official Stanford AA228 lecture on online POMDP methods. -->
+
+```{julia}
+#| include: false
+using ADM, CairoMakie, LinearAlgebra, Random, Statistics
+import Distributions   # qualified use only: Makie also exports a `Categorical`
+include("../julia/src/makie_theme.jl")
+set_theme!(adm_theme())
+CairoMakie.activate!(type = "png", px_per_unit = 2)
+C = ADM.CATEGORICAL
+fmt(x; d = 2) = d == 0 ? string(round(Int, x)) : string(round(x; digits = d))
+bel(x) = [1 - x, x]
+const XS = collect(0:0.02:1)
+const GRID = bel.(XS)
+const B0 = [0.5, 0.5]
+const MID = findfirst(==(0.5), XS)
+
+# --- Crying baby: exact reference (200 steps: within 1e-7 of the infinite horizon) ----------
+const CB = crying_baby()
+const Γ_OPT = value_iteration_pomdp(CB, 200)[1][end][2]
+opt(b) = utility(Γ_OPT, b)
+optact(b) = greedy_belief(CB, opt, b).a
+const CB_Q, CB_F = qmdp(CB; k_max = 300), fast_informed_bound(CB; k_max = 300)
+const CB_BL = blind_lowerbound(CB; k_max = 300)
+UF(b) = utility(CB_F, b)
+const CB_LEAVES = ["zero" => b -> 0.0, "blind (lower)" => b -> utility(CB_BL, b),
+                   "QMDP (upper)" => b -> utility(CB_Q, b), "fast informed (upper)" => UF]
+const DEPTHS = 0:5
+const CB_FS = Dict(name => Dict(d => [forward_search_belief(CB, b, d, U) for b in GRID] for d in DEPTHS)
+                   for (name, U) in CB_LEAVES)
+leaf_err(U) = maximum(abs(U(b) - opt(b)) for b in GRID)
+fs_err(name, d) = maximum(abs(r.u - opt(b)) for (r, b) in zip(CB_FS[name][d], GRID))
+fs_agree(name, d) = count(r.a == optact(b) for (r, b) in zip(CB_FS[name][d], GRID))
+nodes(d) = (6^(d + 1) - 1) ÷ 5          # belief nodes: 3 actions × 2 observations per level
+# The error bound held on the grid for every leaf and depth.
+@assert all(fs_err(n, d) <= CB.γ^d * leaf_err(U) + 1e-9 for (n, U) in CB_LEAVES for d in DEPTHS)
+
+# Branch and bound: fast informed upper bound; point-based lower bounds, 100 or 10 iterations.
+const CB_P100 = pbvi(CB, bel.(0:0.25:1); k_max = 100)
+const CB_P10 = pbvi(CB, bel.(0:0.25:1); k_max = 10)
+short(Γ) = maximum(opt(b) - utility(Γ, b) for b in GRID)
+QhiF(b, a) = lookahead_belief(CB, UF, b, a)
+function bb_nodes(Γ, d)
+    c1, c2 = Ref(0), Ref(0)
+    for b in GRID
+        r1 = forward_search_belief(CB, b, d, x -> utility(Γ, x); count = c1)
+        r2 = branch_and_bound_belief(CB, b, d, x -> utility(Γ, x), QhiF; count = c2)
+        @assert r1.a == r2.a && r1.u ≈ r2.u                  # same answer as forward search
+    end
+    return c2[] / length(GRID)
+end
+const BB = Dict((k, d) => bb_nodes(k == 100 ? CB_P100 : CB_P10, d) for k in (10, 100), d in 1:5)
+
+# Sparse sampling at b0 with the fast informed bound at the leaves (200 seeds each).
+const M_SS = (1, 2, 4, 8, 16)
+const SS = Dict((m, d) => [sparse_sampling_belief(CB, B0, d, m, UF, MersenneTwister(i)) for i in 1:200]
+                for m in M_SS, d in (1, 3))
+const FS_B0 = Dict(d => forward_search_belief(CB, B0, d, UF).u for d in 1:4)
+ss_bias(m, d) = mean(r.u for r in SS[(m, d)]) - FS_B0[d]
+ss_sd(m, d) = std([r.u for r in SS[(m, d)]])
+ss_feed(m, d) = mean(r.a == 1 for r in SS[(m, d)])
+
+# Determinized sparse tree search at b0, depth 4 (100 seeds each).
+const M_DS = (4, 16, 64, 256)
+const DS = Dict(m => [let rng = MersenneTwister(i), c = Ref(0)
+                          r = determinized_search(CB, rand(rng, m, 4), determinized_belief(B0, m, rng), 4,
+                                                  ps -> UF(particle_belief(CB, ps)); count = c)
+                          (a = r.a, u = r.u, n = c[])
+                      end for i in 1:100] for m in M_DS)
+
+# Gap heuristic search from b0: blind lower bound, fast informed upper bound.
+const GAP = Dict(dm => gap_heuristic_search(CB, B0, b -> utility(CB_BL, b), UF; δ = 0.01, k_max = 300, d_max = dm)
+                 for dm in (10, 20))
+gaps(dm) = [h[2] - h[1] for h in GAP[dm].history]
+@assert all(GAP[20].lo[b] <= opt(b) + 1e-9 && opt(b) <= GAP[20].hi[b] + 1e-9 for b in keys(GAP[20].lo))
+# A single random rollout used as the "lower bound" (100 seeds).
+const ROLL = [let rng = MersenneTwister(i)
+                  g = gap_heuristic_search(CB, B0, b -> belief_rollout(CB, b, x -> rand(rng, 1:3), 10, rng), UF;
+                                           δ = 0.01, k_max = 300, d_max = 20)
+                  (n = length(g.history), lo = g.history[end][1], a = g.a)
+              end for i in 1:100]
+const R10 = let rng = MersenneTwister(7)
+    [belief_rollout(CB, B0, x -> rand(rng, 1:3), 10, rng) for _ in 1:100_000]
+end
+
+# --- The fork -------------------------------------------------------------------------------
+const FK = fork()
+const FK_Q, FK_F = qmdp(FK; k_max = 300), fast_informed_bound(FK; k_max = 300)
+const FK_P = pbvi(FK, bel.(range(0, 1, length = 21)); k_max = 300)     # ≈ optimal (Ch 21)
+UQ(b) = utility(FK_Q, b)
+const FK_LEAVES = ["zero" => b -> 0.0, "QMDP (upper)" => UQ, "fast informed (upper)" => b -> utility(FK_F, b)]
+const FK_FS = Dict(name => Dict(d => [forward_search_belief(FK, b, d, U) for b in GRID] for d in DEPTHS)
+                   for (name, U) in FK_LEAVES)
+fk_ref(b) = greedy_belief(FK, x -> utility(FK_P, x), b)
+first_ask(name) = findfirst(d -> d > 0 && FK_FS[name][d][MID].a == 2, DEPTHS) - 1
+@assert first_ask("QMDP (upper)") == 2 && first_ask("zero") == 3
+
+# MCTS at the fork's start: how often the root action is "ask" (100 seeds each).
+const M_MC = (30, 100, 300, 1000, 3000)
+const MC = Dict((m, c) => mean(HistoryMCTS(FK; d = 20, c = c)(B0, m, MersenneTwister(i)) == 2 for i in 1:100)
+                for m in M_MC, c in (10.0, 50.0))
+post(k) = foldl((b, _) -> update_discrete(b, FK.T, FK.O, 2, 2), 1:k; init = copy(B0))   # k "right" answers
+const MC85 = Dict((m, c) => mean(HistoryMCTS(FK; d = 20, c = c)(post(1), m, MersenneTwister(i)) == 2 for i in 1:100)
+                  for (m, c) in ((500, 50.0), (2000, 50.0), (2000, 20.0)))
+const MC85_Q = let π = HistoryMCTS(FK; d = 20, c = 50.0)
+    π(post(1), 2000, MersenneTwister(3)); [π.Q[((), a)] for a in 1:4]
+end
+
+# --- Closed loop: plan, act, observe, update, repeat (common random numbers) ----------------
+function closed_loop(p, make_policy, n, steps)
+    rets, asks, goes = Float64[], 0, 0
+    for i in 1:n
+        world, plan = MersenneTwister(i), MersenneTwister(1_000_000 + i)
+        r, acts = run_pomdp(p, make_policy(plan), copy(B0), rand(world, 1:2), steps, world)
+        push!(rets, r); asks += count(==(2), acts); goes += count(>=(3), acts)
+    end
+    return (mean = mean(rets), se = std(rets) / sqrt(n), n = n, rets = rets, asks = asks, goes = goes)
+end
+const CL_FK = [
+    "point-based lookahead (offline, Ch 21)" => closed_loop(FK, rng -> b -> fk_ref(b).a, 2000, 120),
+    "forward search, depth 1, QMDP leaves" => closed_loop(FK, rng -> b -> forward_search_belief(FK, b, 1, UQ).a, 2000, 120),
+    "forward search, depth 2, QMDP leaves" => closed_loop(FK, rng -> b -> forward_search_belief(FK, b, 2, UQ).a, 2000, 120),
+    "forward search, depth 3, zero leaves" => closed_loop(FK, rng -> b -> forward_search_belief(FK, b, 3, b -> 0.0).a, 2000, 120),
+    "MCTS, 1000 simulations, c = 20" => closed_loop(FK, rng -> b -> HistoryMCTS(FK; d = 20, c = 20.0)(b, 1000, rng), 100, 120),
+]
+const CL_CB = [
+    "exact lookahead (Ch 20)" => closed_loop(CB, rng -> b -> optact(b), 500, 80),
+    "forward search, depth 1, fast informed leaves" => closed_loop(CB, rng -> b -> forward_search_belief(CB, b, 1, UF).a, 500, 80),
+    "forward search, depth 2, zero leaves" => closed_loop(CB, rng -> b -> forward_search_belief(CB, b, 2, b -> 0.0).a, 500, 80),
+    "sparse sampling, m = 4, depth 2" => closed_loop(CB, rng -> b -> sparse_sampling_belief(CB, b, 2, 4, UF, rng).a, 500, 80),
+    "determinized search, 16 scenarios, depth 4" => closed_loop(CB, rng -> b -> determinized_search(CB, rand(rng, 16, 4),
+        determinized_belief(b, 16, rng), 4, ps -> UF(particle_belief(CB, ps))).a, 500, 80),
+    "MCTS, 300 simulations, c = 10" => closed_loop(CB, rng -> b -> HistoryMCTS(CB; d = 20, c = 10.0)(b, 300, rng), 200, 80),
+]
+same_as_ref(cl, k) = cl[k][2].rets == cl[1][2].rets[1:cl[k][2].n]
+# Paired difference from the first (reference) row: same seeds, so the noise mostly cancels.
+function paired(cl, k)
+    d = cl[k][2].rets .- cl[1][2].rets[1:cl[k][2].n]
+    return (mean = mean(d), se = std(d) / sqrt(length(d)))
+end
+@assert same_as_ref(CL_FK, 3) && same_as_ref(CL_FK, 4) && same_as_ref(CL_CB, 2)
+@assert CL_FK[2][2].mean == 0 && CL_FK[2][2].goes == 0           # depth 1 on QMDP never goes
+@assert all(BB[(10, d)] == nodes(d) for d in 1:5)                 # the loose bound prunes nothing
+@assert fk_ref(post(1)).a == 2                                    # at 0.85, asking again is best
+```
+
+## Big picture
+
+### Where this chapter fits
+
+[Chapter 21](ch21-offline-belief-state-planning.qmd) computed approximate value functions over *all* beliefs before acting. That is wasteful: from any one belief, only a small set of beliefs is reachable in the next few steps. **Online** planning builds a search tree from the belief the agent is in right now, picks one action, acts, observes, updates its belief (the [Chapter 19](ch19-beliefs.qmd) filter), and plans again. These are the methods of [Chapter 9](../part2/ch09-online-planning.qmd), with one change: every action branches on the **observation** it could produce, not on the next state.
+
+**The question:** from the current belief, how can we choose a good action with a bounded amount of computation, when we can't solve the whole POMDP?
+
+The short answer: **search a few steps ahead, and let an offline value estimate take over at the leaves.**
+
+- **Forward search** expands every action and every observation to a fixed depth. It is exact up to its leaves, but its tree grows as $(|\mathcal{A}||\mathcal{O}|)^d$.
+- **Branch and bound** skips actions whose upper bound can't beat what has been found.
+- **Sampling** (sparse sampling, Monte Carlo tree search, determinized trees) looks at a sample of observations instead of all of them.
+- **Gap heuristic search** keeps upper and lower bounds and explores where they disagree most.
+
+```{dot}
+//| label: fig-ch22-map
+//| fig-width: 6.94
+//| fig-height: 5.13
+//| fig-cap: "Map of this chapter. From the current belief, a search looks a few steps ahead, exhaustively or by sampling, with value estimates from Chapter 21 at the leaves. The agent takes the best first action, observes, updates its belief and plans again."
+//| fig-alt: "Diagram. Top row: a gray box, Leaf values (bounds from Ch 21, rollouts), and a blue box, Current belief. They point, labeled root and leaves, to Search tree from b (actions, then observations, to depth d). That box points to three ways of building the tree: Exhaustive (forward search, branch and bound), Sampled (sparse sampling, MCTS, determinized scenarios) and Guided (gap heuristic search). All three point to a blue box, Action now, which points to Act, observe, update belief, which loops back, labeled repeat, to Current belief."
+digraph ch22 {
+  rankdir=TB; bgcolor="#fcfcfb"; pad=0.25; nodesep=0.35; ranksep=0.45;
+  node [shape=box, style="rounded,filled", fillcolor="white", color="#c3c2b7", penwidth=1.2,
+        fontname="Helvetica", fontsize=13, fontcolor="#0b0b0b", margin="0.12,0.07"];
+  edge [color="#52514e", penwidth=1.2, arrowsize=0.7, fontname="Helvetica", fontsize=11, fontcolor="#52514e"];
+  leaf [label=<<B>Leaf values</B><BR/><FONT POINT-SIZE="11">bounds from Ch 21, rollouts</FONT>>, fillcolor="#f0efec"];
+  belief [label=<<B>Current belief</B><BR/><FONT POINT-SIZE="11">b, from the filter</FONT>>, fillcolor="#cde2fb", color="#2a78d6"];
+  tree [label=<<B>Search tree from b</B><BR/><FONT POINT-SIZE="11">actions, then observations, to depth d</FONT>>];
+  exact [label=<<B>Exhaustive</B><BR/><FONT POINT-SIZE="11">forward search,<BR/>branch and bound</FONT>>];
+  sampled [label=<<B>Sampled</B><BR/><FONT POINT-SIZE="11">sparse sampling, MCTS,<BR/>determinized scenarios</FONT>>];
+  gap [label=<<B>Guided</B><BR/><FONT POINT-SIZE="11">gap heuristic search</FONT>>];
+  act [label=<<B>Action now</B><BR/><FONT POINT-SIZE="11">best first step</FONT>>, fillcolor="#cde2fb", color="#2a78d6"];
+  loop [label=<<B>Act, observe,</B><BR/><B>update belief</B>>];
+  { rank=same; leaf; belief; }
+  { rank=same; exact; sampled; gap; }
+  belief -> tree [label="root"]; leaf -> tree [label="leaves"];
+  tree -> exact; tree -> sampled; tree -> gap;
+  exact -> act; sampled -> act; gap -> act;
+  act -> loop; loop -> belief [label="repeat", constraint=false];
+}
+```
+
+### The key ideas at a glance
+
+1. **Plan from where you are.** Online methods spend their computation on the beliefs reachable from the current one. Each decision costs more than looking up an offline policy, but nothing is spent on beliefs that will never occur. That makes them usable for problems too large to solve offline.
+
+2. **Forward search, with leaf values.** Expand every action and every observation to depth $d$. At the leaves, use an estimate $U(b)$ from Chapter 21 (QMDP, the fast informed bound, a point-based lower bound) or from rollouts. The error at the root is at most $\gamma^d$ times the leaf error, but the tree has $(|\mathcal{A}||\mathcal{O}|)^d$ leaves.
+
+3. **Branch and bound.** With a lower bound at the leaves and an upper bound on each action's value, skip any action whose upper bound can't beat the best value found so far. The answer is unchanged. How much it saves depends entirely on how tight the bounds are.
+
+4. **Sampling instead of enumerating.** **Sparse sampling** averages $m$ sampled outcomes per action. **Monte Carlo tree search** runs simulations from states drawn from the belief and keeps statistics per *history* of actions and observations, so it never computes a belief below the root. **Determinized sparse tree search** fixes the randomness in advance, in $m$ scenarios, so each action sequence yields at most $m$ histories.
+
+5. **Search where the bounds disagree.** **Gap heuristic search** keeps an upper and a lower bound at each belief it visits. It follows the action that looks best on the upper bound and the observation whose next belief has the widest gap, and tightens both bounds on the way back.
+
+### Vocabulary
+
+| Term | Plain meaning |
+|:---|:---|
+| Online planning | Choosing the next action by searching from the current belief, then replanning after each step |
+| Leaf value $U(b)$ | An estimate used where the search stops |
+| Forward search | Exhaustive search over actions and observations to a fixed depth |
+| Branch and bound | Forward search that skips actions whose upper bound is too low |
+| Sparse sampling | Forward search that averages $m$ sampled outcomes per action |
+| History $h$ | The actions taken and observations received since the current belief |
+| Monte Carlo tree search (POMCP) | Simulation-based search with statistics per history |
+| Determinized scenario | A pre-drawn sequence of random numbers that fixes what happens to one particle |
+| Gap | Upper bound minus lower bound at a belief |
+
+: Terms used on this page. {#tbl-vocab}
+
+### After this chapter you can
+
+- Run forward search from a belief, with leaf values from an offline method, and say how its error depends on the depth.
+- Count the size of a search tree and choose between exhaustive, pruned and sampled search.
+- Explain why sampled estimates of a maximum are biased upward.
+- Run Monte Carlo tree search over histories, and choose its exploration constant for the scale of the rewards.
+- Use upper and lower bounds to prune, and to decide where to search.
+
+## Intuition
+
+::: {.callout-tip title="Analogy"}
+A chess player doesn't memorize the best move for every possible board; that's offline planning. Before each move, they look a few moves ahead from *this* board, then trust their judgment ("this position looks good for me") where they stop looking. That judgment is the leaf value. Stronger players either look deeper, prune lines that are clearly bad, or have better judgment. Under uncertainty there's a twist: every move is followed not by a known reply but by something you *observe*, and you must plan for each thing you might see.
+:::
+
+We use the two problems of [Chapter 21](ch21-offline-belief-state-planning.qmd): the **crying baby**, which has an exact solution to compare against, and the **fork** ([problem gallery](../appendices/f-problems.qmd#the-fork)), where a hiker must pay to learn which trail leads home. On the fork, QMDP's offline policy waits forever, and point-based value iteration earns about 27.
+
+### Look ahead a few steps
+
+Forward search tries every action, then every observation that action could produce, then every action again, and so on to a depth $d$. The crying baby has 3 actions and 2 observations, so a depth-3 search visits `{julia} nodes(3)` beliefs; depth 5 visits `{julia} nodes(5)`. With the fast informed bound at the leaves, the largest value error over the beliefs we checked fell from `{julia} fmt(fs_err("fast informed (upper)", 0))` at depth 0 to `{julia} fmt(fs_err("fast informed (upper)", 3))` at depth 3. See @eq-forward.
+
+### Search can repair a bad leaf
+
+On the fork, QMDP's leaf values are wildly optimistic (190, when the truth is about 27), and a one-step lookahead on them waits forever. But a **depth-`{julia} first_ask("QMDP (upper)")`** search on the same leaves asks the passerby, and in closed loop it earned exactly what the offline point-based policy earned, run for run. With zero at the leaves, depth `{julia} first_ask("zero")` is enough. The search sees that two answers in a row lead to near-certainty, which even QMDP rewards. See the [worked example](#two-steps-fix-qmdp).
+
+### Prune with bounds
+
+If the fast informed bound says an action is worth at most $-20$, and another action has already been shown to be worth $-19$, don't search the first one. With a tight point-based lower bound at the leaves, branch and bound visited only `{julia} fmt(100 * BB[(100, 5)] / nodes(5); d = 0)`% of forward search's beliefs at depth 5, with the same answer. With a loose one, it pruned nothing. See @eq-bb.
+
+### Sample instead of enumerate
+
+Sampling a few outcomes per action makes the cost independent of the number of observations. The catch: the best of several noisy averages tends to be one that got lucky. For the crying baby at depth 3, sparse sampling with 1 sample per action overestimated the value by `{julia} fmt(ss_bias(1, 3); d = 1)` on average; with 16, by `{julia} fmt(ss_bias(16, 3); d = 1)`. Monte Carlo tree search spends its simulations where they look promising, and at the fork it learned to ask (@fig-mcts). See @eq-sparse and @eq-ucb.
+
+### Search where you're unsure
+
+Gap heuristic search keeps both bounds at every belief it visits, and follows the branch where they differ most. From the crying baby's 50–50 belief, the gap was `{julia} fmt(gaps(20)[1]; d = 1)` after the first exploration and below 1 after `{julia} findfirst(<(1), gaps(20))`. See @eq-gap.
+
+## Formalism
+
+### Forward search
+
+Search to depth $d$ from belief $b$ (ADM §22.2):
+
+::: {.key-equation data-name="Forward search"}
+$$
+Q_d(b, a) = R(b, a) + \gamma \sum_{o} P(o \mid b, a)\, U_{d-1}\big(\text{Update}(b, a, o)\big),
+\qquad U_d(b) = \max_a Q_d(b, a), \qquad U_0(b) = U(b)
+$$ {#eq-forward}
+:::
+
+**In words.** The value of an action is its expected reward now, plus the discounted value of each belief it could lead to, weighted by how likely each observation is. The recursion stops at depth 0, where a leaf estimate $U$ takes over.
+
+**Term by term.**
+
+- $R(b, a) = \sum_s b(s) R(s, a)$ is the expected immediate reward.
+- $P(o \mid b, a) = \sum_{s'} O(o \mid a, s') \sum_s T(s' \mid s, a) b(s)$ is the chance of seeing $o$; observations with probability 0 are skipped.
+- $\text{Update}(b, a, o)$ is the Chapter 19 belief update.
+- $U$ is any estimate of the optimal value: an offline bound, a rollout, or zero.
+- The tree has at most $\sum_{k=0}^{d}(|\mathcal{A}||\mathcal{O}|)^k$ belief nodes (fewer if some observations are impossible): `{julia} nodes(3)` for the crying baby at depth 3.
+
+**Why it holds.** This is the one-step lookahead of Chapter 20 (eq. 20.13), applied recursively: $d$ steps of the Bellman backup on the belief MDP, starting from $U$.
+
+How much does depth help? If the leaf values are off by at most $\varepsilon$, then
+
+::: {.key-equation data-name="Depth shrinks the leaf error"}
+$$
+\big|U_d(b) - U^*(b)\big| \le \gamma^d\,\varepsilon, \qquad \varepsilon = \max_{b'} \big|U(b') - U^*(b')\big|
+$$ {#eq-depth}
+:::
+
+**In words.** Each level of search multiplies the leaf's error by at most $\gamma$.
+
+**Term by term.**
+
+- $U^*$ is the optimal value; $\varepsilon$ is the leaf's worst error over the beliefs the tree can reach.
+- $\gamma^d$: for the crying baby ($\gamma = 0.9$), 5 levels cut the bound to $0.9^5 \approx 0.59$ of the leaf error.
+
+**Why it holds.** By induction on $d$. Both $U_d$ and $U^*$ satisfy the backup in @eq-forward, so $|Q_d(b, a) - Q^*(b, a)| \le \gamma \sum_o P(o \mid b, a)\,|U_{d-1} - U^*| \le \gamma \cdot \gamma^{d-1}\varepsilon$, and the max over actions doesn't increase a uniform error. The bound is often loose: with zero at the leaves, the crying baby's error was `{julia} fmt(fs_err("zero", 5); d = 1)` at depth 5, against a bound of `{julia} fmt(CB.γ^5 * leaf_err(b -> 0.0); d = 1)`.
+
+### Branch and bound
+
+Given a lower bound $U_{\text{lo}}$ for the leaves and an upper bound $Q_{\text{hi}}(b, a)$ on each action's value (ADM §22.3):
+
+::: {.key-equation data-name="Branch-and-bound pruning"}
+$$
+\text{skip action } a \text{ at } b \quad\text{if}\quad Q_{\text{hi}}(b, a) \le \max_{a' \text{ searched}} Q_d(b, a')
+$$ {#eq-bb}
+:::
+
+**In words.** If an action's best case is no better than an action already evaluated, it can't be the answer.
+
+**Term by term.**
+
+- $Q_d(b, a')$ is @eq-forward with $U_{\text{lo}}$ at the leaves.
+- $Q_{\text{hi}}(b, a)$ must be at least $Q_d(b, a)$; here it is a one-step lookahead on the fast informed bound, which is an upper bound on the optimal value, and so on $Q_d$ with a lower-bound leaf.
+- Searching actions in decreasing order of $Q_{\text{hi}}$ finds good actions early, so more are pruned.
+
+**Why it holds.** A skipped action's value is at most $Q_{\text{hi}}(b, a)$, which is at most the value already found. So the maximum, and the chosen action, are the same as forward search with $U_{\text{lo}}$ at the leaves (up to ties).
+
+### Sparse sampling
+
+Replace the sum over observations by $m$ samples per action (ADM §22.4; M. Kearns, Y. Mansour and A. Y. Ng, *Machine Learning*, 2002):
+
+::: {.key-equation data-name="Sparse sampling"}
+$$
+Q_d(b, a) \approx \frac{1}{m}\sum_{i=1}^{m} \Big( r_a^{(i)} + \gamma\, U_{d-1}\big(\text{Update}(b, a, o_a^{(i)})\big) \Big)
+$$ {#eq-sparse}
+:::
+
+**In words.** Try each action $m$ times in simulation, and average what happened.
+
+**Term by term.**
+
+- $(r_a^{(i)}, o_a^{(i)})$: draw a state $s$ from $b$, then $s'$ from $T$ and $o$ from $O$; the reward is $R(s, a)$.
+- The tree has $(|\mathcal{A}|\,m)^d$ leaves, whatever the number of observations.
+- $U_{d-1}$ is itself computed by sparse sampling, down to the leaf estimate.
+
+**Why it holds.** Each term is an unbiased sample of the summand in @eq-forward. But the maximum over actions of noisy averages is biased *upward*: $\mathbb{E}[\max_a \hat{Q}(a)] \ge \max_a \mathbb{E}[\hat{Q}(a)]$. With 1 sample per action at depth 3, the bias for the crying baby was `{julia} fmt(ss_bias(1, 3); d = 1)`.
+
+### Monte Carlo tree search over histories
+
+Monte Carlo tree search (ADM §22.5; D. Silver and J. Veness, *NeurIPS*, 2010, who call it POMCP) keeps a count $N(h, a)$ and an average return $Q(h, a)$ for each history $h$ of actions and observations. Each simulation draws a state from the current belief and walks down the tree, choosing
+
+::: {.key-equation .famous data-name="UCB1 over histories"}
+$$
+a = \arg\max_{a}\; Q(h, a) + c\sqrt{\frac{\log N(h)}{N(h, a)}}, \qquad N(h) = \sum_a N(h, a)
+$$ {#eq-ucb}
+:::
+
+**In words.** Prefer actions that have done well, plus a bonus for actions that have been tried rarely.
+
+**Term by term.**
+
+- $Q(h, a)$ is the average discounted return of simulations that took $a$ after $h$.
+- The bonus grows slowly with the total visits $N(h)$ and shrinks as $a$ is tried; untried actions get an infinite bonus.
+- $c$ sets the balance, and must match the scale of the returns: a bonus of 10 is large when returns differ by 1, and small when they differ by 60.
+- A new history is added with zero counts and valued by the leaf estimate; its state, not its belief, is passed to that estimate.
+
+**Why it holds.** The states that reach a history $h$ are distributed according to the belief after $h$, because each was sampled from the root belief and then moved and observed by the model. So averages at $h$ estimate values under that belief, without ever computing it. The UCB1 rule (P. Auer, N. Cesa-Bianchi and P. Fischer, *Machine Learning*, 2002) makes sure every action keeps being tried, so the estimates at the root converge as simulations grow.
+
+### Determinized sparse tree search
+
+Fix the randomness in advance (ADM §22.6; N. Ye, A. Somani, D. Hsu and W. S. Lee, *JAIR*, 2017, who call their method DESPOT). Draw an $m \times d$ matrix $\Phi$ of uniform numbers. A particle $\phi = (s, i, j)$ is a state on scenario $i$ at depth $j$, and taking action $a$ moves it to
+
+::: {.key-equation data-name="Determinized successor"}
+$$
+(s', o) = \text{the first pair, in a fixed order, at which } \sum P(s', o \mid s, a) \ge \Phi_{ij},
+\qquad P(s', o \mid s, a) = T(s' \mid s, a)\, O(o \mid a, s')
+$$ {#eq-determinized}
+:::
+
+**In words.** Each particle carries its own pre-drawn random numbers, so the same particle and action always lead to the same next state and observation.
+
+**Term by term.**
+
+- The running sum is the cumulative distribution over $(s', o)$ pairs; stopping where it first reaches $\Phi_{ij}$ is inverse-CDF sampling with a stored number.
+- The new particle is $(s', i, j + 1)$: same scenario, one step deeper.
+- An action splits the particles by the observation each produces. A child's weight is its share of the particles.
+
+**Why it holds.** Each $\Phi_{ij}$ is uniform, so each particle's successor has the right distribution. Because every action sequence sends the $m$ particles down at most $m$ paths, the tree has at most $m$ nodes per action sequence: $O(|\mathcal{A}|^d m)$ in all. And because all actions are scored on the same scenarios, their comparison is less noisy than with independent samples (the common random numbers of Chapter 14).
+
+### Gap heuristic search
+
+Keep bounds $U_{\text{lo}}(b) \le U^*(b) \le U_{\text{hi}}(b)$ at every belief visited, initialized from bound functions (ADM §22.7). From belief $b$, explore
+
+::: {.key-equation data-name="Gap-guided exploration"}
+$$
+a = \arg\max_a Q_{\text{hi}}(b, a), \qquad
+o = \arg\max_{o} \Big( U_{\text{hi}}(b'_o) - U_{\text{lo}}(b'_o) \Big)
+$$ {#eq-gap}
+:::
+
+where $b'_o = \text{Update}(b, a, o)$; move to $b'_o$ and repeat. After returning, replace both bounds at $b$ by their one-step lookahead backups (keeping the tighter value). Stop when the gap at $b$ is below $\delta$ or the depth limit is reached.
+
+**In words.** Go where the optimistic bound says to go, toward the outcome you're least sure about.
+
+**Term by term.**
+
+- $Q_{\text{hi}}(b, a)$ is the one-step lookahead on the stored upper bounds.
+- The gap $U_{\text{hi}} - U_{\text{lo}}$ at the next belief says how much there is to learn there.
+- The backups use @eq-forward with depth 1, on the stored bounds.
+
+**Why it holds.** A backup of an upper bound is an upper bound, and likewise for lower bounds, so the stored values stay valid bounds at every step. The search is guaranteed only if the initial bounds are true bounds. A single rollout is not a lower bound: it is one noisy sample.
+
+## Worked example
+
+### Two steps of search fix QMDP at the fork {#two-steps-fix-qmdp}
+
+```{julia}
+#| include: false
+const WE = let U1(b) = forward_search_belief(FK, b, 1, UQ).u
+    q2 = [lookahead_belief(FK, U1, B0, a) for a in 1:4]
+    b85 = update_discrete(B0, FK.T, FK.O, 2, 2)
+    b97 = update_discrete(b85, FK.T, FK.O, 2, 2)
+    q1_85 = [lookahead_belief(FK, UQ, b85, a) for a in 1:4]
+    (q2 = q2, u1_50 = U1(B0), u1_85 = U1(b85), q1_85 = q1_85, uq85 = UQ(b85), uq97 = UQ(b97), b97 = b97[2],
+     pagree = observation_probability(FK, b85, 2, 2))
+end
+@assert argmax(WE.q2) == 2 && argmax(WE.q1_85) == 2
+```
+
+QMDP's value at the fork is flat at 190 in the middle: it's the value of waiting, $0.95 \times 200$, where 200 is the value of a hike that always goes home. Going right beats waiting only when $P(\text{home right}) \ge 0.83$, so QMDP rises to 200 only near the ends.
+
+- **Depth 1.** Waiting scores $0 + 0.95 \times 190 = 180.5$. Asking scores $-1 + 0.95 \times 191 = 180.45$, because either answer moves the belief to 0.15 or 0.85, where QMDP is just `{julia} fmt(WE.uq85; d = 0)`. Waiting wins by 0.05, and waits forever.
+- **Depth 2, after a "right" answer (belief 0.85).** Now one more step is searched. Asking again reaches `{julia} fmt(WE.b97; d = 3)` if the answers agree (probability `{julia} fmt(WE.pagree; d = 3)`), where QMDP is `{julia} fmt(WE.uq97; d = 1)`, or falls back to 0.5 (190). So asking again scores `{julia} fmt(WE.q1_85[2])`, more than going right (`{julia} fmt(WE.q1_85[4])`) or waiting (`{julia} fmt(WE.q1_85[1])`). $U_1(0.85) =$ `{julia} fmt(WE.u1_85)`.
+- **Depth 2, at the start.** Asking scores $-1 + 0.95 \times$ `{julia} fmt(WE.u1_85)` $=$ `{julia} fmt(WE.q2[2])` (both answers are symmetric). Waiting scores $0.95 \times U_1(0.5) = 0.95 \times 180.5 =$ `{julia} fmt(WE.q2[1])`. **Asking wins.**
+
+The leaf values are still wrong by more than 150. But the search compares the actions by what they lead to, and two answers in a row reach the region where even QMDP's optimism rewards certainty.
+
+```{julia}
+#| output: asis
+println("The code's depth-2 values at the start: ",
+        join(["$(FK.actions[a]) $(fmt(WE.q2[a]))" for a in 1:4], ", "), ".")
+```
+
+### A determinized successor by hand
+
+A sated baby is ignored. The four outcomes $(s', o)$, in the fixed order (sated, crying), (sated, quiet), (hungry, crying), (hungry, quiet), have probabilities $0.9 \times 0.1 = 0.09$, $0.9 \times 0.9 = 0.81$, $0.1 \times 0.8 = 0.08$ and $0.1 \times 0.2 = 0.02$, so the running sums are 0.09, 0.90, 0.98 and 1.
+
+- With $\Phi_{ij} = 0.62$, the first running sum at or above 0.62 is 0.90: the particle stays **sated** and the baby is **quiet**.
+- With $\Phi_{ij} = 0.95$, it is 0.98: the baby turns **hungry** and **cries**.
+
+Whichever action sequence the search tries, this particle, at this depth, always uses the same number.
+
+```{julia}
+#| output: asis
+let Φ = [0.62 0.95]
+    out = [successor(CB, Φ, DeterminizedParticle(1, 1, j), 3) for j in 1:2]
+    println("The code's successors: ", join(["Φ = $(Φ[j]) → ($(CB.states[s]), $(CB.observations[o]))" for (j, (s, o)) in enumerate(out)], "; "), ".")
+end
+```
+
+## Interactive
+
+### How deep must you look?
+
+Choose a problem, a leaf estimate and a search depth. The top chart shows forward search's value over beliefs (blue) against a reference (black): the exact value for the crying baby, and the point-based value of Chapter 21 for the fork (within $10^{-5}$ of optimal at 50–50). The strips below show the action forward search chooses, and the reference policy's action.
+
+```{julia}
+#| include: false
+let data = Dict{String,Any}()
+    pack(FS, leaves) = Dict(name => Dict(string(d) => Dict("u" => [round(r.u; digits = 3) for r in FS[name][d]],
+                                                          "a" => [r.a for r in FS[name][d]]) for d in DEPTHS)
+                            for (name, _) in leaves)
+    data["crying baby"] = Dict("x" => XS, "xlabel" => "P(hungry)", "actions" => CB.actions,
+        "ref" => Dict("u" => [round(opt(b); digits = 3) for b in GRID], "a" => [optact(b) for b in GRID]),
+        "leaves" => pack(CB_FS, CB_LEAVES))
+    data["fork"] = Dict("x" => XS, "xlabel" => "P(home right)", "actions" => FK.actions,
+        "ref" => Dict("u" => [round(utility(FK_P, b); digits = 3) for b in GRID], "a" => [fk_ref(b).a for b in GRID]),
+        "leaves" => pack(FK_FS, FK_LEAVES))
+    write_json(data, "data/ch22-depth.json")
+end
+```
+
+```{ojs}
+depthData = FileAttachment("data/ch22-depth.json").json()
+viewof depthProblem = Inputs.radio(["crying baby", "fork"], {label: "Problem", value: "fork"})
+viewof depthLeaf = Inputs.select(["zero", "blind (lower)", "QMDP (upper)", "fast informed (upper)"]
+  .filter(k => k in depthData[depthProblem].leaves), {label: "Leaf estimate", value: "QMDP (upper)"})
+viewof depthD = Inputs.range([0, 5], {step: 1, value: 1, label: "Depth d"})
+```
+
+```{ojs}
+depthNow = {
+  const P = depthData[depthProblem], run = P.leaves[depthLeaf][String(depthD)];
+  const pts = P.x.map((x, i) => ({x, u: run.u[i], ref: P.ref.u[i],
+                                  a: run.a[i] ? P.actions[run.a[i] - 1] : "(none)", r: P.actions[P.ref.a[i] - 1]}));
+  const mid = pts[Math.round((pts.length - 1) / 2)];
+  const differ = depthD === 0 ? null : pts.filter(p => p.a !== p.r).length;
+  return {P, pts, mid, differ, err: d3.max(pts, p => Math.abs(p.u - p.ref))};
+}
+md`At 50–50: forward search **${depthD === 0 ? "has no action at depth 0 (the leaf value alone)" : depthNow.mid.a}**, the reference **${depthNow.mid.r}**. Largest value gap from the reference: **${depthNow.err.toFixed(2)}**. ${depthNow.differ === null ? "" : `Beliefs where the action differs from the reference: **${depthNow.differ}** of ${depthNow.pts.length}.`} Beliefs visited per decision: **${(Math.pow(depthNow.P.actions.length * 2, depthD + 1) - 1) / (depthNow.P.actions.length * 2 - 1)}**.`
+```
+
+```{ojs}
+//| label: fig-depth-explorer
+//| fig-cap: "Forward search on the chosen problem: value over beliefs (blue) against the reference (black), and the actions chosen by forward search and by the reference policy."
+//| fig-alt: "Interactive chart. Top: two value curves over the belief, forward search in blue and the reference in black; with optimistic leaves the blue curve lies above and moves down toward the black curve as depth grows. Bottom: two strips of colored cells, one per belief, showing forward search's action and the reference action; on the fork with QMDP leaves at depth 1, a band of waiting in the middle, which becomes asking at depth 2."
+{
+  const colors = {wait: "#9c9b95", ask: "#eb6834", "go left": "#2a78d6", "go right": "#4a3aa7",
+                  feed: "#2a78d6", sing: "#1baf7a", ignore: "#eda100", "(none)": "#f0efec"};
+  const acts = [...depthNow.P.actions, "(none)"];
+  const top = Plot.plot({width: 640, height: 260, style: {background: "#fcfcfb"},
+    x: {domain: [0, 1], label: depthNow.P.xlabel}, y: {label: "value", grid: true},
+    marks: [Plot.line(depthNow.pts, {x: "x", y: "ref", stroke: "#0b0b0b", strokeWidth: 2.5}),
+            Plot.line(depthNow.pts, {x: "x", y: "u", stroke: "#2a78d6", strokeWidth: 2})]});
+  const rows = depthNow.pts.flatMap(p => [{x: p.x, row: "forward search", act: p.a}, {x: p.x, row: "reference", act: p.r}]);
+  const strip = Plot.plot({width: 640, height: 130, style: {background: "#fcfcfb"}, marginLeft: 110,
+    x: {domain: [-0.01, 1.01], label: depthNow.P.xlabel}, y: {label: null, domain: ["forward search", "reference"]},
+    color: {domain: acts, range: acts.map(a => colors[a]), legend: true},
+    marks: [Plot.barX(rows, {x1: d => d.x - 0.01, x2: d => d.x + 0.01, y: "row", fill: "act"})]});
+  return html`<div>${top}${strip}</div>`;
+}
+```
+
+### Monte Carlo tree search at the fork's start
+
+Step through the simulations of one Monte Carlo tree search from the fork's 50–50 belief (depth 20, zero leaf values). Bars show how often each action was tried at the root; dots show its average return so far.
+
+```{julia}
+#| include: false
+let snaps = Dict{String,Any}()
+    for c in (10.0, 50.0)
+        π, rng = HistoryMCTS(FK; d = 20, c = c), MersenneTwister(1)
+        ks, Ns, Qs = Int[], Vector{Int}[], Vector{Float64}[]
+        for k in 1:3000
+            mcts_simulate!(π, rand(rng, Distributions.Categorical(B0)), (), π.d, rng)  # as HistoryMCTS does
+            if k <= 100 || k % 10 == 0
+                push!(ks, k); push!(Ns, [π.N[((), a)] for a in 1:4]); push!(Qs, [round(π.Q[((), a)]; digits = 2) for a in 1:4])
+            end
+        end
+        snaps[string(Int(c))] = Dict("k" => ks, "N" => Ns, "Q" => Qs)
+    end
+    write_json(Dict("actions" => FK.actions, "runs" => snaps), "data/ch22-mcts.json")
+end
+```
+
+```{ojs}
+mctsData = FileAttachment("data/ch22-mcts.json").json()
+viewof mctsC = Inputs.radio(["10", "50"], {label: "Exploration constant c", value: "50"})
+viewof mctsK = Inputs.range([1, 3000], {step: 1, value: 60, label: "Simulations"})
+```
+
+```{ojs}
+mctsNow = {
+  const run = mctsData.runs[mctsC], i = d3.bisectRight(run.k, mctsK) - 1;   // last snapshot at or before mctsK
+  const rows = mctsData.actions.map((a, j) => ({action: a, N: run.N[i][j], Q: run.N[i][j] > 0 ? run.Q[i][j] : null}));
+  const tried = rows.filter(r => r.N > 0);
+  const best = tried.length ? tried.reduce((x, y) => (y.Q > x.Q ? y : x)).action : "(none yet)";
+  const allQ = run.Q.flatMap((q, t) => q.filter((v, j) => run.N[t][j] > 0));
+  return {k: run.k[i], rows, best, qDomain: [Math.min(-5, d3.min(allQ)) - 2, Math.max(5, d3.max(allQ)) + 2]};
+}
+md`After **${mctsNow.k}** simulations, the root's best action by average return is **${mctsNow.best}**.`
+```
+
+```{ojs}
+//| label: fig-mcts-explorer
+//| fig-cap: "Root statistics of one Monte Carlo tree search at the fork's start: visits per action (bars, left) and average return (dots, right)."
+//| fig-alt: "Interactive pair of charts. Left: horizontal bars of the visit count of wait, ask, go left and go right at the root, growing as simulations increase. Right: dots at each action's average return. Going left or right is tried rarely and averages far below zero; ask and wait receive most visits."
+{
+  const left = Plot.plot({width: 320, height: 200, marginLeft: 70, style: {background: "#fcfcfb"},
+    x: {label: "visits N(h, a)", grid: true}, y: {label: null, domain: mctsData.actions},
+    marks: [Plot.barX(mctsNow.rows, {x: "N", y: "action", fill: "#2a78d6"}), Plot.ruleX([0])]});
+  const right = Plot.plot({width: 320, height: 200, marginLeft: 70, style: {background: "#fcfcfb"},
+    x: {label: "average return Q(h, a)", grid: true, domain: mctsNow.qDomain}, y: {label: null, domain: mctsData.actions},
+    marks: [Plot.dot(mctsNow.rows.filter(r => r.Q !== null), {x: "Q", y: "action", fill: "#eb6834", r: 6}), Plot.ruleX([0])]});
+  return html`<div style="display:flex;flex-wrap:wrap;gap:12px">${left}${right}</div>`;
+}
+```
+
+These are the averages of the returns the *search* got while exploring. They are well below the true values (about 29 for asking), because the simulations include exploratory mistakes and stop after 20 steps. What matters for the decision is their order.
+
+## Algorithms & code
+
+### Forward search, branch and bound, sampling, Monte Carlo tree search, determinized search, gap search
+
+::: {.panel-tabset group="lang"}
+## Julia
+```{julia}
+#| output: asis
+show_source("pomdp/online.jl")
+```
+## Python
+```{.python .snippet}
+import numpy as np
+
+from adm.problems.crying_baby import belief_update
+from adm.problems.fork import fork
+
+p = fork()                       # actions: wait, ask, go left, go right
+nA, nO = p.T.shape[1], p.O.shape[2]
+
+
+def obs_prob(p, b, a, o):
+    """P(o | b, a): move with T, then observe with O."""
+    return (b @ p.T[:, a, :]) @ p.O[a, :, o]
+
+
+def forward_search(p, b, d, U, count):
+    """eq. 22.1: (best action, value) to depth d; count[0] tallies beliefs."""
+    count[0] += 1
+    if d == 0:
+        return None, U(b)
+    q = []
+    for a in range(nA):
+        v = p.R[:, a] @ b                              # expected reward now
+        for o in range(nO):
+            po = obs_prob(p, b, a, o)
+            if po > 0:                                 # skip impossible observations
+                b2 = belief_update(p, b, a, o)
+                v += p.gamma * po * forward_search(p, b2, d - 1, U, count)[1]
+        q.append(v)
+    return int(np.argmax(q)), max(q)
+
+
+def qmdp(p, k_max=300):
+    """eq. 21.1: one alpha vector per action (rows)."""
+    G = np.zeros((nA, 2))
+    for _ in range(k_max):
+        G = p.R.T + p.gamma * np.einsum("sat,t->as", p.T, G.max(axis=0))
+    return G
+
+
+G = qmdp(p)
+b0 = np.array([0.5, 0.5])
+results = {}
+for d in (1, 2, 3):
+    count = [0]
+    a, u = forward_search(p, b0, d, lambda b: (G @ b).max(), count)
+    results[d] = (a, u, count[0])
+    print(f"depth {d}: {p.actions[a]:>4}  value {u:7.2f}  beliefs {count[0]}")
+assert [results[d][0] for d in (1, 2, 3)] == [0, 1, 1]      # wait, then ask
+assert [results[d][2] for d in (1, 2, 3)] == [9, 73, 585]
+```
+:::
+
+::: {.callout-note collapse="true" title="Reading the Julia code (for Python programmers)"}
+- **`count = Ref(0)`** is a mutable box holding one integer, like a one-element list; `count[] += 1` changes the value inside. It lets recursive calls share a tally.
+- **`(h..., (a, o))`** builds a new tuple: all the elements of `h`, then the pair `(a, o)`. Tuples are immutable and hashable, so histories can be dictionary keys.
+- **`argmax(score, A)`** returns the element of `A` with the largest `score`, like `max(A, key=score)` in Python.
+- **`get!(groups, o, DeterminizedParticle[])`** returns `groups[o]`, first inserting an empty vector if the key is missing: `groups.setdefault(o, [])`.
+- **`for s′ in 1:n, o in 1:m`** is a nested loop with `o` innermost. (In a comprehension, `[f(x, y) for x in A, y in B]` makes a matrix instead.)
+- **`(π::HistoryMCTS)(b, m, rng)`** makes the struct callable, like defining `__call__`.
+:::
+
+### Run them
+
+```{julia}
+#| echo: true
+p = crying_baby()
+upper = fast_informed_bound(p; k_max = 300)
+lower = pbvi(p, [[1 - x, x] for x in 0:0.25:1]; k_max = 100)
+b = [0.5, 0.5]
+Qhi(b, a) = lookahead_belief(p, x -> utility(upper, x), b, a)
+fs_count, bb_count = Ref(0), Ref(0)
+fs = forward_search_belief(p, b, 4, x -> utility(lower, x); count = fs_count)
+bb = branch_and_bound_belief(p, b, 4, x -> utility(lower, x), Qhi; count = bb_count)
+```
+
+```{julia}
+println("forward search: $(p.actions[fs.a]), value $(round(fs.u; digits = 3)), $(fs_count[]) beliefs")
+println("branch and bound: $(p.actions[bb.a]), value $(round(bb.u; digits = 3)), $(bb_count[]) beliefs")
+```
+
+### Results
+
+#### Depth, leaves and pruning on the crying baby
+
+```{julia}
+#| label: fig-depth
+#| fig-cap: "Forward search on the crying baby, over 51 beliefs. Left: the largest value error for each leaf estimate, by depth (solid), and the bound γ^d times the leaf's error (dashed). Right: beliefs visited per decision by forward search and by branch and bound with a tight and a loose point-based lower bound (log scale)."
+#| fig-alt: "Two charts with depth across. Left, log scale, depth 0 to 5: four solid lines falling with depth, for zero leaves from about 30 to about 11, blind leaves from about 33 to about 19, QMDP leaves from about 4 to about 2.3, and fast informed leaves from about 0.65 to about 0.15, each on or below its dashed bound line. Right, log scale, depth 1 to 5: forward search grows from 7 to 9,331 beliefs; branch and bound with the loose lower bound lies exactly on it; with the tight lower bound it grows more slowly, from 4 to about 460."
+let fig = Figure(size = (980, 380))
+    ax1 = Axis(fig[1, 1], xlabel = "depth d", ylabel = "largest |U_d(b) − U*(b)|", yscale = log10,
+               yticks = ([0.1, 0.3, 1, 3, 10, 30], ["0.1", "0.3", "1", "3", "10", "30"]))
+    for (k, (name, U)) in enumerate(CB_LEAVES)
+        scatterlines!(ax1, collect(DEPTHS), [fs_err(name, d) for d in DEPTHS], color = C[k], linewidth = 2, label = name)
+        lines!(ax1, collect(DEPTHS), [CB.γ^d * leaf_err(U) for d in DEPTHS], color = C[k], linestyle = :dash, linewidth = 1.2)
+    end
+    Legend(fig[2, 1], ax1, orientation = :horizontal, framevisible = false, nbanks = 2, labelsize = 11)
+    ax2 = Axis(fig[1, 2], xlabel = "depth d", ylabel = "beliefs per decision", yscale = log10,
+               yticks = ([1, 10, 100, 1000, 10_000], ["1", "10", "100", "1,000", "10,000"]))
+    scatterlines!(ax2, 1:5, [nodes(d) for d in 1:5], color = :black, linewidth = 2, label = "forward search")
+    scatterlines!(ax2, 1:5, [BB[(10, d)] for d in 1:5], color = C[4], linewidth = 2, linestyle = :dash,
+                  label = "branch and bound, loose lower bound")
+    scatterlines!(ax2, 1:5, [BB[(100, d)] for d in 1:5], color = C[1], linewidth = 2, label = "branch and bound, tight lower bound")
+    Legend(fig[2, 2], ax2, orientation = :vertical, framevisible = false, labelsize = 11)
+    fig
+end
+```
+
+- **Depth helps, geometrically at best.** Every leaf's error stayed under its $\gamma^d$ bound. The fast informed bound starts close (error `{julia} fmt(leaf_err(UF))`) and ends at `{julia} fmt(fs_err("fast informed (upper)", 5))` after 5 levels. Zero leaves end at `{julia} fmt(fs_err("zero", 5); d = 1)`: depth alone doesn't make up for poor leaves.
+- **Actions settle before values.** With zero leaves, forward search chose the optimal action at `{julia} fs_agree("zero", 1)` of 51 beliefs at depth 1, `{julia} fs_agree("zero", 2)` at depth 2 and `{julia} fs_agree("zero", 3)` from depth 3, though its values were still off by more than 10.
+- **Pruning needs a tight lower bound.** Point-based value iteration after 100 iterations is within `{julia} fmt(short(CB_P100); d = 3)` of the exact value; after 10 it is up to `{julia} fmt(short(CB_P10); d = 1)` below. With the tight one, branch and bound visited `{julia} fmt(BB[(100, 5)]; d = 0)` beliefs per decision at depth 5 instead of `{julia} nodes(5)`. With the loose one, it visited all of them: no action's upper bound was ever below the values found.
+
+#### Sampling: sparse sampling and determinized scenarios
+
+```{julia}
+#| label: fig-sampling
+#| fig-cap: "Sampled search at the crying baby's 50–50 belief, fast informed bound at the leaves. Left: sparse sampling's value estimate (mean ± one standard deviation over 200 seeds) by samples per action, at depths 1 and 3, against forward search's exact value at the same depth (dashed). Right: determinized search at depth 4 (100 seeds), by number of scenarios, against forward search at depth 4 (dashed)."
+#| fig-alt: "Two charts. Left: samples per action 1, 2, 4, 8, 16 across (log scale); for depths 1 and 3, the mean estimate starts well above the dashed forward-search lines near minus 24.5 (at about minus 19.6 and minus 15.5) and falls toward them as samples grow, ending about 0.5 and 1 above, with error bars shrinking from about ±4.5 to about ±1.2. Right: scenarios 4, 16, 64, 256 across (log scale); the mean estimate starts about 1.7 above the dashed line and reaches it at 256, with error bars shrinking from about ±3.7 to about ±0.5."
+let fig = Figure(size = (980, 360))
+    ax1 = Axis(fig[1, 1], xlabel = "samples per action m", ylabel = "estimated value at 50–50", xscale = log2,
+               xticks = collect(M_SS), title = "Sparse sampling")
+    for (k, d) in enumerate((1, 3))
+        μ = [mean(r.u for r in SS[(m, d)]) for m in M_SS]
+        σ = [ss_sd(m, d) for m in M_SS]
+        x = collect(M_SS) .* (k == 1 ? 0.97 : 1.03)
+        errorbars!(ax1, x, μ, σ, color = C[k], whiskerwidth = 6)
+        scatterlines!(ax1, x, μ, color = C[k], linewidth = 2, label = "depth $d")
+        hlines!(ax1, [FS_B0[d]], color = C[k], linestyle = :dash)
+    end
+    axislegend(ax1, position = :rt, labelsize = 11)
+    ax2 = Axis(fig[1, 2], xlabel = "scenarios m", xscale = log2, xticks = collect(M_DS), title = "Determinized search, depth 4")
+    μ = [mean(r.u for r in DS[m]) for m in M_DS]
+    σ = [std([r.u for r in DS[m]]) for m in M_DS]
+    errorbars!(ax2, collect(M_DS), μ, σ, color = C[3], whiskerwidth = 6)
+    scatterlines!(ax2, collect(M_DS), μ, color = C[3], linewidth = 2)
+    hlines!(ax2, [FS_B0[4]], color = :black, linestyle = :dash)
+    fig
+end
+```
+
+- **The maximum of noisy averages is biased upward.** At depth 3, sparse sampling overestimated forward search's value by `{julia} fmt(ss_bias(1, 3); d = 1)` with 1 sample per action, `{julia} fmt(ss_bias(4, 3); d = 1)` with 4 and `{julia} fmt(ss_bias(16, 3); d = 1)` with 16. The bias grows with depth, since every level takes a maximum. The spread (one standard deviation) fell from `{julia} fmt(ss_sd(1, 3); d = 1)` to `{julia} fmt(ss_sd(16, 3); d = 1)`.
+- **Choosing the action is hard when actions are close.** At 50–50, feeding is optimal, but only by `{julia} fmt(sort(greedy_belief(CB, opt, B0).q)[end] - sort(greedy_belief(CB, opt, B0).q)[end-1]; d = 1)` over the next best action. Sparse sampling at depth 3 chose it in `{julia} fmt(100 * ss_feed(16, 3); d = 0)`% of runs with 16 samples per action.
+- **Determinized scenarios cost less and vary less.** With 64 scenarios, determinized search at depth 4 visited `{julia} fmt(mean(r.n for r in DS[64]); d = 0)` beliefs on average (forward search: `{julia} nodes(4)`), had a spread of `{julia} fmt(std([r.u for r in DS[64]]))`, and chose to feed in `{julia} fmt(100 * mean(r.a == 1 for r in DS[64]); d = 0)`% of runs. With 16 scenarios, `{julia} fmt(100 * mean(r.a == 1 for r in DS[16]); d = 0)`%.
+
+#### Monte Carlo tree search: the exploration constant matters
+
+```{julia}
+#| label: fig-mcts
+#| fig-cap: "Monte Carlo tree search at the fork's start (depth 20, zero leaf values): the share of 100 runs whose root action is to ask, by number of simulations, for two exploration constants."
+#| fig-alt: "Line chart with simulations from 30 to 3000 across (log scale) and the share of runs that ask up the side. With c = 50 the share rises from about 0.56 at 30 simulations to 0.99 at 1000 and 1.0 at 3000. With c = 10 it rises from about 0.45 to about 0.8 by 300 simulations and stays there."
+let fig = Figure(size = (640, 330))
+    ax = Axis(fig[1, 1], xlabel = "simulations m", ylabel = "share of runs that ask", xscale = log10,
+              xticks = collect(M_MC), limits = (nothing, (0, 1.05)))
+    for (k, c) in enumerate((10.0, 50.0))
+        scatterlines!(ax, collect(M_MC), [MC[(m, c)] for m in M_MC], color = C[k], linewidth = 2, label = "c = $(Int(c))")
+    end
+    axislegend(ax, position = :rb)
+    fig
+end
+```
+
+With $c = 50$, the root chose to ask in `{julia} fmt(100 * MC[(1000, 50.0)]; d = 0)`% of runs after 1000 simulations. With $c = 10$, only `{julia} fmt(100 * MC[(3000, 10.0)]; d = 0)`% after 3000: the rewards span 60, so a bonus of 10 is too small to make the search revisit an action that got unlucky early. Deeper in the hike the decisions are harder. At $P(\text{home right}) = 0.85$, asking again is best, but with 500 simulations and $c = 50$ the search asked in only `{julia} fmt(100 * MC85[(500, 50.0)]; d = 0)`% of runs; with 2000 simulations, `{julia} fmt(100 * MC85[(2000, 50.0)]; d = 0)`% ($c = 50$) and `{julia} fmt(100 * MC85[(2000, 20.0)]; d = 0)`% ($c = 20$). Its average returns there (for example `{julia} fmt(MC85_Q[2]; d = 1)` for asking) are far below the true values, since they average over the search's own exploration.
+
+#### Gap heuristic search
+
+```{julia}
+#| label: fig-gap
+#| fig-cap: "Gap heuristic search from the crying baby's 50–50 belief, with the blind lower bound and the fast informed upper bound as initial bounds: the stored lower and upper bounds at that belief after each exploration, with depth limits 10 and 20. The exact value is black."
+#| fig-alt: "Line chart with explorations from 1 to 300 across and value up the side. The dashed upper bounds start near minus 24.55, just above the black exact line at about minus 24.67, and barely move. The lower bounds start near minus 42 and rise quickly. With depth limit 20 the lower bound reaches the exact line within about 100 explorations; with depth limit 10 it levels off near minus 25.9 from about 35 explorations on."
+let fig = Figure(size = (720, 340))
+    ax = Axis(fig[1, 1], xlabel = "explorations", ylabel = "bounds at 50–50")
+    for (k, dm) in enumerate((10, 20))
+        h = GAP[dm].history
+        lines!(ax, 1:length(h), first.(h), color = C[k], linewidth = 2, label = "lower, depth limit $dm")
+        lines!(ax, 1:length(h), last.(h), color = C[k], linewidth = 2, linestyle = :dash, label = "upper, depth limit $dm")
+    end
+    hlines!(ax, [opt(B0)], color = :black, linewidth = 1.5, label = "exact")
+    axislegend(ax, position = :rb, labelsize = 11)
+    fig
+end
+```
+
+- **With true bounds, the gap closes.** With a depth limit of 20, the gap at 50–50 fell below 1 after `{julia} findfirst(<(1), gaps(20))` explorations and below 0.1 after `{julia} something(findfirst(<(0.1), gaps(20)), 0)`, ending at `{julia} fmt(gaps(20)[end]; d = 3)` after `{julia} length(gaps(20))`. Every stored bound, at all `{julia} length(GAP[20].lo)` beliefs visited, stayed on the right side of the exact value.
+- **The depth limit sets a floor.** With a limit of 10, the gap stalled at `{julia} fmt(gaps(10)[end])`: the leaves at depth 10 keep their initial bounds, and their gap, discounted by $0.9^{10}$, still reaches the root.
+- **A rollout is not a lower bound.** Replacing the blind lower bound by one 10-step random rollout per belief, the "gap" at 50–50 was already below $\delta = 0.01$ (or negative) after a single exploration in `{julia} count(r -> r.n == 1, ROLL)` of 100 runs, so the search stopped there. The stored lower value at 50–50 ended above the exact value in `{julia} count(r -> r.lo > opt(B0), ROLL)` runs, and the recommended action wasn't to feed in `{julia} count(r -> r.a != 1, ROLL)`. The cause is noise, not bias: over 100,000 rollouts the average was `{julia} fmt(mean(R10); d = 1)`, below the exact `{julia} fmt(opt(B0); d = 2)`, but a single rollout exceeded the exact value `{julia} fmt(100 * mean(R10 .> opt(B0)); d = 0)`% of the time.
+
+#### Closed loop: plan, act, observe, repeat
+
+Each planner below chooses one action, the true POMDP responds, the belief is updated, and the planner runs again. Returns are discounted sums over 120 steps (fork) or 80 steps (crying baby), from the 50–50 belief with the true state drawn from it. Every planner faces the same random outcomes in run $i$ (common random numbers).
+
+```{julia}
+#| output: asis
+function cl_table(rows; hikes = false)
+    println("| Planner | Runs | Return (± s.e.) | Difference from first row, paired (± s.e.) |",
+            hikes ? " Asks per hike |" : "", "\n|:---|---:|---:|---:|", hikes ? "---:|" : "")
+    for (k, (name, r)) in enumerate(rows)
+        extra = hikes ? " $(r.goes > 0 ? fmt(r.asks / r.goes; d = 2) : "never goes") |" : ""
+        diff = k == 1 ? "—" : let d = paired(rows, k); "$(fmt(d.mean)) ± $(fmt(d.se))" end
+        println("| $name | $(r.n) | $(fmt(r.mean)) ± $(fmt(r.se)) | $diff |", extra)
+    end
+end
+cl_table(CL_FK; hikes = true)
+println("\n: The fork. {#tbl-closed-fork}\n")
+cl_table(CL_CB)
+println("\n: The crying baby. {#tbl-closed-baby}")
+```
+
+- **The reference is noisy too.** The point-based policy's proven value at the start is `{julia} fmt(utility(FK_P, B0))`; its `{julia} fmt(CL_FK[1][2].mean)` here is `{julia} fmt((CL_FK[1][2].mean - utility(FK_P, B0)) / CL_FK[1][2].se; d = 1)` standard errors above that, by chance (Chapter 21's 10,000 runs gave 27.28 ± 0.17). Differences between planners on the same runs, in the paired column, are much more precise than either mean.
+- **On the fork, search repairs QMDP.** One step of lookahead on QMDP never leaves the fork (return 0). Two steps, or three steps on zero leaves, earned **exactly** the offline point-based return in every run (`{julia} same_as_ref(CL_FK, 3) && same_as_ref(CL_FK, 4) ? "checked" : "NOT the same"`): they chose the same actions. Monte Carlo tree search with 1000 simulations per step earned `{julia} fmt(CL_FK[5][2].mean; d = 1)` ± `{julia} fmt(CL_FK[5][2].se; d = 1)` over its 100 runs; on the same runs, the point-based policy earned `{julia} fmt(-paired(CL_FK, 5).mean; d = 1)` ± `{julia} fmt(paired(CL_FK, 5).se; d = 1)` more. Its noisy choices deeper in each hike (above) cost it.
+- **On the crying baby, a good leaf needs little search.** One step on the fast informed bound matched the exact policy in every run (`{julia} same_as_ref(CL_CB, 2) ? "checked" : "NOT the same"`). Every other planner earned less, by several standard errors of the paired difference: determinized search `{julia} fmt(-paired(CL_CB, 5).mean)` and Monte Carlo tree search `{julia} fmt(-paired(CL_CB, 6).mean)` less, zero leaves at depth 2 `{julia} fmt(-paired(CL_CB, 3).mean)` and sparse sampling `{julia} fmt(-paired(CL_CB, 4).mean)` less. Zero leaves at depth 2 chose the optimal action at only `{julia} fs_agree("zero", 2)` of 51 beliefs (above), and sparse sampling's choices are noisy.
+
+## Solved problems
+
+**Problem 1: tree sizes.** A POMDP has 4 actions and 3 observations. How many beliefs does forward search visit at depth 3? Sparse sampling with $m = 2$? Determinized search with 10 scenarios (at most)?
+
+::: {.callout-tip collapse="true" title="Solution"}
+- **Forward search:** $1 + 12 + 12^2 + 12^3 = 1885$, since each level multiplies by $|\mathcal{A}||\mathcal{O}| = 12$.
+- **Sparse sampling:** $1 + 8 + 8^2 + 8^3 = 585$, since each level multiplies by $|\mathcal{A}|\,m = 8$, whatever $|\mathcal{O}|$ is.
+- **Determinized search:** at depth $k$, each of the $4^k$ action sequences has at most $\min(3^k, 10)$ histories: $4 \times 3 = 12$, $16 \times 9 = 144$, $64 \times 10 = 640$. Total at most $1 + 12 + 144 + 640 = 797$. The saving grows with depth: at depth 6 the bound is about 55,000 beliefs, against about 3.3 million for forward search.
+:::
+
+**Problem 2: how deep is deep enough?** Your leaf estimate is off by at most 5, and $\gamma = 0.9$. What depth guarantees a value error of at most 1? What would that cost with 4 actions and 3 observations?
+
+::: {.callout-tip collapse="true" title="Solution"}
+By @eq-depth, we need $0.9^d \times 5 \le 1$, so $d \ge \log(0.2)/\log(0.9) = 15.3$: depth 16 ($0.9^{16} \times 5 = 0.93$). The tree would have about $12^{16} \approx 1.8 \times 10^{17}$ leaves, far beyond reach. That's why online search relies on good leaf values, sampling or pruning, rather than depth alone. And the bound is a worst case: on this page, actions were often right long before values were.
+:::
+
+**Problem 3: what gets pruned?** At a belief, the upper bounds are $Q_{\text{hi}} = (12, 9, 7.5)$ for actions $a_1, a_2, a_3$. Branch and bound searches $a_1$ first and finds $Q_d = 8$. What happens next? And what if $a_1$ had come back at 5?
+
+::: {.callout-tip collapse="true" title="Solution"}
+Next is $a_2$ (upper bound 9 > 8), so it must be searched. Suppose it returns 8.6: the best is now 8.6, and $a_3$ is skipped, since $7.5 \le 8.6$. Even if $a_2$ returned less than 8, $a_3$ would be skipped because $7.5 \le 8$. If $a_1$ had returned 5, both $a_2$ and $a_3$ would have to be searched unless $a_2$ came back above 7.5. A loose lower bound at the leaves makes searched values small, and then nothing is pruned, as we saw for the crying baby.
+:::
+
+**Problem 4: UCB by hand.** At a history $h$ of the fork's search, $N(h, \cdot) = (6, 12, 1, 1)$ and $Q(h, \cdot) = (2, 4, -30, -45)$ for (wait, ask, go left, go right). Which action does @eq-ucb pick with $c = 10$? With $c = 50$?
+
+::: {.callout-tip collapse="true" title="Solution"}
+$N(h) = 20$ and $\log 20 = 3.00$.
+
+- $c = 10$: wait $2 + 10\sqrt{3.00/6} = 9.07$; ask $4 + 10\sqrt{3.00/12} = 9.00$; go left $-30 + 17.3 = -12.7$; go right $-45 + 17.3 = -27.7$. **Wait**, narrowly.
+- $c = 50$: wait $37.3$; ask $29.0$; go left $-30 + 86.5 = 56.5$; go right $41.5$. **Go left**: after one bad result, a large $c$ tries it again.
+
+With $c = 10$, an action that once returned $-30$ may never be retried. With $c = 50$, the search keeps checking. On the fork, where returns range over about 60, that's what made the difference in @fig-mcts.
+:::
+
+**Problem 5: a lower bound that isn't.** Gap heuristic search initializes the lower bound at a new belief with one random rollout. At a belief whose true value is $-20$ and whose upper bound is $-19.8$, the rollout returns $-12$. What does the search conclude, and how would you fix it?
+
+::: {.callout-tip collapse="true" title="Solution"}
+The "gap" is $-19.8 - (-12) = -7.8$, below any threshold $\delta$, so the search treats the belief as solved and never explores it. Worse, when this value is backed up to its parent, the parent's lower bound can rise above its true value too, and that can change which action is chosen. Fixes: use a true lower bound (the blind bound, or a point-based one from Chapter 21); or estimate a fixed policy's value by *averaging many* long rollouts. Such an average estimates a value that can't exceed the optimum, but it is still only an estimate. On this page, one rollout exceeded the true value `{julia} fmt(100 * mean(R10 .> opt(B0)); d = 0)`% of the time.
+:::
+
+## Recap
+
+1. **Online planning searches from the current belief (@eq-forward).**
+   *Why it matters:* only beliefs reachable in a few steps are considered, which is what makes large POMDPs tractable; the offline methods of Chapter 21 become the leaf values.
+2. **Depth shrinks leaf errors by $\gamma^d$, at a cost of $(|\mathcal{A}||\mathcal{O}|)^d$ (@eq-depth).**
+   *Why it matters:* search can correct a leaf's bad *decisions* quickly (two steps fixed QMDP at the fork), but not its values; good leaves and cheap search go together.
+3. **Bounds let search prune, but only if they are tight (@eq-bb).**
+   *Why it matters:* with a tight lower bound, branch and bound did `{julia} fmt(100 * BB[(100, 5)] / nodes(5); d = 0)`% of the work at depth 5; with a loose one, 100%. Offline effort buys online speed.
+4. **Sampling trades exhaustiveness for noise and bias (@eq-sparse, @eq-ucb, @eq-determinized).**
+   *Why it matters:* sampled maxima are optimistic; Monte Carlo tree search needs an exploration constant on the scale of the rewards; fixing the randomness in scenarios reduces both the tree and the noise. These are the ideas behind practical solvers such as POMCP and DESPOT.
+5. **Gap-guided search needs true bounds (@eq-gap).**
+   *Why it matters:* with true bounds, it certifies its answer as the gap closes; with a noisy stand-in, it can stop at once with a wrong answer.
+
+## Cheat sheet & connections
+
+| Name | Formula | Ref | Cost per decision |
+|---|---|---|---|
+| Forward search | $Q_d(b, a) = R(b, a) + \gamma\sum_o P(o \mid b, a)\,U_{d-1}(b'_o)$ | @eq-forward | $O((|\mathcal{A}||\mathcal{O}|)^d)$ |
+| Depth error | $|U_d - U^*| \le \gamma^d \varepsilon$ | @eq-depth | |
+| Branch and bound | skip $a$ if $Q_{\text{hi}}(b, a) \le$ best found | @eq-bb | at most forward search |
+| Sparse sampling | average of $m$ samples of $r + \gamma U_{d-1}(b')$ | @eq-sparse | $O((|\mathcal{A}|\,m)^d)$ |
+| ★ UCB1 over histories | $Q(h, a) + c\sqrt{\log N(h)/N(h, a)}$ | @eq-ucb | $O(m\,d)$ for $m$ simulations |
+| Determinized successor | first $(s', o)$ with cumulative $P \ge \Phi_{ij}$ | @eq-determinized | $O(|\mathcal{A}|^d m)$ |
+| Gap-guided search | $\arg\max_a Q_{\text{hi}}$, then the widest-gap observation | @eq-gap | per exploration $O(d\,|\mathcal{A}||\mathcal{O}|)$ |
+
+: Key equations from this page (★ = well-known by name). {#tbl-cheatsheet}
+
+**Common pitfalls**
+
+- **Judging a search by its values.** A shallow search can pick the right action while its value is far off, and a noisy one can have unbiased-looking values and still pick badly. Evaluate the policy in closed loop.
+- **An exploration constant on the wrong scale.** UCB's bonus is added to returns; set $c$ relative to how much returns differ.
+- **Treating a rollout as a bound.** It's one sample. Use true bounds where a method's correctness depends on them.
+- **Forgetting impossible observations.** Updating a belief on an observation with probability 0 divides by zero; skip it.
+- **Reusing randomness across decisions by accident.** Determinized search should draw a fresh $\Phi$ for each decision, or it will make the same mistakes at every step.
+
+**Connections**
+
+- [Ch 9 · Online Planning](../part2/ch09-online-planning.qmd): the same methods for fully observed problems, branching on next states.
+- [Ch 21 · Offline Belief State Planning](ch21-offline-belief-state-planning.qmd): the bounds used here as leaf values and for pruning.
+- [Ch 19 · Beliefs](ch19-beliefs.qmd): the belief update applied after every real step.
+- [Ch 14 · Policy Validation](../part2/ch14-policy-validation.qmd): common random numbers, the idea behind determinized scenarios.
+- [Ch 23 · Controller Abstractions](ch23-controller-abstractions.qmd): policies represented as finite controllers instead of searched online.

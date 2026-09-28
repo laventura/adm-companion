@@ -8,7 +8,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from adm.problems import collision_avoidance, mountain_car, park, simple_regulator, trail
+from adm.problems import collision_avoidance, crying_baby, mountain_car, park, simple_regulator, trail
 from adm.problems.coffee import COFFEE
 from adm.problems.commute import (
     COMMUTE, COMMUTE_DECISION, COMMUTE_TIMES_COV, COMMUTE_TIMES_MEAN, COMMUTE_UTILITY,
@@ -43,6 +43,9 @@ print(JSON.json(Dict(
             Dict("T" => rowmajor(p.T), "R" => rowmajor(p.R), "beta" => rowmajor(β),
                  "b" => park_left_starts(layout))
         end for layout in ("A", "B")),
+    "crying_baby" => let p = crying_baby()
+        Dict("T" => rowmajor(p.T), "R" => rowmajor(p.R), "O" => rowmajor(p.O), "gamma" => p.γ)
+    end,
     "trail" => let p = trail()
         Dict("T" => rowmajor(p.T), "R" => rowmajor(p.R), "gamma" => p.γ)
     end,
@@ -143,3 +146,10 @@ def test_park_matches(julia_problems, layout):
     assert np.allclose(theirs["T"], mdp.T.ravel()) and np.allclose(theirs["R"], mdp.R.ravel())
     assert np.allclose(theirs["beta"], beta.ravel())
     assert np.allclose(theirs["b"], park.left_edge_starts(layout))
+
+
+def test_crying_baby_matches(julia_problems):
+    theirs, ours = julia_problems["crying_baby"], crying_baby.crying_baby()
+    for key, arr in (("T", ours.T), ("R", ours.R), ("O", ours.O)):
+        assert np.allclose(theirs[key], arr.ravel()), key
+    assert theirs["gamma"] == ours.gamma

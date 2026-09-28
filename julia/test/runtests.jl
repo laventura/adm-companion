@@ -78,3 +78,36 @@ end
     out = sprint(io -> show_source("beliefs/discrete_filter.jl", io))
     @test startswith(out, "```julia\n") && endswith(rstrip(out), "```")
 end
+
+@testset "crying baby and exact POMDP planning (Ch 20)" begin
+    p = crying_baby()
+    @test all(sum(p.T; dims = 3) .≈ 1) && all(sum(p.O; dims = 3) .≈ 1)
+    leaf(a) = ConditionalPlan(a)
+    # ignore; then feed if crying, else ignore; then feed if crying, else ignore.
+    π = ConditionalPlan(3, [ConditionalPlan(1, [leaf(1), leaf(3)]), ConditionalPlan(3, [leaf(1), leaf(3)])])
+    α = alphavector(p, π)
+    @test combine_alpha(p, 3, [alphavector(p, s) for s in π.subplans]) ≈ α
+    @test evaluate_plan(p, leaf(1), 2) == -15.0
+    # The simplex LP agrees with a brute-force search over beliefs.
+    for (αt, Γt) in (([1.0, 0.0], [[0.0, 1.0], [0.6, 0.6]]), ([0.5, 0.5], [[0.0, 1.0], [0.6, 0.6]]),
+                     ([2.0, 1.0, 0.0], [[0.0, 0.0, 3.0], [1.0, 1.0, 1.0]]))
+        b = find_maximal_belief(αt, Γt)
+        grid = [[x, y, 1 - x - y][1:length(αt)] for x in 0:0.01:1 for y in (length(αt) == 3 ? (0:0.01:1-x) : (1 - x,))]
+        gap = maximum(minimum((αt .- g) ⋅ bb for g in Γt) for bb in grid)
+        @test (b === nothing) == (gap <= 1e-9)
+        b === nothing || @test minimum((αt .- g) ⋅ b for g in Γt) ≈ gap atol = 0.02
+    end
+    # Value iteration's pruned envelope equals the envelope of every 3-step plan.
+    hist, counts = value_iteration_pomdp(p, 30)
+    all1 = [ConditionalPlan(a) for a in 1:3], [p.R[:, a] for a in 1:3]
+    all2 = expand(all1..., p)
+    _, Γ3 = expand(all2..., p)
+    @test length(Γ3) == 3^7
+    grid = [[1 - x, x] for x in 0:0.001:1]
+    @test maximum(abs(utility(Γ3, b) - utility(hist[3][2], b)) for b in grid) < 1e-9
+    # Long-horizon policy: ignore below about P(hungry) = 0.28, feed above; never sing.
+    pl, Γ = hist[30]
+    root = [pl[argmax([α ⋅ b for α in Γ])].a for b in grid]
+    @test Set(root) == Set([1, 3])
+    @test 0.27 < grid[findfirst(==(1), root)][2] < 0.29
+end

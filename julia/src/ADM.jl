@@ -18,6 +18,10 @@ include("problems/simple_regulator.jl")
 include("problems/collision_avoidance.jl")
 include("problems/trail.jl")
 include("problems/park.jl")
+include("problems/discrete_pomdp.jl")
+include("problems/crying_baby.jl")
+include("pomdp/conditional_plans.jl")
+include("pomdp/value_iteration.jl")
 
 export write_json, show_source
 export predict_discrete, correct_discrete, update_discrete
@@ -35,6 +39,10 @@ export ca_optimal_policy, ca_simple_policy, ca_evaluate, ca_start_average, ca_si
 export ca_most_likely_failure, ca_index
 export trail
 export park, park_left_starts, PARK_PHI_TRUE, PARK_LAYOUTS
+export DiscretePOMDP, crying_baby
+export ConditionalPlan, evaluate_plan, alphavector, combine_alpha, observation_probability
+export lookahead_belief, greedy_belief, utility
+export find_maximal_belief, simplex_max, find_dominating, prune, expand, value_iteration_pomdp
 
 """
     write_json(obj, path) -> path

@@ -129,6 +129,15 @@ This site uses the book's notation. Symbols are added here as chapters are writt
 | $F(s, a, s')$, $\beta(s)$ | Shaping reward, and the potential function that makes it safe | Ch 17 |
 | $Q_\theta(s, a)$ | Parameterized action value function | Ch 17 |
 | $m_{\text{grad}}$ | Batch size for experience replay | Ch 17 |
+| $\mathcal{D}$ | Expert demonstrations (state-action pairs or trajectories) | Ch 18 |
+| $\pi_E$ | The expert's policy | Ch 18 |
+| $\beta(s, a)$, $\phi$ | Reward features and weights: $R_\phi(s, a) = \phi^\top\beta(s, a)$ | Ch 18 |
+| $\mu_\pi$, $\mu_E$ | Feature expectations of a policy, and of the expert | Ch 18 |
+| $t$ | Margin in maximum margin IRL | Ch 18 |
+| $\lambda_i$ | Mixture weights over the policies found by maximum margin IRL | Ch 18 |
+| $\beta$ (SMILe) | Mixing rate in SMILe (not the features) | Ch 18 |
+| $P_\phi(\tau)$, $Z(\phi)$ | Maximum entropy trajectory distribution and its normalizer | Ch 18 |
+| $C_\phi(s, a)$ | GAIL discriminator: probability a pair came from the learner | Ch 18 |
 | $o$ | An observation | Ch 19 |
 | $O(o \mid a, s')$ | Observation model: probability of observing $o$ after taking $a$ and landing in $s'$ | Ch 19 |
 | $b(s)$ | Belief: probability that the current state is $s$, given the history | Ch 19 |

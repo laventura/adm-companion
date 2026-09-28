@@ -1,8 +1,859 @@
 ---
 title: "18 · Imitation Learning"
 subtitle: "Part III — Model Uncertainty"
+jupyter: python3
+execute:
+  echo: false
 ---
 
 ::: {.callout-note appearance="minimal"}
-**In progress.** This page will cover ADM Ch. 18, *Imitation Learning*.
+**Executed in:** Python · **Book:** ADM Ch. 18 · **Lecture:** to be added
 :::
+<!-- TODO(video): link the official Stanford AA228 lecture on imitation learning. -->
+
+```{python}
+#| include: false
+import numpy as np
+import matplotlib.pyplot as plt
+from IPython.display import Markdown
+from matplotlib.patches import Patch, Rectangle
+
+from adm import imitation as im
+from adm import style
+from adm.io import write_json
+from adm.mdp import policy_iteration
+from adm.page import show_source
+from adm.problems.park import LAYOUTS, PHI_TRUE, TERRAIN, left_edge_starts, park
+
+style.apply()
+blue, orange, green, yellow, pink, dkgreen, purple, red = style.CATEGORICAL
+TERRAIN_COLORS = {"P": "#f3e3b5", "G": "#bfe6d3", "M": "#c9a58a", "X": "#9ec5f4"}
+TERRAIN_NAMES = {"P": "path", "G": "grass", "M": "mud", "X": "gate"}
+
+MDP, BETA = park("A")
+T, R, G = MDP.T, MDP.R, MDP.gamma
+N = len(R)
+END = N - 1
+ROWS, COLS = len(LAYOUTS["A"]), len(LAYOUTS["A"][0])
+GATE = ROWS * 0 + COLS - 1                               # cell (0, 7)
+B_LEFT = left_edge_starts("A")
+PI_E, U_E, _ = policy_iteration(T, R, G, np.zeros(N, int))
+P_E = im.greedy_probs(PI_E, 4)
+V_EXPERT = im.policy_value(T, R, G, P_E, B_LEFT)
+V_UNIFORM = im.policy_value(T, R, G, np.full((N, 4), 0.25), B_LEFT)
+value = lambda P, b=B_LEFT: im.policy_value(T, R, G, P, b)                  # noqa: E731
+
+# --- Behavioral cloning against the number of demonstrations --------------------------------
+DEPTH = 60
+M_DEMOS = (1, 3, 10, 30, 100)
+bc = {m: {"value": [], "covered": []} for m in M_DEMOS}
+for m in M_DEMOS:
+    for seed in range(20):
+        demos = im.rollouts(T, P_E, B_LEFT, m, DEPTH, np.random.default_rng(seed), end=END)
+        P = im.behavioral_cloning([p for tr in demos for p in tr], N, 4)
+        bc[m]["value"].append(value(P))
+        bc[m]["covered"].append(len({s for tr in demos for s, _ in tr}))
+bc_mean = {m: (np.mean(d["value"]), np.mean(d["covered"])) for m, d in bc.items()}
+N_CELLS = ROWS * COLS - 1                                # cells where a choice is made (not the gate)
+
+# --- DAgger and SMILe -------------------------------------------------------------------------
+K_DAGGER, M_ITER = 8, 3
+dag = np.array([[value(P) for P in im.dagger(T, PI_E, B_LEFT,
+                                             im.rollouts(T, P_E, B_LEFT, M_ITER, DEPTH, rng, end=END),
+                                             K_DAGGER, M_ITER, DEPTH, rng, end=END)]
+                for rng in (np.random.default_rng(s) for s in range(20))])
+dag_mean = dag.mean(axis=0)
+SMILE_M, K_SMILE, BETA_MIX = (3, 10, 30), 10, 0.2
+smile_curves, smile_final = {}, {}
+for m in SMILE_M:
+    curves, finals = [], []
+    for seed in range(10):
+        mixtures, final = im.smile(T, PI_E, B_LEFT, K_SMILE, m, DEPTH, BETA_MIX, np.random.default_rng(seed), end=END)
+        curves.append([value(P) for P in mixtures])
+        finals.append(value(final))
+    smile_curves[m], smile_final[m] = np.mean(curves, axis=0), float(np.mean(finals))
+
+# --- Inverse reinforcement learning -----------------------------------------------------------
+B_ALL = np.zeros(N)
+B_ALL[[s for s in range(END) if s != GATE]] = 1
+B_ALL /= B_ALL.sum()
+M_IRL, D_IRL = 30, 80
+demos_left = im.rollouts(T, P_E, B_LEFT, M_IRL, D_IRL, np.random.default_rng(0), end=END)
+demos_all = im.rollouts(T, P_E, B_ALL, M_IRL, D_IRL, np.random.default_rng(0), end=END)
+
+# Maximum margin, from the left-edge demonstrations.
+mu_E = im.demo_feature_expectations(demos_left, BETA, G)
+mu_E_exact = im.feature_expectations(T, BETA, G, P_E, B_LEFT)
+lam, mm_policies, mm_mus, margins, mm_phis = im.max_margin_irl(T, BETA, G, mu_E, B_LEFT, k_max=15)
+V_MM = float(sum(l * value(P) for l, P in zip(lam, mm_policies)))
+n_used = int((lam > 0.01).sum())
+
+# Maximum entropy, from each set of demonstrations, over several seeds.
+MB, BETA_B = park("B")
+B_LEFT_B = left_edge_starts("B")
+PI_B, _, _ = policy_iteration(MB.T, MB.R, G, np.zeros(N, int))
+V_EXPERT_B = im.policy_value(MB.T, MB.R, G, im.greedy_probs(PI_B, 4), B_LEFT_B)
+
+
+def on_b(phi):
+    """True value on layout B of the optimal policy for reward phi."""
+    pi, _, _ = policy_iteration(MB.T, BETA_B @ phi, G, np.zeros(N, int))
+    return im.policy_value(MB.T, MB.R, G, im.greedy_probs(pi, 4), B_LEFT_B)
+
+
+maxent = {}
+for label, b_demo in (("left edge", B_LEFT), ("every cell", B_ALL)):
+    rows = []
+    for seed in range(10):
+        demos = im.rollouts(T, P_E, b_demo, M_IRL, D_IRL, np.random.default_rng(seed), end=END)
+        phi, P_soft, norms = im.max_entropy_irl(T, BETA, G, demos, b_demo, D_IRL, 0.05, 600)
+        pi_a, _, _ = policy_iteration(T, BETA @ phi, G, np.zeros(N, int))
+        rows.append({"phi": phi, "ranked": bool(phi[0] > phi[1] > phi[2]), "value_a": value(im.greedy_probs(pi_a, 4)),
+                     "value_b": on_b(phi), "soft_a": value(P_soft)})
+    maxent[label] = rows
+me = {label: {"ranked": np.mean([r["ranked"] for r in rows]), "value_a": np.mean([r["value_a"] for r in rows]),
+              "value_b": np.mean([r["value_b"] for r in rows]), "phi": np.mean([r["phi"] / np.linalg.norm(r["phi"]) for r in rows], axis=0)}
+      for label, rows in maxent.items()}
+bc_on_b = im.policy_value(MB.T, MB.R, G, im.behavioral_cloning([p for tr in demos_all for p in tr], N, 4), B_LEFT_B)
+uniform_b = im.policy_value(MB.T, MB.R, G, np.full((N, 4), 0.25), B_LEFT_B)
+```
+
+## Big picture
+
+### Where this chapter fits
+
+Every method so far needed a reward function, and designing one is often the hardest part. What reward makes a car drive "well"? [Chapter 17](ch17-model-free-methods.qmd) even showed a well-meant bonus producing a policy that never reaches its goal. Often it is easier to *show* the desired behavior than to *score* it. **Imitation learning** learns from an expert's demonstrations instead of a reward. It closes Part III: the agent still doesn't know the model, and now it doesn't know the objective either. Part IV turns to uncertainty about the *state* itself, starting with [Chapter 19](../part4/ch19-beliefs.qmd).
+
+**The question:** given demonstrations of good behavior, how do we learn a policy that behaves well, including in situations the expert never showed us?
+
+The short answer: **copy the expert's choices, or recover what the expert wanted.** **Behavioral cloning** treats imitation as supervised learning: predict the expert's action from the state. It is simple but brittle. Small mistakes lead to states the expert never visited, where the clone has no idea what to do, and errors cascade. **DAgger** and **SMILe** fix this by asking the expert to label the states the *learner* actually reaches. **Inverse reinforcement learning** instead infers a reward function that the expert appears to optimize, then plans with it. A reward is a compact explanation of behavior, so it can transfer to new situations where a copied policy cannot. **Generative adversarial imitation learning** trains a policy until a discriminator can't tell its behavior from the expert's.
+
+```{dot}
+//| label: fig-ch18-map
+//| fig-width: 7
+//| fig-height: 3.1
+//| fig-cap: "Map of this chapter. Demonstrations can be copied directly (behavioral cloning, improved interactively by DAgger and SMILe), explained by a reward (inverse reinforcement learning), or matched adversarially (GAIL)."
+//| fig-alt: "Diagram. A grey box, Expert demonstrations, points to three branches. Copy actions: Behavioral cloning (supervised learning of the expert's actions), which points with the label cascading errors to Interactive: DAgger and SMILe (the expert labels the learner's states). Explain with a reward: Inverse reinforcement learning, max margin and max entropy, which points with the label plan to a Policy that transfers to new settings. Match behavior: GAIL (a discriminator versus the policy)."
+digraph ch18 {
+  rankdir=TB; bgcolor="#fcfcfb"; pad=0.25; nodesep=0.35; ranksep=0.45;
+  node [shape=box, style="rounded,filled", fillcolor="white", color="#c3c2b7", penwidth=1.2,
+        fontname="Helvetica", fontsize=13, fontcolor="#0b0b0b", margin="0.12,0.07"];
+  edge [color="#52514e", penwidth=1.2, arrowsize=0.7, fontname="Helvetica", fontsize=11, fontcolor="#52514e"];
+  demos [label=<<B>Expert demonstrations</B><BR/><FONT POINT-SIZE="11">states and actions</FONT>>, fillcolor="#f0efec"];
+  bc [label=<<B>Behavioral cloning</B><BR/><FONT POINT-SIZE="11">predict the expert's action</FONT>>, fillcolor="#cde2fb", color="#2a78d6"];
+  inter [label=<<B>DAgger, SMILe</B><BR/><FONT POINT-SIZE="11">expert labels the learner's states</FONT>>];
+  irl [label=<<B>Inverse RL</B><BR/><FONT POINT-SIZE="11">max margin, max entropy</FONT>>, fillcolor="#cde2fb", color="#2a78d6"];
+  plan [label=<<B>Plan with the reward</B><BR/><FONT POINT-SIZE="11">transfers to new settings</FONT>>];
+  gail [label=<<B>GAIL</B><BR/><FONT POINT-SIZE="11">discriminator vs policy</FONT>>, fillcolor="#cde2fb", color="#2a78d6"];
+  demos -> bc [label="copy"]; demos -> irl [label="explain"]; demos -> gail [label="match"];
+  bc -> inter [label="cascading errors"]; irl -> plan [label="plan"];
+}
+```
+
+### The key ideas at a glance
+
+1. **Behavioral cloning.** Fit a policy $\pi_\theta(a \mid s)$ that maximizes the likelihood of the expert's actions in the demonstrated states: ordinary supervised learning. With a table of states, it simply counts the expert's choices in each state.
+
+2. **Cascading errors.** A clone is only trained where the expert went. One slip, from the clone's own mistake or from randomness in the world, puts it somewhere unfamiliar. There it acts poorly, which takes it somewhere even less familiar. Errors compound over the length of an episode.
+
+3. **Interactive demonstrations.** **DAgger** runs the current learner, asks the expert what it *would* have done in each state the learner visited, adds those labels to the data set, and retrains. The data then cover the states the learner actually reaches. **SMILe** trains a new policy on each round's data and mixes it with the earlier ones, gradually phasing out the expert.
+
+4. **Inverse reinforcement learning (IRL).** Assume the expert optimizes an unknown reward, here a weighted sum of features, $R_\phi(s, a) = \phi^\top\beta(s, a)$. Find weights under which the expert's behavior looks optimal, then plan. **Maximum margin IRL** picks weights that make the expert beat every policy found so far by as much as possible. **Maximum entropy IRL** picks the reward under which the demonstrations are most likely, with trajectories exponentially more likely the more reward they earn.
+
+5. **Rewards transfer; copied policies don't.** A reward over features ("mud is bad, paths are good") applies anywhere those features appear. A cloned table of actions is tied to the states it was trained on.
+
+6. **Generative adversarial imitation learning (GAIL).** Train a discriminator to tell the learner's state-action pairs from the expert's, and train the policy to fool it. It matches the expert's behavior without ever writing down a reward.
+
+### Vocabulary
+
+| Term | Plain meaning |
+|:---|:---|
+| Expert demonstrations $\mathcal{D}$ | Recorded states and the expert's actions in them |
+| Behavioral cloning | Learning the expert's action from the state by supervised learning |
+| Cascading errors | Small mistakes leading to unfamiliar states and bigger mistakes |
+| DAgger | Data set aggregation: the expert labels the learner's own states |
+| SMILe | Stochastic mixing iterative learning: a growing mixture of trained policies |
+| Inverse reinforcement learning | Inferring the reward that the expert's behavior optimizes |
+| Features $\beta(s, a)$, weights $\phi$ | A description of each situation, and the reward's weight on each part |
+| Feature expectations $\mu_\pi$ | Expected discounted total of each feature under policy $\pi$ |
+| Maximum entropy principle | Among distributions consistent with the data, choose the least committal |
+| GAIL | Matching the expert's behavior through a policy-versus-discriminator game |
+
+: Terms used on this page. {#tbl-vocab}
+
+### After this chapter you can
+
+- Train a policy by behavioral cloning and explain why its errors cascade.
+- Improve a cloned policy with DAgger or SMILe, and say what each asks of the expert.
+- Recover a linear reward from demonstrations by maximum margin or maximum entropy IRL.
+- Explain when a learned reward transfers to a new environment and a cloned policy doesn't.
+- Describe GAIL's adversarial setup.
+
+## Intuition
+
+::: {.callout-tip title="Analogy"}
+You're learning to drive by watching an instructor.
+
+- **Cloning:** you copy what they did on the lessons you watched. But they never drifted onto the shoulder, so when you do, you have no idea what to do.
+- **DAgger:** you drive, and the instructor calls out what they would do at every moment, including your drifts. Now you learn how to recover.
+- **Inverse RL:** instead of memorizing moves, you work out what the instructor *cares about*: staying centered, keeping distance, smoothness. That understanding carries over to roads you've never driven.
+:::
+
+Our running example is a **park**: an 8 × 8 grid of paths, grass and mud, with a gate in the top-right corner. Walkers enter from the left edge. Each step goes where intended 80% of the time and slips sideways or back otherwise. The true reward, which the learners never see, is −1 per step on a path, −2 on grass, −6 in mud, and +10 at the gate, with discount 0.95. The expert walks optimally for that reward, and is worth `{python} f"{V_EXPERT:.2f}"` on average from the left edge. Walking at random is worth `{python} f"{V_UNIFORM:.2f}"`.
+
+### Copy what you saw
+
+From 3 demonstrated walks, behavioral cloning sees the expert's choice in `{python} f"{bc_mean[3][1]:.0f}"` of the `{python} N_CELLS` cells where a choice is made, and acts at random everywhere else. Its policy is worth `{python} f"{bc_mean[3][0]:.2f}"`. With 100 walks it covers `{python} f"{bc_mean[100][1]:.0f}"` cells and is worth `{python} f"{bc_mean[100][0]:.2f}"` (@fig-bc). See @eq-bc.
+
+### When you slip, you're lost
+
+The expert rarely leaves its preferred routes, so the clone never learns what to do off them. But the park is slippery, so the clone does leave them. Every slip lands it in a cell where it acts at random, and random steps take it further into unfamiliar cells. With few demonstrations, much of the clone's lost value comes from these cascades.
+
+### Ask the expert about your own mistakes
+
+DAgger lets the clone walk, and the expert labels every cell the clone visits, including the unfamiliar ones. Starting from the same 3 walks and adding 3 labeled walks per round, the policy's value rose from `{python} f"{dag_mean[0]:.2f}"` to `{python} f"{dag_mean[-1]:.2f}"` in `{python} K_DAGGER - 1` rounds (@fig-dagger). See @eq-dagger.
+
+### Explain the walks with a reward
+
+The expert avoids mud and prefers paths. Inverse reinforcement learning turns that into numbers: weights on "path", "grass", "mud" and "gate" under which the expert's walks look optimal. Maximum entropy IRL, given demonstrations starting from every cell, ranked path above grass above mud in `{python} f"{me['every cell']['ranked']:.0%}"` of 10 trials. Given only walks from the left edge, which rarely go near mud, it got the ranking right in `{python} f"{me['left edge']['ranked']:.0%}"` (@fig-irl). See @eq-maxent.
+
+### A reward carries over
+
+Move to a new park, layout B, with the same kinds of terrain in a different arrangement. The cloned policy's table of "what to do in cell (3, 4)" means nothing there; it scores `{python} f"{bc_on_b:.2f}"`. Planning with the reward learned in park A scores `{python} f"{me['every cell']['value_b']:.2f}"` on average, against `{python} f"{V_EXPERT_B:.2f}"` for an expert who knows the true reward (@fig-transfer).
+
+## Formalism
+
+### Behavioral cloning
+
+Given expert state-action pairs $\mathcal{D}$, maximize the likelihood of the expert's actions (ADM §18.1; D. A. Pomerleau, *Neural Computation*, 1991):
+
+::: {.key-equation data-name="Behavioral cloning"}
+$$
+\max_\theta \prod_{(s, a) \in \mathcal{D}} \pi_\theta(a \mid s)
+\quad\Longleftrightarrow\quad
+\max_\theta \sum_{(s, a) \in \mathcal{D}} \log \pi_\theta(a \mid s)
+$$ {#eq-bc}
+:::
+
+**In words.** Choose the policy under which the expert's recorded choices were most likely.
+
+**Term by term.**
+
+- $\pi_\theta(a \mid s)$ is a stochastic policy with parameters $\theta$: a table, a softmax over features, a neural network, or a Bayesian network (Chapter 2).
+- For a table, the maximizer is the count ratio $\pi(a \mid s) = N(s, a)/\sum_{a'} N(s, a')$. States never demonstrated have no data; here they get a uniform policy.
+- For a differentiable $\pi_\theta$, gradient ascent on the log-likelihood does the fitting.
+
+**Why it holds.** It is maximum likelihood estimation (Chapter 4) of a conditional distribution. The states are treated as given inputs, which is exactly where cloning goes wrong: at test time, the states come from the clone's own behavior, not the expert's.
+
+The cost of that mismatch grows with the horizon. Roughly: if the clone errs with probability $\epsilon$ in the expert's states, its expected cost over $h$ steps can grow like $\epsilon h^2$, because each error can send it off course for the rest of the episode (S. Ross and J. A. Bagnell, *AISTATS*, 2010).
+
+### Data set aggregation (DAgger)
+
+Alternate between acting and asking (ADM §18.2; S. Ross, G. J. Gordon and J. A. Bagnell, *AISTATS*, 2011):
+
+::: {.key-equation data-name="DAgger"}
+$$
+\mathcal{D} \leftarrow \mathcal{D} \cup \big\{(s, \pi_E(s)) : s \text{ visited by rollouts of } \pi_{\theta^{(k)}}\big\},
+\qquad
+\theta^{(k+1)} = \arg\max_\theta \sum_{(s, a) \in \mathcal{D}} \log \pi_\theta(a \mid s)
+$$ {#eq-dagger}
+:::
+
+**In words.** Let the learner act, record the expert's answer for every state the learner reaches, add those examples to everything collected so far, and retrain.
+
+**Term by term.**
+
+- $\pi_E(s)$ is the expert's action in $s$. The expert is consulted, not followed: the learner's own actions decide which states are visited.
+- The data set aggregates all rounds, so later rounds change the policy less and less.
+- The original algorithm executes a mix of the expert and the learner; executing the learner alone, as here and in the book, is the extreme case.
+
+**Why it holds.** The training distribution becomes the learner's own state distribution, the one that matters at test time. Ross and colleagues show that DAgger's error then grows only linearly with the horizon, $O(\epsilon h)$, instead of quadratically. The catch is practical: the expert must be available to answer questions about states it would never have reached itself.
+
+### Stochastic mixing iterative learning (SMILe)
+
+Start with the expert's policy, $\pi^{(1)} = \pi_E$. In round $k$, run $\pi^{(k)}$, have the expert label the states it visits, and train a new component $\hat\pi^{(k)}$ on *that round's data only*. Then mix (ADM §18.3; S. Ross and J. A. Bagnell, *AISTATS*, 2010):
+
+::: {.key-equation data-name="SMILe mixture"}
+$$
+\pi^{(k+1)} = (1 - \beta)^k\, \pi_E + \sum_{i=1}^{k} \beta (1 - \beta)^{i-1}\, \hat\pi^{(i)}
+$$ {#eq-smile}
+:::
+
+**In words.** Act like the expert with a probability that shrinks every round, and otherwise like one of the trained components, favoring earlier ones.
+
+**Term by term.**
+
+- $\beta \in (0, 1)$ is the mixing rate; small $\beta$ changes the policy slowly.
+- The weights sum to 1: $(1 - \beta)^k + \beta\sum_{i \le k}(1 - \beta)^{i-1} = 1$.
+- The final policy drops the expert and renormalizes the components' weights.
+
+**Why it holds.** Each round changes the state distribution only a little, because each new component carries weight at most $\beta$. So every component is trained on states close to those it will face. Earlier components get more weight because they were trained on states most like the expert's. The components have to generalize from their own round's data, though. With a table, which can't generalize, each component acts at random in every state its round didn't visit, as the results below show.
+
+### Inverse reinforcement learning: feature expectations
+
+Assume a linear reward, $R_\phi(s, a) = \phi^\top\beta(s, a)$ (ADM §18.4). Then a policy's expected return is linear in its **feature expectations**:
+
+::: {.key-equation .famous data-name="Feature expectations"}
+$$
+\mathbb{E}_{s \sim b}[U^\pi(s)] = \mathbb{E}_\tau\Big[\sum_{k=1}^{d} \gamma^{k-1} R_\phi(s^{(k)}, a^{(k)})\Big] = \phi^\top \mu_\pi,
+\qquad
+\mu_\pi = \mathbb{E}_\tau\Big[\sum_{k=1}^{d} \gamma^{k-1}\beta(s^{(k)}, a^{(k)})\Big]
+$$ {#eq-features}
+:::
+
+**In words.** Everything a linear reward can say about a policy is summarized by how much of each feature the policy racks up, discounted.
+
+**Term by term.**
+
+- $\beta(s, a)$ is a vector of features; in the park, one-hot indicators of path, grass, mud and gate.
+- $\mu_\pi$ is estimated from rollouts, or computed exactly for a known model by treating each feature as a reward.
+- For the expert, $\mu_E$ comes from the demonstrations.
+- **Why it matters:** if a policy's feature expectations equal the expert's, it earns the same return as the expert under *every* reward of this form, including the unknown true one.
+
+**Why it holds.** Expectation is linear, and $\phi$ doesn't depend on the trajectory, so it factors out of the sum.
+
+### Maximum margin IRL
+
+Iterate (P. Abbeel and A. Y. Ng, *ICML*, 2004): find weights under which the expert beats every policy found so far by the largest margin, compute the optimal policy for those weights, add it, and repeat.
+
+::: {.key-equation data-name="Maximum margin weights"}
+$$
+\max_{t,\,\phi}\ t
+\quad\text{subject to}\quad
+\phi^\top\mu_E \ge \phi^\top\mu^{(i)} + t\ \ \text{for } i = 1, \ldots, k - 1,
+\qquad \|\phi\|_2 \le 1
+$$ {#eq-max-margin}
+:::
+
+**In words.** Find the reward direction that best separates the expert from every policy tried so far.
+
+**Term by term.**
+
+- $\mu^{(i)}$ are the feature expectations of earlier policies; the first is a random policy.
+- The norm bound fixes the scale, since scaling a reward doesn't change the optimal policy.
+- When the margin $t$ is small, some combination of the policies found matches the expert's feature expectations. The output is a **mixture**: follow $\pi^{(i)}$ with probability $\lambda_i$, where $\lambda$ minimizes $\|\mu_E - \sum_i \lambda_i\mu^{(i)}\|$ over the simplex.
+- The weights $\phi$ are a means to that end. They need not resemble the true reward.
+
+**Why it holds.** If $\mu_\lambda$ is within $\epsilon$ of $\mu_E$, then for every $\phi$ with $\|\phi\| \le 1$, the returns differ by at most $|\phi^\top(\mu_E - \mu_\lambda)| \le \epsilon$ by the Cauchy–Schwarz inequality. That includes the true reward, scaled to unit norm.
+
+### Maximum entropy IRL
+
+Many rewards, and many trajectory distributions, match the same feature expectations. The maximum entropy principle picks the least committal distribution consistent with them, which has an exponential form (ADM §18.5; B. D. Ziebart et al., *AAAI*, 2008):
+
+::: {.key-equation .famous data-name="Maximum entropy IRL"}
+$$
+P_\phi(\tau) = \frac{\exp R_\phi(\tau)}{Z(\phi)},
+\qquad
+\nabla_\phi \frac{1}{|\mathcal{D}|}\sum_{\tau \in \mathcal{D}} \log P_\phi(\tau)
+= \underbrace{\frac{1}{|\mathcal{D}|}\sum_{\tau \in \mathcal{D}} \sum_k \gamma^{k-1}\beta(s^{(k)}, a^{(k)})}_{\text{demonstrations}}
+- \underbrace{\mathbb{E}_{\tau \sim P_\phi}\Big[\sum_k \gamma^{k-1}\beta(s^{(k)}, a^{(k)})\Big]}_{\text{model}}
+$$ {#eq-maxent}
+:::
+
+**In words.** Trajectories are exponentially more likely the more reward they earn. Adjust the reward until the feature counts it predicts match the ones demonstrated.
+
+**Term by term.**
+
+- $R_\phi(\tau) = \sum_k \gamma^{k-1} R_\phi(s^{(k)}, a^{(k)})$ is a trajectory's discounted reward, and $Z(\phi)$ normalizes.
+- The gradient is "demonstrated feature counts minus expected feature counts". At the optimum they match, as in @eq-features.
+- The expectation needs the policy induced by $\phi$ and its state visitation. The book uses the optimal policy. Here we use the **soft** (maximum entropy) optimal policy, $\pi(a \mid s) = \exp(Q(s, a) - V(s))$ with $V(s) = \log\sum_a \exp Q(s, a)$, which is what the maximum entropy model implies for stochastic dynamics. The visitation comes from pushing the start distribution forward $d$ steps (eq. 18.18).
+- Unlike maximum margin, it gives one reward, and the log-likelihood is concave in $\phi$ for a linear reward, so gradient ascent finds its maximum.
+
+**Why it holds.** $\log P_\phi(\tau) = R_\phi(\tau) - \log Z(\phi)$. The gradient of $R_\phi(\tau)$ is its discounted feature count. The gradient of $\log Z$ is $\sum_\tau P_\phi(\tau)\nabla R_\phi(\tau)$, the expected feature count: the familiar property of log-normalizers.
+
+### Generative adversarial imitation learning (GAIL)
+
+Train a policy $\pi_\theta$ and a discriminator $C_\phi(s, a)$, the probability that a pair came from the learner rather than the expert, as a game (ADM §18.6; J. Ho and S. Ermon, *NeurIPS*, 2016):
+
+::: {.key-equation data-name="GAIL objective"}
+$$
+\min_\theta \max_\phi\ \ \mathbb{E}_{(s, a) \sim \pi_\theta}\big[\log C_\phi(s, a)\big] + \mathbb{E}_{(s, a) \sim \mathcal{D}}\big[\log\big(1 - C_\phi(s, a)\big)\big]
+$$ {#eq-gail}
+:::
+
+**In words.** The discriminator learns to tell the learner's behavior from the expert's; the policy learns to make that impossible.
+
+**Term by term.**
+
+- The discriminator is trained by classification: high $C$ on the learner's pairs, low on the expert's.
+- The policy is trained by reinforcement learning (for example, the policy gradient methods of Chapters 11–12) with reward $-\log C_\phi(s, a)$: pairs that look expert-like pay more.
+- Both are usually neural networks. This page does not implement GAIL; it needs the machinery of Appendix D and much more computation than the other methods here.
+
+**Why it holds.** At the game's equilibrium, the learner's distribution of state-action pairs matches the expert's (as in generative adversarial networks). GAIL can be seen as inverse reinforcement learning whose "reward" is the discriminator's opinion, followed immediately by reinforcement learning on it.
+
+## Worked example
+
+### Cloning by counting
+
+Suppose the demonstrations visit cell (3, 2) four times, with the expert going east three times and north once, and never visit cell (5, 5). The cloned policy is
+
+- at (3, 2): east 0.75, north 0.25, south and west 0;
+- at (5, 5): all four actions 0.25.
+
+The clone reproduces the expert's frequencies where it has data, and is clueless where it doesn't.
+
+### Feature expectations by hand
+
+A walk with $\gamma = 0.95$ crosses a path cell, a grass cell, then a path cell, then reaches the gate and ends. Its discounted feature counts are
+
+- path: $1 + 0.95^2 = 1.9025$;
+- grass: $0.95$;
+- mud: 0;
+- gate: $0.95^3 = 0.857$.
+
+Under the true weights $(-1, -2, -6, 10)$, its discounted return is $-1.9025 - 1.9 + 8.57 = 4.77$. Any policy whose average counts equal these earns the same, whatever the weights.
+
+### One maximum margin step
+
+The expert's feature expectations from the demonstrations are $\mu_E =$ (`{python} ", ".join(f"{x:.2f}" for x in mu_E)`) for (path, grass, mud, gate). A uniformly random walker's are $\mu^{(1)} =$ (`{python} ", ".join(f"{x:.2f}" for x in mm_mus[0])`). With a single constraint, the best unit $\phi$ points along $\mu_E - \mu^{(1)}$, and the margin is its length, `{python} f"{margins[0]:.2f}"`. That first reward is $\phi =$ (`{python} ", ".join(f"{x:.2f}" for x in mm_phis[0])`): mostly "less grass, less mud". It penalizes grass *more* than mud, because the random walker spends much more time on grass than the expert does. Maximum margin weights describe how the expert differs from the policies found so far, not the true reward.
+
+## Interactive
+
+### Design a reward, watch the walker
+
+Set the reward for each terrain type and for reaching the gate. The page solves both parks by value iteration in your browser and draws the intended route from the chosen starting cell on the left edge, together with the true value of the resulting policy (under the true reward).
+
+```{python}
+#| include: false
+def sparse(mdp):
+    """Transitions as [s][a] -> list of [s2, p], for value iteration in the browser."""
+    return [[[[int(s2), round(float(mdp.T[s, a, s2]), 6)] for s2 in np.flatnonzero(mdp.T[s, a])]
+             for a in range(4)] for s in range(N)]
+
+
+write_json({"rows": ROWS, "cols": COLS, "layouts": LAYOUTS, "terrain": TERRAIN, "gamma": G,
+            "trans": {"A": sparse(MDP), "B": sparse(MB)}, "phi_true": PHI_TRUE,
+            "colors": TERRAIN_COLORS,
+            "style": {"blue": blue, "ink": style.INK, "surface": style.SURFACE}}, "data/ch18-park.json")
+```
+
+```{ojs}
+parkData = FileAttachment("data/ch18-park.json").json()
+viewof wPath = Inputs.range([-10, 0], {step: 0.5, value: -1, label: "Path"})
+viewof wGrass = Inputs.range([-10, 0], {step: 0.5, value: -2, label: "Grass"})
+viewof wMud = Inputs.range([-10, 0], {step: 0.5, value: -6, label: "Mud"})
+viewof wGate = Inputs.range([0, 30], {step: 1, value: 10, label: "Gate"})
+viewof startRow = Inputs.range([0, 7], {step: 1, value: 7, label: "Start row (left edge)"})
+```
+
+```{ojs}
+parkSolve = {
+  // Value iteration for reward phi on one layout; returns the greedy policy.
+  const solve = (layout, phi) => {
+    const grid = parkData.layouts[layout], n = parkData.rows * parkData.cols + 1, tr = parkData.trans[layout];
+    const reward = s => s === n - 1 ? 0 : phi[parkData.terrain.indexOf(grid[Math.floor(s / parkData.cols)][s % parkData.cols])];
+    let U = new Array(n).fill(0);
+    for (let it = 0; it < 500; it++)
+      U = U.map((_, s) => Math.max(...tr[s].map(outs => reward(s) + parkData.gamma * d3.sum(outs, ([s2, p]) => p * U[s2]))));
+    return U.map((_, s) => d3.maxIndex(tr[s].map(outs => reward(s) + parkData.gamma * d3.sum(outs, ([s2, p]) => p * U[s2]))));
+  };
+  // True value of a deterministic policy from the chosen start (iterative evaluation, true reward).
+  const trueValue = (layout, pi, start) => {
+    const grid = parkData.layouts[layout], n = parkData.rows * parkData.cols + 1, tr = parkData.trans[layout];
+    const r = s => s === n - 1 ? 0 : parkData.phi_true[parkData.terrain.indexOf(grid[Math.floor(s / parkData.cols)][s % parkData.cols])];
+    let U = new Array(n).fill(0);
+    for (let it = 0; it < 800; it++) U = U.map((_, s) => r(s) + parkData.gamma * d3.sum(tr[s][pi[s]], ([s2, p]) => p * U[s2]));
+    return U[start];
+  };
+  const phi = [wPath, wGrass, wMud, wGate], start = startRow * parkData.cols;
+  return ["A", "B"].map(layout => {
+    const pi = solve(layout, phi), best = solve(layout, parkData.phi_true);
+    return {layout, pi, value: trueValue(layout, pi, start), best: trueValue(layout, best, start)};
+  });
+}
+md`From row ${startRow}: park A **${parkSolve[0].value.toFixed(2)}** (best possible ${parkSolve[0].best.toFixed(2)}), park B **${parkSolve[1].value.toFixed(2)}** (best possible ${parkSolve[1].best.toFixed(2)}), under the true reward.`
+```
+
+```{ojs}
+//| label: fig-reward-designer
+//| fig-cap: "The route the optimal policy for the chosen reward intends to walk (every step going where intended), in both parks (tan: path, green: grass, brown: mud, blue: gate)."
+//| fig-alt: "Interactive pair of 8 by 8 terrain maps, colored tan for path, green for grass, brown for mud and blue for the gate in the top-right corner. A blue line traces the walker's most likely route from the chosen left-edge cell to the gate. Sliders set the reward of each terrain type and the gate. With the default true reward, routes follow paths and avoid mud; making mud cheaper straightens the routes through the mud patches, and making the gate reward small can make the walker wander or stay."
+{
+  const S = 30, pad = 8;
+  const panel = ({layout, pi}) => {
+    const grid = parkData.layouts[layout], mv = [[-1, 0], [0, 1], [1, 0], [0, -1]];
+    // Most likely route: follow the intended move of the greedy action (at most 40 steps).
+    let r = startRow, c = 0; const pts = [[r, c]];
+    for (let k = 0; k < 40 && grid[r][c] !== "X"; k++) {
+      const a = pi[r * parkData.cols + c];
+      const r2 = r + mv[a][0], c2 = c + mv[a][1];
+      if (r2 < 0 || r2 >= parkData.rows || c2 < 0 || c2 >= parkData.cols) break;
+      r = r2; c = c2; pts.push([r, c]);
+    }
+    const cells = grid.flatMap((row, i) => [...row].map((ch, j) =>
+      svg`<rect x="${pad + j * S}" y="${pad + i * S}" width="${S - 1}" height="${S - 1}" fill="${parkData.colors[ch]}"/>`));
+    const line = pts.map(([i, j]) => `${pad + j * S + S / 2},${pad + i * S + S / 2}`).join(" ");
+    return svg`<svg width="${2 * pad + parkData.cols * S}" height="${2 * pad + parkData.rows * S + 18}" style="background:${parkData.style.surface}">
+      ${cells}<polyline points="${line}" fill="none" stroke="${parkData.style.blue}" stroke-width="3"/>
+      <circle cx="${pad + S / 2}" cy="${pad + startRow * S + S / 2}" r="5" fill="${parkData.style.ink}"/>
+      <text x="${pad}" y="${2 * pad + parkData.rows * S + 10}" font-size="12" font-family="Helvetica" fill="${parkData.style.ink}">Park ${layout}</text></svg>`;
+  };
+  return html`<div style="display:flex;flex-wrap:wrap;gap:16px">${parkSolve.map(panel)}</div>`;
+}
+```
+
+The drawn route follows each step's intended direction; the real walker slips 20% of the time, and its policy says what to do after a slip too. The values printed above account for that.
+
+## Algorithms & code
+
+### Cloning and interactive learning
+
+::: {.panel-tabset group="lang"}
+## Python
+```{python}
+#| output: asis
+show_source(im.rollouts, im.behavioral_cloning, im.dagger, im.smile, im.policy_value)
+```
+## Julia
+```{.julia .snippet}
+using ADM, Random, Statistics, LinearAlgebra
+import Distributions
+
+p, β = park("A")
+nS, γ = size(p.R, 1), p.γ
+b = park_left_starts("A")
+stop = nS                                           # the end state
+
+# Exact value of a stochastic policy P[s, a] from start distribution b.
+function value(P)
+    Tπ = [sum(P[s, a] * p.T[s, a, s′] for a in 1:4) for s in 1:nS, s′ in 1:nS]
+    Rπ = [sum(P[s, a] * p.R[s, a] for a in 1:4) for s in 1:nS]
+    return b ⋅ ((I - γ * Tπ) \ Rπ)
+end
+
+# Expert: optimal policy, by value iteration.
+function expert_policy()
+    U = zeros(nS)
+    for _ in 1:2000
+        U = [maximum(p.R[s, a] + γ * (p.T[s, a, :] ⋅ U) for a in 1:4) for s in 1:nS]
+    end
+    return [argmax([p.R[s, a] + γ * (p.T[s, a, :] ⋅ U) for a in 1:4]) for s in 1:nS]
+end
+πE = expert_policy()
+
+# m walks of up to d steps acting with P; record (s, label(s)) — the expert's label.
+function walks(P, m, d, rng; label = s -> πE[s])
+    data = Tuple{Int,Int}[]
+    for _ in 1:m
+        s = rand(rng, Distributions.Categorical(b))
+        for _ in 1:d
+            s == stop && break
+            a = rand(rng, Distributions.Categorical(P[s, :]))
+            push!(data, (s, label(s)))
+            s = rand(rng, Distributions.Categorical(p.T[s, a, :]))
+        end
+    end
+    return data
+end
+
+# Behavioral cloning with a table: action counts per state; uniform where unseen.
+function clone(data)
+    N = zeros(nS, 4)
+    for (s, a) in data
+        N[s, a] += 1
+    end
+    return [sum(N[s, :]) > 0 ? N[s, a] / sum(N[s, :]) : 0.25 for s in 1:nS, a in 1:4]
+end
+
+PE = [πE[s] == a ? 1.0 : 0.0 for s in 1:nS, a in 1:4]
+function dagger_run(seed; rounds = 8, m = 3)
+    rng = MersenneTwister(seed)
+    data = walks(PE, m, 60, rng)
+    values = [value(clone(data))]
+    for _ in 2:rounds
+        append!(data, walks(clone(data), m, 60, rng))   # the learner acts; the expert labels
+        push!(values, value(clone(data)))
+    end
+    return values
+end
+v = mean(dagger_run(seed) for seed in 1:10)
+println("expert ", round(value(PE); digits = 2), "; DAgger by round ", round.(v; digits = 2))
+@assert v[end] > v[1] + 3
+```
+:::
+
+### Inverse reinforcement learning
+
+::: {.panel-tabset group="lang"}
+## Python
+```{python}
+#| output: asis
+show_source(im.feature_expectations, im.demo_feature_expectations, im.max_margin_weights,
+            im.max_margin_irl, im.soft_policy, im.horizon_feature_expectations, im.max_entropy_irl)
+```
+## Julia
+```{.julia .snippet}
+using ADM, Random, Statistics, LinearAlgebra
+import Distributions
+
+p, β = park("A")
+nS, γ = size(p.R, 1), p.γ
+# Demonstrations start from every cell except the gate and the end state.
+gate = findfirst(s -> β[s, 1, 4] == 1, 1:nS)
+b = [s in (gate, nS) ? 0.0 : 1.0 for s in 1:nS]
+b ./= sum(b)
+Rφ(φ) = [β[s, a, :] ⋅ φ for s in 1:nS, a in 1:4]          # linear reward
+
+# One transition matrix per action, so each backup is four matrix-vector products.
+Ta = [p.T[:, a, :] for a in 1:4]
+
+# Soft (maximum entropy) optimal policy: V = log Σₐ exp Q, π(a | s) = exp(Q - V).
+function soft_policy(R; iters = 400)
+    V = zeros(nS)
+    Q = zeros(nS, 4)
+    for _ in 1:iters                                # 0.95^400 ≈ 1e-9: converged
+        Q = R .+ γ .* hcat((Ta[a] * V for a in 1:4)...)
+        m = maximum(Q; dims = 2)
+        V = vec(m .+ log.(sum(exp.(Q .- m); dims = 2)))   # log-sum-exp, shifted for stability
+    end
+    return exp.(Q .- V)
+end
+
+# Expected discounted feature counts over d steps: push the state distribution forward.
+function feature_counts(P, d)
+    dist, μ = copy(b), zeros(4)
+    Tπ = sum(P[:, a] .* Ta[a] for a in 1:4)         # row s weighted by π(a | s)
+    βπ = sum(P[:, a] .* β[:, a, :] for a in 1:4)    # expected features per state, nS × 4
+    for k in 0:d-1
+        μ .+= γ^k .* (βπ' * dist)
+        dist = Tπ' * dist
+    end
+    return μ
+end
+
+# The expert's feature counts: here computed exactly from the true reward's soft-greedy
+# expert (a sharpened soft policy), standing in for many demonstrations.
+μE = feature_counts(soft_policy(20 .* p.R), 80)
+φ = zeros(4)
+for _ in 1:400
+    global φ += 0.05 .* (μE .- feature_counts(soft_policy(Rφ(φ)), 80))   # demos minus model
+end
+println("recovered weights (path, grass, mud, gate): ", round.(φ ./ norm(φ); digits = 2))
+@assert φ[1] > φ[2] > φ[3]                         # path better than grass better than mud
+```
+:::
+
+::: {.callout-note collapse="true" title="Reading the Julia code (for Python programmers)"}
+- **`b ⋅ ((I - γ * Tπ) \ Rπ)`**: `⋅` (typed `\cdot`) is the dot product, and `A \ x` solves a linear system like `np.linalg.solve(A, x)`.
+- **`[... for s in 1:nS, a in 1:4]`** with two loops builds a matrix directly: rows by `s`, columns by `a`.
+- **`global φ += ...`** is needed to update a top-level variable inside a top-level loop.
+- **`s in (gate, nS) ? 0.0 : 1.0`** tests membership in a tuple.
+- **`Tπ' * dist`** pushes the distribution forward one step: `'` transposes, so this is `dist @ T_pi` in NumPy.
+- **`exp.(Q .- V)`** broadcasts: `V` is a vector, so it is subtracted from every column of `Q`, row by row.
+:::
+
+### Run them
+
+```{python}
+#| echo: true
+mdp, beta = park("A")
+starts = left_edge_starts("A")
+expert, _, _ = policy_iteration(mdp.T, mdp.R, mdp.gamma, np.zeros(len(mdp.R), int))
+rng = np.random.default_rng(1)
+demos = im.rollouts(mdp.T, im.greedy_probs(expert, 4), starts, 3, 60, rng, end=len(mdp.R) - 1)
+policies = im.dagger(mdp.T, expert, starts, demos, 8, 3, 60, rng, end=len(mdp.R) - 1)
+```
+
+```{python}
+print("DAgger, value by round:", " ".join(f"{im.policy_value(mdp.T, mdp.R, mdp.gamma, P, starts):.2f}"
+                                          for P in policies), f"(expert {V_EXPERT:.2f})")
+```
+
+### Results
+
+#### The parks and the expert
+
+```{python}
+#| label: fig-parks
+#| fig-cap: "The two park layouts and the expert's policy in each (arrows: the intended move; walkers enter from the left edge). Park A provides the demonstrations; park B tests whether what was learned transfers."
+#| fig-alt: "Two 8 by 8 terrain maps side by side, with cells colored tan for path, green for grass, brown for mud and blue for the gate in the top-right corner, and an arrow in each cell for the expert's move. In park A, a path runs along the bottom row and up a column in the middle to a path along the top toward the gate; arrows steer around two mud patches. In park B, the paths run through different places, and the arrows again favor paths and avoid mud."
+fig, axes = plt.subplots(1, 2, figsize=(10, 4.8))
+arrow = {0: (0, 0.3), 1: (0.3, 0), 2: (0, -0.3), 3: (-0.3, 0)}          # N, E, S, W as (dx, dy)
+for ax, layout, pi in ((axes[0], "A", PI_E), (axes[1], "B", PI_B)):
+    grid = LAYOUTS[layout]
+    for r in range(ROWS):
+        for c in range(COLS):
+            y = ROWS - 1 - r                                               # row 0 at the top
+            ax.add_patch(Rectangle((c, y), 1, 1, color=TERRAIN_COLORS[grid[r][c]], ec="white", lw=1))
+            if grid[r][c] != "X":
+                dx, dy = arrow[pi[r * COLS + c]]
+                ax.annotate("", xy=(c + 0.5 + dx, y + 0.5 + dy), xytext=(c + 0.5 - dx, y + 0.5 - dy),
+                            arrowprops={"arrowstyle": "-|>", "color": style.INK, "lw": 1.1, "mutation_scale": 9})
+    ax.set(xlim=(0, COLS), ylim=(0, ROWS), aspect="equal", xticks=[], yticks=[], title=f"Park {layout}")
+    ax.grid(False)
+fig.legend(handles=[Patch(color=TERRAIN_COLORS[k], label=TERRAIN_NAMES[k]) for k in "PGMX"],
+           loc="lower center", ncol=4, frameon=False, fontsize=9)
+fig.tight_layout(rect=(0, 0.06, 1, 1))
+plt.show()
+```
+
+#### Behavioral cloning needs coverage
+
+```{python}
+#| label: fig-bc
+#| fig-cap: "Behavioral cloning in park A against the number of demonstrated walks (20 trials each): the cloned policy's exact value from the left edge (left), and the number of cells where the expert's choice was seen (right)."
+#| fig-alt: "Two line charts with the number of demonstrations from 1 to 100 on a log scale across. Left: the cloned policy's value rises from about minus 28 with 1 walk to about minus 9.5 with 100, approaching the dotted expert line near minus 9.3 and far above the dashed random-walker line near minus 45. Right: the cells covered rise from about 13 with 1 walk to about 44 of 63 with 100."
+fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(10, 3.3))
+ax1.plot(M_DEMOS, [bc_mean[m][0] for m in M_DEMOS], "o-", color=blue, label="cloned policy")
+ax1.axhline(V_EXPERT, color=style.INK, ls=":", lw=1, label="expert")
+ax1.axhline(V_UNIFORM, color=style.MUTED, ls="--", lw=1, label="random walker")
+ax1.set(xscale="log", xlabel="demonstrated walks", ylabel="value from the left edge")
+ax1.legend(fontsize=8)
+ax2.plot(M_DEMOS, [bc_mean[m][1] for m in M_DEMOS], "o-", color=orange)
+ax2.axhline(N_CELLS, color=style.INK, ls=":", lw=1)
+ax2.set(xscale="log", xlabel="demonstrated walks", ylabel="cells with expert data", ylim=(0, N_CELLS + 3))
+for ax in (ax1, ax2):
+    ax.set_xticks(M_DEMOS, [str(m) for m in M_DEMOS])
+fig.tight_layout()
+plt.show()
+```
+
+Even with 100 walks, the expert's choice is known in only `{python} f"{bc_mean[100][1]:.0f}"` of `{python} N_CELLS` cells: the expert simply never goes to some parts of the park. The clone survives that because the expert's routes, and slips from them, rarely reach those cells either.
+
+#### Asking the expert: DAgger and SMILe
+
+```{python}
+#| label: fig-dagger
+#| fig-cap: "Value from the left edge by round: DAgger (starting from 3 demonstrated walks, adding 3 expert-labeled walks of the learner per round; 20 trials) and SMILe (mixing rate β = 0.2, with 3, 10 or 30 labeled walks per round; 10 trials; the SMILe curves are the mixtures, which still include the expert)."
+#| fig-alt: "Line chart with rounds 1 to 10 across and value from the left edge up the side, with a dotted expert line near minus 9.3. DAgger starts near minus 19 and rises steadily to about minus 10 by round 8. SMILe with 30 walks per round stays near minus 9.5 to minus 10 throughout. SMILe with 10 walks per round declines slowly from about minus 10 to about minus 11.5. SMILe with 3 walks per round declines from about minus 10.2 to about minus 16."
+fig, ax = plt.subplots(figsize=(7.4, 3.8))
+ax.plot(np.arange(1, K_DAGGER + 1), dag_mean, "o-", color=blue, lw=2, label="DAgger (3 walks per round)")
+for m, color in zip(SMILE_M, (red, yellow, green)):
+    ax.plot(np.arange(1, K_SMILE + 1), smile_curves[m], "o-", ms=3, color=color, label=f"SMILe, {m} walks per round")
+ax.axhline(V_EXPERT, color=style.INK, ls=":", lw=1, label="expert")
+ax.set(xlabel="round", ylabel="value from the left edge")
+ax.legend(fontsize=8, loc="lower left")
+plt.show()
+```
+
+- **DAgger** needs little data because it aggregates: every labeled walk ever collected trains every later policy.
+- **SMILe** trains each component only on its own round's walks. With a table, which can't generalize, a component trained on 3 walks acts at random in most cells. As the expert's weight decays, those random components take over: after `{python} K_SMILE` rounds the mixture without the expert is worth `{python} f"{smile_final[3]:.2f}"` with 3 walks per round, `{python} f"{smile_final[10]:.2f}"` with 10, and `{python} f"{smile_final[30]:.2f}"` with 30.
+- **SMILe's design** assumes a policy class that generalizes from each round's data, like the feature-based policies in the book's mountain car example, and it trades data efficiency for gradual, stable changes to the policy.
+
+#### Inverse reinforcement learning
+
+```{python}
+#| label: fig-irl
+#| fig-cap: "Left: maximum margin IRL's margin by iteration, from 30 demonstrated walks from the left edge. Right: reward weights for path, grass, mud and the gate, scaled to unit length: the true reward, and maximum entropy IRL's estimates (averaged over 10 trials) from 30 walks starting at the left edge or at every cell."
+#| fig-alt: "Left: a line chart of the margin on a log scale, starting near 7 at iteration 1, dropping to about 0.6 by iteration 4 and 0.2 by iteration 9, then level. Right: grouped bars for path, grass, mud and gate. True weights: path about minus 0.08, grass minus 0.17, mud minus 0.51, gate plus 0.84. Every-cell estimates: path minus 0.28, grass minus 0.52, mud minus 0.79, gate plus 0.08. Left-edge estimates, averaged: path minus 0.25, grass minus 0.61, mud minus 0.73, gate plus 0.08. Both averages have the true ordering of the terrains, and both put far less weight on the gate than the true reward."
+fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(10.5, 3.4), gridspec_kw={"width_ratios": [1, 1.3]})
+ax1.plot(np.arange(1, len(margins) + 1), margins, "o-", color=blue)
+ax1.set(yscale="log", xlabel="iteration", ylabel="margin t")
+ax1.set_yticks([0.2, 0.5, 1, 2, 5], ["0.2", "0.5", "1", "2", "5"])       # plain numbers, not 10^x
+ax1.minorticks_off()
+labels = ["path", "grass", "mud", "gate"]
+x = np.arange(4)
+bars = [("true reward", PHI_TRUE / np.linalg.norm(PHI_TRUE), style.INK),
+        ("max entropy, every cell", me["every cell"]["phi"], green),
+        ("max entropy, left edge", me["left edge"]["phi"], orange)]
+for k, (name, w, color) in enumerate(bars):
+    ax2.bar(x + (k - 1) * 0.26, w, width=0.24, color=color, label=name)
+ax2.axhline(0, color=style.AXIS, lw=0.8)
+ax2.set_xticks(x, labels)
+ax2.set(ylabel="weight (unit length)")
+ax2.legend(fontsize=8)
+fig.tight_layout()
+plt.show()
+```
+
+- **Maximum margin** needed `{python} len(mm_policies) - 1` new policies. Its margin levels off near `{python} f"{margins[-1]:.2f}"` rather than reaching 0: the expert's feature expectations are estimated from 30 walks, and no policy matches that noisy estimate exactly. The final mixture uses `{python} n_used` of the policies and is worth `{python} f"{V_MM:.2f}"`, against the expert's `{python} f"{V_EXPERT:.2f}"`.
+- **Maximum entropy** from walks starting at every cell recovers the right ordering of the terrains (`{python} f"{me['every cell']['ranked']:.0%}"` of trials), and planning with its reward in park A is worth `{python} f"{me['every cell']['value_a']:.2f}"`.
+- **From the left edge only,** the walks rarely go near mud, so the data barely distinguish grass from mud. The average weights (orange) have the right order, but individual trials ranked the terrains correctly in only `{python} f"{me['left edge']['ranked']:.0%}"` of cases.
+- **Both put little weight on the gate,** far less than the true reward. Every step off the gate costs something, so ending the walk is already valuable, and the demonstrations can't separate "the gate is great" from "walking is costly". Rewards are identified only up to such trade-offs, which matter less than the terrain ranking for choosing routes. The planned policy is still decent in park A (`{python} f"{me['left edge']['value_a']:.2f}"`), where the demonstrations' routes decide most things. The difference shows up when the reward is used somewhere new.
+
+#### Transfer to a new park
+
+```{python}
+#| label: fig-transfer
+#| fig-cap: "Values in park B (from its left edge) of an expert who knows the true reward, of planning with rewards learned by maximum entropy IRL in park A (10 trials each), of the policy cloned in park A (applied to the same cell numbers), and of a random walker."
+#| fig-alt: "Horizontal bar chart of values, all negative, with bars running left from zero. Expert in park B about minus 12.1; planning with the reward learned from every-cell walks about minus 12.8; planning with the reward learned from left-edge walks about minus 13.9; the policy cloned in park A about minus 22.3; random walker about minus 46."
+entries = [("expert in park B", V_EXPERT_B, style.INK),
+           ("IRL reward (walks from every cell)", me["every cell"]["value_b"], green),
+           ("IRL reward (walks from the left edge)", me["left edge"]["value_b"], orange),
+           ("policy cloned in park A", bc_on_b, purple),
+           ("random walker", uniform_b, style.MUTED)]
+fig, ax = plt.subplots(figsize=(7.4, 2.8))
+ax.barh([e[0] for e in entries][::-1], [e[1] for e in entries][::-1], color=[e[2] for e in entries][::-1], height=0.6)
+for k, (_, v, _) in enumerate(entries[::-1]):
+    # Bars run left from 0 to a negative value, so a label just inside the bar's end sits at v + 0.5.
+    ax.text(v + 0.5, k, f"{v:.2f}", va="center", ha="left", fontsize=8, color="white")
+ax.set(xlabel="value in park B (higher is better)")
+plt.show()
+```
+
+The learned reward is three numbers about terrain plus one about the gate, so it means the same thing in any park. Planned with in park B, the reward learned from walks starting at every cell was worth `{python} f"{me['every cell']['value_b']:.2f}"` on average, close to the expert's `{python} f"{V_EXPERT_B:.2f}"`. The reward learned from left-edge walks, which sometimes ranks grass and mud the wrong way round, was worth `{python} f"{me['left edge']['value_b']:.2f}"`. The cloned policy is a table about park A's cells; in park B it scored `{python} f"{bc_on_b:.2f}"`, only better than random because both parks have their gate in the same corner.
+
+## Solved problems
+
+**Problem 1: cloning from counts.** In one state the expert chose left 6 times, straight 3 times and right once. What does behavioral cloning with a table predict? If the clone always takes its most likely action instead, what fraction of the expert's behavior in that state does it reproduce?
+
+::: {.callout-tip collapse="true" title="Solution"}
+$\pi(\text{left}) = 0.6$, $\pi(\text{straight}) = 0.3$, $\pi(\text{right}) = 0.1$. Always taking left matches the expert's action 60% of the time, if the expert's choices there are random. If the expert's choices depend on something the state description leaves out (for example, traffic behind), no policy of this state can do better. Cloning can only be as good as the state representation.
+:::
+
+**Problem 2: quadratic versus linear.** A clone makes a mistake with probability 0.01 per step in states the expert visits, and after a mistake it never recovers (every later step is costly). Over a 100-step episode, roughly how many costly steps does it incur? How does DAgger's guarantee compare?
+
+::: {.callout-tip collapse="true" title="Solution"}
+The first mistake happens at step $k$ with probability about $0.01$ each step, and then costs $100 - k$ steps. The expected cost is about $\sum_{k=1}^{100} 0.01(100 - k) \approx 0.01 \times 4950 \approx 50$ steps: of order $\epsilon h^2/2$. DAgger trains on the learner's own states, so its error per step stays about $\epsilon$ everywhere, giving about $\epsilon h = 1$ costly step. The quadratic-versus-linear gap grows with the horizon.
+:::
+
+**Problem 3: a margin by hand.** Two features. The expert's feature expectations are $\mu_E = (3, 1)$, and the only policy so far has $\mu^{(1)} = (1, 2)$. Find the maximum margin weights and the margin.
+
+::: {.callout-tip collapse="true" title="Solution"}
+With one constraint, $\phi^\top(\mu_E - \mu^{(1)}) \ge t$, and $\|\phi\| \le 1$, the best $\phi$ points along $\mu_E - \mu^{(1)} = (2, -1)$, so $\phi = (2, -1)/\sqrt5 \approx (0.894, -0.447)$. The margin is $t = \|(2, -1)\| = \sqrt 5 \approx 2.24$. The reward says "the first feature is good, the second bad". The next step finds the optimal policy for it and adds its feature expectations as a new constraint.
+:::
+
+**Problem 4: the maximum entropy gradient.** Demonstrations average the discounted feature counts (4, 1, 0.5). Under the current reward, the maximum entropy model expects (3, 2, 0.5). Which way does gradient ascent move each weight?
+
+::: {.callout-tip collapse="true" title="Solution"}
+The gradient is demonstrations minus model: $(1, -1, 0)$. The first weight rises: the expert collects more of feature 1 than the model predicts, so feature 1 must be more rewarding. The second falls, and the third stays put because it is already matched. Ascent stops when the counts match, which is @eq-features's condition.
+:::
+
+**Problem 5: why transfer needs identifiable rewards.** In park A, walks from the left edge rarely pass near mud. Why does the learned reward then transfer less well to park B, even though the policy it gives in park A is fine?
+
+::: {.callout-tip collapse="true" title="Solution"}
+If the demonstrations never face a choice involving mud, any mud weight that keeps mud unattractive enough fits the data equally well. The data don't pin down how bad mud is compared with grass. In park A that doesn't matter, because the routes avoid both anyway. In park B, a route that must choose between mud and grass depends on exactly that comparison, and the learned reward can choose wrong. Demonstrations must *exercise* the features whose weights will matter later. Starting walks from every cell did that here.
+:::
+
+## Recap
+
+1. **Behavioral cloning is supervised learning of the expert's actions (@eq-bc).**
+   *Why it matters:* it is often the first thing to try and needs no environment model or reward. But it learns only where the expert went. With 3 walks, the clone was worth `{python} f"{bc_mean[3][0]:.2f}"` against the expert's `{python} f"{V_EXPERT:.2f}"`.
+2. **Errors cascade because the learner's states differ from the expert's; interactive methods fix the data (@eq-dagger, @eq-smile).**
+   *Why it matters:* DAgger's labels on the learner's own states brought it to `{python} f"{dag_mean[-1]:.2f}"`. It is the principle behind training driving policies with corrective demonstrations.
+3. **A linear reward sees a policy only through its feature expectations (@eq-features).**
+   *Why it matters:* matching the expert's feature expectations guarantees matching its return under every linear reward, including the true one. That is the basis of maximum margin IRL (@eq-max-margin).
+4. **Maximum entropy IRL finds the reward under which the demonstrations are most likely (@eq-maxent).**
+   *Why it matters:* it resolves the ambiguity of many rewards fitting the same behavior, and handles noisy, suboptimal demonstrations gracefully. It underlies much of modern reward learning.
+5. **A reward transfers; a copied policy doesn't, but only if the demonstrations exercise the features.**
+   *Why it matters:* planning with the reward learned in park A was worth `{python} f"{me['every cell']['value_b']:.2f}"` in park B, against `{python} f"{V_EXPERT_B:.2f}"` for the expert. Learning *why* generalizes further than learning *what*.
+
+## Cheat sheet & connections
+
+| Name | Formula | Ref |
+|---|---|---|
+| Behavioral cloning | $\max_\theta \sum_{(s, a) \in \mathcal{D}} \log\pi_\theta(a \mid s)$ | @eq-bc |
+| DAgger | add $(s, \pi_E(s))$ for states the learner visits; retrain on all data | @eq-dagger |
+| SMILe mixture | $(1 - \beta)^k\pi_E + \sum_{i \le k}\beta(1 - \beta)^{i-1}\hat\pi^{(i)}$ | @eq-smile |
+| ★ Feature expectations | $\mathbb{E}[U] = \phi^\top\mu_\pi$, $\mu_\pi = \mathbb{E}[\sum_k \gamma^{k-1}\beta(s^{(k)}, a^{(k)})]$ | @eq-features |
+| Maximum margin weights | $\max t$ s.t. $\phi^\top\mu_E \ge \phi^\top\mu^{(i)} + t$, $\|\phi\| \le 1$ | @eq-max-margin |
+| ★ Maximum entropy IRL | $P_\phi(\tau) \propto \exp R_\phi(\tau)$; gradient = demo counts − expected counts | @eq-maxent |
+| GAIL | $\min_\theta\max_\phi \mathbb{E}_{\pi_\theta}[\log C_\phi] + \mathbb{E}_{\mathcal{D}}[\log(1 - C_\phi)]$ | @eq-gail |
+
+: Key equations from this page (★ = well-known by name). {#tbl-cheatsheet}
+
+**Common pitfalls**
+
+- **Evaluating a clone on the expert's states.** Its accuracy there says little about how it behaves once its own mistakes take it elsewhere; evaluate by running it.
+- **A state description that hides what the expert sees.** If the expert reacts to information the learner doesn't observe, the best clone is only a blurred average.
+- **Demonstrations that don't exercise the features.** Inverse RL can't learn weights for situations the expert never faced; the result may look fine where the demos were and fail elsewhere.
+- **Reading maximum margin weights as the true reward.** They are a device for finding a matching policy mixture, and may look nothing like the real reward.
+- **Assuming the expert is optimal.** Real demonstrations are noisy; maximum entropy IRL tolerates that better than methods that assume perfect optimality.
+
+**Connections**
+
+- [Ch 4 · Parameter Learning](../part1/ch04-parameter-learning.qmd): maximum likelihood, the basis of behavioral cloning and maximum entropy IRL.
+- [Ch 17 · Model-Free Methods](ch17-model-free-methods.qmd): designing rewards is hard; the shaping bonus that backfired there is the motivation here.
+- [Ch 11 · Policy Gradient Estimation](../part2/ch11-policy-gradient-estimation.qmd) and [Ch 12](../part2/ch12-policy-gradient-optimization.qmd): the policy optimizers GAIL uses.
+- [Ch 7 · Exact Solution Methods](../part2/ch07-exact-solution-methods.qmd): planning with a learned reward, and exact policy evaluation.
+- [Ch 19 · Beliefs](../part4/ch19-beliefs.qmd): Part IV begins, with uncertainty about the state itself.

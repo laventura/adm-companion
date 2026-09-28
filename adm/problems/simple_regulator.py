@@ -39,6 +39,48 @@ def rollout_returns(theta, m: int, rng, d: int = HORIZON):
     return ret
 
 
+def sample_trajectories(theta, m: int, rng, d: int = HORIZON):
+    """m episodes of d steps under the Gaussian policy, as arrays of shape
+    (m, d): states, actions and rewards (row i is episode i, column k is
+    step k + 1)."""
+    s = START_MEAN + START_SD * rng.standard_normal(m)
+    S, A, R = np.zeros((m, d)), np.zeros((m, d)), np.zeros((m, d))
+    for k in range(d):
+        a = gaussian_policy(theta, s, rng)
+        S[:, k], A[:, k] = s, a
+        s, R[:, k] = step(s, a, rng)
+    return S, A, R
+
+
+def grad_log_policy(theta, s, a):
+    """Gradient of log N(a | theta_1 s, sd^2) with sd = |theta_2| + 1e-5,
+    for arrays s and a of the same shape. Returns shape s.shape + (2,):
+      d/d theta_1 = (a - theta_1 s) s / sd^2
+      d/d theta_2 = ((a - theta_1 s)^2 - sd^2) / sd^3 * sign(theta_2)"""
+    sd = abs(theta[1]) + 1e-5
+    z = a - theta[0] * s                     # deviation from the mean action
+    g1 = z * s / sd**2
+    g2 = (z**2 - sd**2) / sd**3 * np.sign(theta[1])
+    return np.stack([g1, g2], axis=-1)
+
+
+def exact_gradient(theta, d: int = HORIZON) -> np.ndarray:
+    """Gradient of exact_value, by differentiating its recursion:
+    ms' = gain^2 ms + noise_var, so
+    d ms'/d theta_1 = 2 gain ms + gain^2 d ms/d theta_1,
+    d ms'/d theta_2 = gain^2 d ms/d theta_2 + 2 sd sign(theta_2)."""
+    gain, sd = 1 + theta[0], abs(theta[1]) + 1e-5
+    noise_var = sd**2 + NOISE_SD**2
+    ms, dms = START_MEAN**2 + START_SD**2, np.zeros(2)
+    grad = np.zeros(2)
+    for t in range(d):
+        grad -= GAMMA**t * dms              # U = -sum_t gamma^t E[s_t^2]
+        dms = np.array([2 * gain * ms + gain**2 * dms[0],
+                        gain**2 * dms[1] + 2 * sd * np.sign(theta[1])])
+        ms = gain**2 * ms + noise_var
+    return grad
+
+
 def exact_value(theta, d: int = HORIZON) -> float:
     """U(theta) without sampling. With a linear Gaussian policy the next
     state is (1 + theta_1) s plus Gaussian noise of variance

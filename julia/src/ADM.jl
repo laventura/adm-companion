@@ -25,7 +25,7 @@ export BayesNet, binary_cpt, probability, commute_network, COMMUTE_TIMES_MEAN, C
 export commute_decision_network, COMMUTE_ACTIONS, COMMUTE_UTILITY
 export coffee_network, COFFEE_CLASSES, COFFEE_PRIOR, COFFEE_P_SYMPTOM
 export mountain_car_step, mountain_car_goal, MOUNTAIN_CAR_X, MOUNTAIN_CAR_V, MOUNTAIN_CAR_ACTIONS
-export regulator_step, regulator_policy, regulator_exact_value
+export regulator_step, regulator_policy, regulator_exact_value, regulator_exact_gradient
 export REGULATOR_NOISE_SD, REGULATOR_START, REGULATOR_γ, REGULATOR_HORIZON
 
 """

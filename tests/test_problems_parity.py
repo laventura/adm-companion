@@ -38,6 +38,7 @@ print(JSON.json(Dict(
         path
     end,
     "regulator_exact" => [regulator_exact_value(θ) for θ in ([0.0, 1.0], [-0.5, 0.3], [-1.0, 0.0])],
+    "regulator_gradient" => [regulator_exact_gradient(θ) for θ in ([0.0, 1.0], [-0.5, 0.3], [-1.0, 0.2])],
 )))
 """
 
@@ -79,6 +80,9 @@ def test_regulator_exact_values_match(julia_problems):
     thetas = ([0.0, 1.0], [-0.5, 0.3], [-1.0, 0.0])
     ours = [simple_regulator.exact_value(t) for t in thetas]
     assert np.allclose(julia_problems["regulator_exact"], ours, rtol=1e-12)
+    grads = [simple_regulator.exact_gradient(np.array(t))
+             for t in ([0.0, 1.0], [-0.5, 0.3], [-1.0, 0.2])]
+    assert np.allclose(julia_problems["regulator_gradient"], grads, rtol=1e-12)
 
 
 def test_commute_times_match(julia_problems):

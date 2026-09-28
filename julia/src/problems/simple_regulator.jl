@@ -12,6 +12,19 @@ regulator_step(s, a, rng) = (s + a + REGULATOR_NOISE_SD * randn(rng), -s^2)
 regulator_policy(θ, s, rng) = θ[1] * s + (abs(θ[2]) + 1e-5) * randn(rng)
 
 # U(θ) without sampling: E[s²] follows (1 + θ₁)² E[s²] + θ₂² + 0.1² from step to step.
+# ∇U(θ) by differentiating the same recursion (checked against Python in the parity test).
+function regulator_exact_gradient(θ; d = REGULATOR_HORIZON)
+    gain, sd = 1 + θ[1], abs(θ[2]) + 1e-5
+    noise_var = sd^2 + REGULATOR_NOISE_SD^2
+    ms, dms, grad = REGULATOR_START[1]^2 + REGULATOR_START[2]^2, zeros(2), zeros(2)
+    for t in 1:d
+        grad .-= REGULATOR_γ^(t - 1) .* dms
+        dms = [2gain * ms + gain^2 * dms[1], gain^2 * dms[2] + 2sd * sign(θ[2])]
+        ms = gain^2 * ms + noise_var
+    end
+    return grad
+end
+
 function regulator_exact_value(θ; d = REGULATOR_HORIZON)
     gain, noise_var = 1 + θ[1], (abs(θ[2]) + 1e-5)^2 + REGULATOR_NOISE_SD^2
     ms, u = REGULATOR_START[1]^2 + REGULATOR_START[2]^2, 0.0

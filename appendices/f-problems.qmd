@@ -259,7 +259,7 @@ using ADM
 ```
 :::
 
-**Where it's used.** [Ch 10](../part2/ch10-policy-search.qmd): every policy search method is scored by the exact value of the policy it finds.
+**Where it's used.** [Ch 10](../part2/ch10-policy-search.qmd): every policy search method is scored by the exact value of the policy it finds. [Ch 11](../part2/ch11-policy-gradient-estimation.qmd): the exact gradient (`exact_gradient`, from differentiating the same recursion) scores every gradient estimator's bias and variance.
 
 ## Problems made for this site
 

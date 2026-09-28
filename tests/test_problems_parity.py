@@ -8,7 +8,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from adm.problems import mountain_car
+from adm.problems import mountain_car, simple_regulator
 from adm.problems.coffee import COFFEE
 from adm.problems.commute import (
     COMMUTE, COMMUTE_DECISION, COMMUTE_TIMES_COV, COMMUTE_TIMES_MEAN, COMMUTE_UTILITY,
@@ -37,6 +37,7 @@ print(JSON.json(Dict(
         end
         path
     end,
+    "regulator_exact" => [regulator_exact_value(θ) for θ in ([0.0, 1.0], [-0.5, 0.3], [-1.0, 0.0])],
 )))
 """
 
@@ -72,6 +73,12 @@ def test_mountain_car_matches(julia_problems):
         s = mountain_car.step(s, (-1, 0, 1)[(t // 20 - 1) % 3])
         path.extend(s)
     assert np.allclose(julia_problems["mountain_car"], path, rtol=0, atol=1e-12)
+
+
+def test_regulator_exact_values_match(julia_problems):
+    thetas = ([0.0, 1.0], [-0.5, 0.3], [-1.0, 0.0])
+    ours = [simple_regulator.exact_value(t) for t in thetas]
+    assert np.allclose(julia_problems["regulator_exact"], ours, rtol=1e-12)
 
 
 def test_commute_times_match(julia_problems):

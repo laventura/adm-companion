@@ -65,7 +65,7 @@ This page collects every problem used on the site, implemented in both Python (`
 | F.2 2048 | MDP, discrete (huge) | added when first used |
 | F.3 Cart-Pole | MDP, continuous state | added when first used |
 | F.4 Mountain Car | MDP, continuous state | ✅ [below](#mountain-car) |
-| F.5 Simple Regulator | MDP, linear-quadratic | added when first used |
+| F.5 Simple Regulator | MDP, linear-quadratic | ✅ [below](#simple-regulator) |
 | F.6 Aircraft Collision Avoidance | MDP, discrete | added when first used |
 | F.7 Crying Baby | POMDP | added when first used |
 | F.8 Machine Replacement | POMDP | added when first used |
@@ -226,7 +226,40 @@ s = mountain_car_step([-0.5, 0.0], 1)          # s = [x, v]
 ```
 :::
 
-**Where it's used.** [Ch 8](../part2/ch08-approximate-value-functions.qmd): approximate value iteration with seven kinds of value function approximation. From rest at $x = -0.5$, a policy from a fine 201 × 201 grid takes 106 steps: right, then left, then right. [Ch 9](../part2/ch09-online-planning.qmd): receding-horizon forward search, with and without Ch 8's value function beyond the horizon.
+**Where it's used.** [Ch 8](../part2/ch08-approximate-value-functions.qmd): approximate value iteration with seven kinds of value function approximation. From rest at $x = -0.5$, a policy from a fine 201 × 201 grid takes 106 steps: right, then left, then right. [Ch 9](../part2/ch09-online-planning.qmd): receding-horizon forward search, with and without Ch 8's value function beyond the horizon. [Ch 10](../part2/ch10-policy-search.qmd): policy search over the two-parameter rule "accelerate right if $v + \theta_1 x + \theta_2 > 0$" (`switching_rule`), scored from ten standard starts at rest (`STANDARD_STARTS`).
+
+## Simple regulator {#simple-regulator}
+
+**The story.** Keep a single number $s$ close to zero. Each step you choose an amount $a$ to add to it, and the world adds a little noise of its own. It is the smallest possible *linear-quadratic* control problem, and small enough that the value of any linear policy can be written down exactly. That makes it a clean benchmark for policy search: every method's answer can be scored without simulation noise.
+
+| Part | Definition |
+|---|---|
+| State and action | real numbers $s$ and $a$ |
+| Transition | $s' \sim \mathcal{N}(s + a,\ 0.1^2)$ |
+| Reward | $R(s, a) = -s^2$ (the action is free) |
+| Start | $s \sim \mathcal{N}(0.3,\ 0.1^2)$ |
+| Discount, horizon | $\gamma = 0.9$ and 10 steps on this site |
+| Policy family used | $a \sim \mathcal{N}(\theta_1 s,\ \theta_2^2)$; best: $\theta = (-1, 0)$ |
+
+: The simple regulator. With a linear Gaussian policy, E[s²] evolves as (1 + θ₁)² E[s²] + θ₂² + 0.1², which gives the exact value. {#tbl-regulator}
+
+::: {.panel-tabset group="lang"}
+## Python
+```{python}
+#| echo: true
+from adm.problems import simple_regulator as sr
+rng = np.random.default_rng(0)
+estimate = sr.rollout_returns(np.array([-1.0, 0.0]), 1000, rng).mean()   # Monte Carlo
+exact = sr.exact_value([-1.0, 0.0])                                     # no sampling
+```
+## Julia
+```{.julia .snippet}
+using ADM
+@assert regulator_exact_value([-1.0, 0.0]) ≈ -(0.1 + 0.01 * sum(0.9^t for t in 1:9))
+```
+:::
+
+**Where it's used.** [Ch 10](../part2/ch10-policy-search.qmd): every policy search method is scored by the exact value of the policy it finds.
 
 ## Problems made for this site
 

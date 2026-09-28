@@ -1,8 +1,952 @@
 ---
 title: "17 · Model-Free Methods"
 subtitle: "Part III — Model Uncertainty"
+jupyter: python3
+execute:
+  echo: false
 ---
 
 ::: {.callout-note appearance="minimal"}
-**In progress.** This page will cover ADM Ch. 17, *Model-Free Methods*.
+**Executed in:** Python · **Book:** ADM Ch. 17 · **Lecture:** to be added
 :::
+<!-- TODO(video): link the official Stanford AA228 lecture on model-free reinforcement learning. -->
+
+```{python}
+#| include: false
+import numpy as np
+import matplotlib.pyplot as plt
+from IPython.display import Markdown
+from matplotlib.patches import Rectangle
+
+from adm import model_free as mf
+from adm import style
+from adm.io import write_json
+from adm.mdp import policy_evaluation_exact, policy_iteration
+from adm.page import show_source
+from adm.problems import DiscreteMDP
+from adm.problems import mountain_car as mc
+from adm.problems.hex_world import STANDARD_REWARDS, STANDARD_TILES, hex_world
+from adm.problems.trail import trail
+from adm.value_approx import fourier_basis
+
+style.apply()
+blue, orange, green, yellow, pink, dkgreen, purple, red = style.CATEGORICAL
+
+# --- Incremental estimation of a mean: waiting times with mean 8 minutes ---------------------
+MEAN_WAIT = 8.0
+SCHEDULES = [("α = 1/m (sample mean)", lambda m: 1 / m, style.INK),
+             ("α = 1/m^0.6", lambda m: m**-0.6, blue),
+             ("α = 1/m^1.5 (decays too fast)", lambda m: m**-1.5, red),
+             ("α = 0.05 (constant)", lambda m: 0.05, green),
+             ("α = 0.3 (constant)", lambda m: 0.3, orange)]
+N_SAMPLES, N_STREAMS = 300, 500
+streams = np.random.default_rng(0).exponential(MEAN_WAIT, (N_STREAMS, N_SAMPLES))
+inc = {name: np.array([mf.incremental_mean(x, alpha) for x in streams]) for name, alpha, _ in SCHEDULES}
+inc_rms = {name: np.sqrt(((e - MEAN_WAIT) ** 2).mean(axis=0)) for name, e in inc.items()}
+
+# --- Hex World: Q-learning, Sarsa, Sarsa(lambda) ---------------------------------------------
+HEX = hex_world()
+S_HEX = len(HEX.R)
+TERM = S_HEX - 1
+DEC = [i for i, t in enumerate(STANDARD_TILES) if t not in STANDARD_REWARDS]
+_, U_HEX, _ = policy_iteration(HEX.T, HEX.R, HEX.gamma, np.zeros(S_HEX, int))
+OPT_HEX = float(U_HEX[DEC].mean())
+hex_reset = lambda s, rng: rng.choice(DEC) if s == TERM else None           # noqa: E731
+HEX_CK = np.unique(np.round(np.geomspace(100, 30_000, 16)).astype(int))
+HEX_LEARNERS = [("Q-learning", lambda: mf.QLearning(S_HEX, 6, HEX.gamma, 0.1), orange),
+                ("Sarsa", lambda: mf.Sarsa(S_HEX, 6, HEX.gamma, 0.1), blue),
+                ("Sarsa(λ), λ = 0.5", lambda: mf.SarsaLambda(S_HEX, 6, HEX.gamma, 0.1, 0.5), green),
+                ("Sarsa(λ), λ = 0.9", lambda: mf.SarsaLambda(S_HEX, 6, HEX.gamma, 0.1, 0.9), purple)]
+
+
+def hex_curve(make, seed):
+    """True value (average over decision tiles) of the greedy policy at each checkpoint."""
+    out = []
+    record = lambda t, L: out.append(float(policy_evaluation_exact(              # noqa: E731
+        HEX.T, HEX.R, HEX.gamma, L.Q.argmax(axis=1))[DEC].mean())) if t + 1 in HEX_CK else None
+    mf.run_tabular(HEX, make(), int(HEX_CK[-1]), DEC[0], np.random.default_rng(seed), 0.1, hex_reset,
+                   on_step=record)
+    return out
+
+
+hex_curves = {name: np.mean([hex_curve(make, s) for s in range(10)], axis=0) for name, make, _ in HEX_LEARNERS}
+k1000 = int(np.searchsorted(HEX_CK, 1000))
+
+
+# --- The towpath: on-policy versus off-policy -------------------------------------------------
+ROWS, COLS = 4, 8
+MOVES = ((-1, 0), (0, 1), (1, 0), (0, -1))           # north, east, south, west
+
+
+def towpath():
+    """A 4 x 8 grid beside a canal. Start at the bottom-left corner, finish at the
+    bottom-right; the bottom row between them is the canal's edge, and stepping
+    onto it means falling in: reward -100 and back to the start. Every other
+    step costs 1. The finish is absorbing with reward 0."""
+    n = ROWS * COLS
+    T, R = np.zeros((n, 4, n)), np.full((n, 4), -1.0)
+    cell = lambda r, c: r * COLS + c                  # noqa: E731
+    start, goal = cell(ROWS - 1, 0), cell(ROWS - 1, COLS - 1)
+    for r in range(ROWS):
+        for c in range(COLS):
+            s = cell(r, c)
+            for a, (dr, dc) in enumerate(MOVES):
+                if s == goal:
+                    T[s, a, s], R[s, a] = 1.0, 0.0
+                    continue
+                r2, c2 = min(max(r + dr, 0), ROWS - 1), min(max(c + dc, 0), COLS - 1)  # walls: stay
+                if r2 == ROWS - 1 and 0 < c2 < COLS - 1:
+                    T[s, a, start], R[s, a] = 1.0, -100.0     # into the canal
+                else:
+                    T[s, a, cell(r2, c2)] = 1.0
+    states = [(r, c) for r in range(ROWS) for c in range(COLS)]
+    return DiscreteMDP(T, R, 1.0, states, ["N", "E", "S", "W"]), start, goal
+
+
+TOW, START, GOAL = towpath()
+N_EPISODES, TOW_EPS, TOW_ALPHA = 500, 0.1, 0.5
+
+
+def tow_run(learner, rng, snapshots=None):
+    """Episodes from the start until the finish (at most 500 steps each); returns each episode's return."""
+    returns = []
+    for ep in range(N_EPISODES):
+        s = START
+        learner.start()
+        a = mf.epsilon_greedy(learner.Q[s], TOW_EPS, rng)
+        ret, k = 0.0, 0
+        while s != GOAL and k < 500:
+            s2 = rng.choice(len(TOW.R), p=TOW.T[s, a])
+            r = TOW.R[s, a]
+            a2 = mf.epsilon_greedy(learner.Q[s2], TOW_EPS, rng)
+            learner.update(s, a, r, s2, a2)
+            ret += r
+            s, a, k = s2, a2, k + 1
+        returns.append(ret)
+        if snapshots is not None and (ep + 1) % 5 == 0:
+            snapshots.append({"best": learner.Q.argmax(axis=1).tolist(), "value": learner.Q.max(axis=1).round(1).tolist()})
+    return np.array(returns)
+
+
+def greedy_path(Q, limit=60):
+    s, path = START, [START]
+    while s != GOAL and len(path) <= limit:
+        s = int(TOW.T[s, Q[s].argmax()].argmax())
+        path.append(s)
+    return path
+
+
+TOW_LEARNERS = [("Q-learning", lambda: mf.QLearning(len(TOW.R), 4, 1.0, TOW_ALPHA), orange),
+                ("Sarsa", lambda: mf.Sarsa(len(TOW.R), 4, 1.0, TOW_ALPHA), blue)]
+tow = {}
+for name, make, _ in TOW_LEARNERS:
+    rets, lengths, gaps = [], [], []
+    for seed in range(20):
+        L = make()
+        rets.append(tow_run(L, np.random.default_rng(seed)))
+        path = greedy_path(L.Q)
+        lengths.append(len(path) - 1)
+        # The closest the path comes to the water while passing the canal: rows between
+        # the path and the canal row, over the cells in the canal's columns.
+        gaps.append(min(ROWS - 1 - TOW.states[s][0] for s in path if 0 < TOW.states[s][1] < COLS - 1))
+    tow[name] = {"returns": np.array(rets), "lengths": np.array(lengths), "gaps": np.array(gaps)}
+tow_mode = {name: int(np.bincount(d["lengths"]).argmax()) for name, d in tow.items()}
+tow_gap = {name: int(d["gaps"][d["lengths"] == tow_mode[name]][0]) for name, d in tow.items()}
+tow_share = {name: float(np.mean(d["lengths"] == tow_mode[name])) for name, d in tow.items()}
+tow_late = {name: float(d["returns"][:, -100:].mean()) for name, d in tow.items()}
+
+# --- The trail: exploration, optimism and shaping ---------------------------------------------
+TRAIL = trail()
+G = TRAIL.gamma
+POS = np.arange(len(TRAIL.R), dtype=float)
+TRAIL_STEPS = 5000
+bonus_up = lambda s, s2: 5.0 * (s2 > s)                                        # noqa: E731
+TRAIL_VARIANTS = [("Q-learning, ε = 0.1", lambda: mf.QLearning(6, 2, G, 0.1), None),
+                  ("Sarsa(λ = 0.9), ε = 0.1", lambda: mf.SarsaLambda(6, 2, G, 0.1, 0.9), None),
+                  ("Q-learning, optimistic Q₀ = 20", lambda: mf.QLearning(6, 2, G, 0.1, q0=20), None),
+                  ("Q-learning, potential shaping", lambda: mf.QLearning(6, 2, G, 0.1), mf.potential_shaping(POS, G)),
+                  ("Q-learning, +5 bonus per step up", lambda: mf.QLearning(6, 2, G, 0.1), bonus_up)]
+_, U_TRAIL, _ = policy_iteration(TRAIL.T, TRAIL.R, G, np.zeros(6, int))
+trail_res = {}
+for name, make, shaping in TRAIL_VARIANTS:
+    values, late = [], []
+    for seed in range(20):
+        L = make()
+        r = mf.run_tabular(TRAIL, L, TRAIL_STEPS, 0, np.random.default_rng(seed), 0.1, shaping=shaping)
+        late.append(r[-1000:].mean())
+        values.append(policy_evaluation_exact(TRAIL.T, TRAIL.R, G, L.Q.argmax(axis=1))[0])  # true value from 0
+    trail_res[name] = {"late": np.array(late), "value": np.array(values),
+                       "learned": float(np.mean(np.isclose(values, U_TRAIL[0])))}
+# Exactly: which policy is optimal for the shaped rewards?
+def shaped_optimum(F):
+    """Optimal policy for R'(s, a) = R(s, a) + E[F(s, s')], and its true value from the trailhead."""
+    Rs = TRAIL.R + (TRAIL.T * F[:, None, :]).sum(axis=2)
+    pi, _, _ = policy_iteration(TRAIL.T, Rs, G, np.zeros(6, int))
+    return pi, policy_evaluation_exact(TRAIL.T, TRAIL.R, G, pi)[0]
+
+
+pi_potential, v_potential = shaped_optimum(G * POS[None, :] - POS[:, None])
+pi_bonus, v_bonus = shaped_optimum(5.0 * (POS[None, :] > POS[:, None]))
+
+# --- Mountain car: gradient Q-learning with and without experience replay ---------------------
+LO, HI = [mc.X_BOUNDS[0], mc.V_BOUNDS[0]], [mc.X_BOUNDS[1], mc.V_BOUNDS[1]]
+PHI = fourier_basis(3, LO, HI)
+N_FEAT = PHI(np.zeros((1, 2))).shape[1]
+features = lambda s: PHI(np.asarray(s)[None])[0]                                # noqa: E731
+
+
+def car_step(s, a):
+    s2 = mc.step(s, mc.ACTIONS[a])
+    return s2, -1.0, bool(mc.is_goal(s2))
+
+
+MC_EPISODES, MC_SEEDS = 150, 10
+MC_VARIANTS = [("gradient Q-learning", dict(replay=0), orange),
+               ("with experience replay", dict(replay=10_000, batch=32), blue)]
+car = {}
+for name, kw, _ in MC_VARIANTS:
+    lengths, finals = [], []
+    for seed in range(MC_SEEDS):
+        rng = np.random.default_rng(seed)
+        L = mf.GradientQLearning(features, N_FEAT, 3, 1.0, 0.3, **kw)
+        lengths.append([mf.run_episode(L, car_step, np.array([rng.uniform(-0.6, -0.4), 0.0]), rng)
+                        for _ in range(MC_EPISODES)])
+        greedy = lambda S, th=L.theta.copy(): np.array(mc.ACTIONS)[(PHI(S) @ th.T).argmax(axis=1)]  # noqa: E731
+        finals.append(mc.steps_to_goal(greedy, mc.STANDARD_STARTS).mean())
+    car[name] = {"lengths": np.array(lengths), "final": np.array(finals), "theta": L.theta.copy()}
+car_late = {name: float(d["lengths"][:, -50:].mean()) for name, d in car.items()}
+car_first = {name: float(d["lengths"][:, :10].mean()) for name, d in car.items()}
+```
+
+## Big picture
+
+### Where this chapter fits
+
+[Chapter 16](ch16-model-based-methods.qmd) learned a model of the world and planned on it. That works well when the state space is small enough to count transitions in. **Model-free** methods skip the model entirely: they learn the action value function $Q(s, a)$, how good each action is in each state, straight from experience. There's no transition table to fill in and no planning step, just a small correction to $Q$ after every step. This is the core of practical reinforcement learning, from classic Q-learning to the deep Q-networks that learned to play Atari games. [Chapter 18](ch18-imitation-learning.qmd) turns to learning from an expert's demonstrations instead of from rewards.
+
+**The question:** how can an agent learn good action values from its own experience, one step at a time, without ever writing down the dynamics?
+
+The short answer: **nudge each estimate toward a one-step target.** An average can be learned incrementally: move the estimate a fraction $\alpha$ of the way toward each new sample. **Q-learning** uses the sample $r + \gamma \max_{a'} Q(s', a')$, the reward plus the best value available next, and learns the *optimal* action values even while exploring. **Sarsa** uses the action actually taken next, and learns the values of the policy it follows, exploration included. **Eligibility traces** pass each update back along the recent path, so a distant reward is learned quickly. **Reward shaping** adds hints, safely if they take a potential-based form. With **function approximation**, the same updates become gradient steps on parameters, and **experience replay** reuses past experience to make them efficient and stable.
+
+```{dot}
+//| label: fig-ch17-map
+//| fig-width: 6.8
+//| fig-height: 3.7
+//| fig-cap: "Map of this chapter. One idea, incremental estimation toward a sampled target, gives Q-learning and Sarsa; the rest speed them up or scale them up."
+//| fig-alt: "Diagram. A blue box, Incremental mean (step toward each sample), points to two boxes: Q-learning (target uses the best next action; off-policy) and Sarsa (target uses the next action taken; on-policy). Sarsa points to Eligibility traces (pass credit back along the path). Both Q-learning and Sarsa point to Reward shaping (hints that keep the optimum: potential-based). Q-learning points to Function approximation (gradient Q-learning), which points to Experience replay (reuse past tuples)."
+digraph ch17 {
+  rankdir=TB; bgcolor="#fcfcfb"; pad=0.25; nodesep=0.35; ranksep=0.45;
+  node [shape=box, style="rounded,filled", fillcolor="white", color="#c3c2b7", penwidth=1.2,
+        fontname="Helvetica", fontsize=13, fontcolor="#0b0b0b", margin="0.12,0.07"];
+  edge [color="#52514e", penwidth=1.2, arrowsize=0.7, fontname="Helvetica", fontsize=11, fontcolor="#52514e"];
+  inc [label=<<B>Incremental mean</B><BR/><FONT POINT-SIZE="11">step toward each sample</FONT>>, fillcolor="#cde2fb", color="#2a78d6"];
+  q [label=<<B>Q-learning</B><BR/><FONT POINT-SIZE="11">best next action; off-policy</FONT>>];
+  sarsa [label=<<B>Sarsa</B><BR/><FONT POINT-SIZE="11">next action taken; on-policy</FONT>>];
+  traces [label=<<B>Eligibility traces</B><BR/><FONT POINT-SIZE="11">credit flows back</FONT>>];
+  shaping [label=<<B>Reward shaping</B><BR/><FONT POINT-SIZE="11">potential-based hints</FONT>>];
+  approx [label=<<B>Function approximation</B><BR/><FONT POINT-SIZE="11">gradient Q-learning</FONT>>];
+  replay [label=<<B>Experience replay</B><BR/><FONT POINT-SIZE="11">reuse past tuples</FONT>>];
+  inc -> q [label="target: max"]; inc -> sarsa [label="target: a′"];
+  sarsa -> traces; q -> shaping; sarsa -> shaping;
+  q -> approx [label="scale up"]; approx -> replay;
+}
+```
+
+### The key ideas at a glance
+
+1. **Incremental estimation.** To learn an average from a stream of samples, keep an estimate and move it a fraction $\alpha$ of the way toward each new sample. With $\alpha = 1/m$ it is exactly the running average. With a constant $\alpha$ it tracks recent samples and never quite settles. The gap between the sample and the estimate is a **temporal difference error**.
+
+2. **Q-learning.** The value of taking $a$ in $s$ is, on average, the reward plus the discounted value of the best action from wherever you land. Each experience $(s, a, r, s')$ gives one sample of that, $r + \gamma\max_{a'} Q(s', a')$; move $Q(s, a)$ toward it. Q-learning is **off-policy**: it learns the values of the greedy policy while behaving differently, for example exploring with ε-greedy.
+
+3. **Sarsa.** Use the action $a'$ actually taken next instead of the best one: the target is $r + \gamma Q(s', a')$. Sarsa is **on-policy**: it learns the values of the policy it follows, exploration included. Near a cliff, that makes it cautious, because it knows it sometimes stumbles.
+
+4. **Eligibility traces.** One-step updates pass news of a reward back only one state per visit. Traces keep a fading memory of recently visited state-action pairs, and apply each update to all of them in proportion. A reward found at the end of a long path is credited to the whole path at once.
+
+5. **Reward shaping.** Sparse rewards make learning slow; adding intermediate rewards can speed it up, but can also change what is optimal. Shaping of the form $F = \gamma\beta(s') - \beta(s)$, a difference of **potentials**, never changes the optimal policy.
+
+6. **Function approximation and experience replay.** With too many states for a table, represent $Q_\theta(s, a)$ with parameters and turn the update into a gradient step. **Experience replay** stores recent experience and learns from random batches of it, which reuses data and breaks up the correlations between consecutive steps.
+
+### Vocabulary
+
+| Term | Plain meaning |
+|:---|:---|
+| Model-free learning | Learning values or policies directly, without estimating $T$ and $R$ |
+| Learning rate $\alpha$ | How far each update moves an estimate toward its new sample |
+| Temporal difference (TD) error | Sampled target minus current estimate |
+| Q-learning | TD learning of $Q$ with target $r + \gamma \max_{a'} Q(s', a')$ |
+| Sarsa | TD learning of $Q$ with target $r + \gamma Q(s', a')$, using the next action taken |
+| On-policy / off-policy | Learning the values of the policy being followed / of a different policy |
+| Eligibility trace $N(s, a)$ | A decaying record of how recently and often a pair was visited |
+| Reward shaping $F(s, a, s')$ | Extra reward added during training to guide learning |
+| Potential function $\beta(s)$ | A score of states whose differences define safe shaping |
+| Experience replay | Storing past transitions and learning from random batches of them |
+
+: Terms used on this page. {#tbl-vocab}
+
+### After this chapter you can
+
+- Estimate a mean incrementally, and choose a learning rate schedule.
+- Implement Q-learning and Sarsa, and explain when they learn different policies.
+- Speed up learning with eligibility traces, optimistic initialization, and potential-based reward shaping, and recognize shaping that changes the optimal policy.
+- Apply Q-learning with linear function approximation, and use experience replay.
+
+## Intuition
+
+::: {.callout-tip title="Analogy"}
+You're learning how long each route to work takes, without a map.
+
+- **Incremental averaging:** every trip, you adjust your estimate for the route you took a little toward that day's time.
+- **Q-learning:** you judge the first leg of a trip by the time it took *plus the best time you know* from where it left you, even if today you took a detour from there.
+- **Sarsa:** you judge it by what you *actually did* next, detours included. If you often take detours, Sarsa's estimates include them.
+- **Traces:** when a trip turns out great, you credit the whole route, not just the last turn.
+- **Shaping:** a friend's hint ("the closer to the river, the faster") helps you learn, as long as it can't lure you into driving in circles.
+:::
+
+### Moving averages
+
+Bus waits average `{python} f"{MEAN_WAIT:.0f}"` minutes but vary a lot. With $\alpha = 1/m$ the estimate is the exact running average; after `{python} N_SAMPLES` waits its typical error is `{python} f"{inc_rms['α = 1/m (sample mean)'][-1]:.2f}"` minutes. A constant $\alpha = 0.3$ keeps chasing the latest waits, with an error of `{python} f"{inc_rms['α = 0.3 (constant)'][-1]:.1f}"` minutes that never shrinks. A schedule that decays too fast, $\alpha = 1/m^{1.5}$, stops learning before it has enough data: error `{python} f"{inc_rms['α = 1/m^1.5 (decays too fast)'][-1]:.1f}"` (@fig-incremental). See @eq-incremental.
+
+### One step of truth, then trust your estimates
+
+Q-learning never sees the rules of Hex World. It moves each $Q(s, a)$ toward the reward just received plus the best $Q$ at the next tile. After `{python} f"{HEX_CK[k1000]:,}"` steps of ε-greedy experience, its greedy policy is worth `{python} f"{hex_curves['Q-learning'][k1000]:.2f}"` on average; after `{python} f"{HEX_CK[-1]:,}"`, `{python} f"{hex_curves['Q-learning'][-1]:.2f}"` (the optimum is `{python} f"{OPT_HEX:.2f}"`). See @eq-q-learning.
+
+### Learning the policy you follow
+
+On a towpath beside a canal, the shortest route runs right along the edge. Q-learning learns that route (`{python} tow_mode['Q-learning']` steps), because it values the *best* next move. But while it still explores 10% of the time, it keeps stumbling into the water: it averaged `{python} f"{tow_late['Q-learning']:.1f}"` per episode late in training. Sarsa learns the value of its own stumbling policy, so it prefers a path that stays at least `{python} tow_gap['Sarsa']` rows from the water, `{python} tow_mode['Sarsa']` steps long, and averaged `{python} f"{tow_late['Sarsa']:.1f}"` (@fig-towpath). See @eq-sarsa.
+
+### Pass the credit back
+
+When Sarsa reaches a reward, only the last step's value changes. Eligibility traces also update the steps before it, fading with distance. On Hex World, after `{python} f"{HEX_CK[k1000]:,}"` steps, Sarsa's greedy policy was worth `{python} f"{hex_curves['Sarsa'][k1000]:.2f}"`, and Sarsa(λ) with λ = 0.5 `{python} f"{hex_curves['Sarsa(λ), λ = 0.5'][k1000]:.2f}"` (@fig-hex-learning). See @eq-traces.
+
+### Hints that don't mislead
+
+On the mountain trail of Chapter 16, Q-learning with ε-greedy exploration learned to climb in `{python} f"{trail_res['Q-learning, ε = 0.1']['learned']:.0%}"` of 20 runs. Adding a potential-based hint, "being higher is worth 1 per position", it learned in `{python} f"{trail_res['Q-learning, potential shaping']['learned']:.0%}"`. A naive hint, "+5 for every step up", backfires: the policy that is optimal for the hinted rewards walks down from the summit so it can earn the bonus again, and never enjoys the view. See @eq-shaping.
+
+### Scale up with parameters, reuse with replay
+
+For the mountain car, a table won't do: position and speed are continuous. Q-learning with a linear function of `{python} N_FEAT` Fourier features needed `{python} f"{car_late['gradient Q-learning']:.0f}"` steps per episode after `{python} MC_EPISODES - 50` episodes. Replaying random batches of stored experience, it needed `{python} f"{car_late['with experience replay']:.0f}"` (@fig-mountain-car). See @eq-gradient-q and @eq-replay.
+
+## Formalism
+
+### Incremental estimation of the mean
+
+The average of $m$ samples can be updated one sample at a time (ADM §17.1):
+
+::: {.key-equation data-name="Incremental mean"}
+$$
+\hat x_m = \hat x_{m-1} + \alpha(m)\big(x^{(m)} - \hat x_{m-1}\big),
+\qquad
+\sum_{m=1}^\infty \alpha(m) = \infty,\quad \sum_{m=1}^\infty \alpha(m)^2 < \infty
+$$ {#eq-incremental}
+:::
+
+**In words.** Move the estimate a fraction of the way toward each new sample. For the estimate to converge, the steps must shrink, but not too fast.
+
+**Term by term.**
+
+- $x^{(m)} - \hat x_{m-1}$ is the **temporal difference error**: how much the new sample surprised the old estimate.
+- With $\alpha(m) = 1/m$, $\hat x_m$ is exactly the sample mean.
+- The first condition keeps the steps large enough to reach the answer from any start. The second keeps them small enough for the noise to average out. $1/m$ and $1/m^{0.6}$ satisfy both. $1/m^{1.5}$ fails the first: its steps shrink so fast that the estimate stops early. A constant $\alpha$ fails the second: it keeps fluctuating, but it tracks a mean that drifts.
+- With a constant $\alpha$, the estimate is a weighted average in which a sample $k$ updates old has weight $\alpha(1 - \alpha)^k$: an exponential moving average.
+
+**Why it holds.** $\hat x_m = \frac1m \sum_{i \le m} x^{(i)} = \frac1m\big(x^{(m)} + (m - 1)\hat x_{m-1}\big) = \hat x_{m-1} + \frac1m\big(x^{(m)} - \hat x_{m-1}\big)$. The conditions on $\alpha$ are the Robbins–Monro conditions for stochastic approximation (H. Robbins and S. Monro, *Annals of Mathematical Statistics*, 1951).
+
+### Q-learning
+
+The action value satisfies the Bellman equation $Q(s, a) = R(s, a) + \gamma \sum_{s'} T(s' \mid s, a) \max_{a'} Q(s', a')$, which is an expectation over the next state. Replace the expectation with one sample, and use the incremental update (ADM §17.2; C. J. C. H. Watkins, 1989):
+
+::: {.key-equation .famous data-name="Q-learning"}
+$$
+Q(s, a) \leftarrow Q(s, a) + \alpha\Big(r + \gamma \max_{a'} Q(s', a') - Q(s, a)\Big)
+$$ {#eq-q-learning}
+:::
+
+**In words.** After each step, move the value of what you just did toward what you got plus the best you believe you can do from where you landed.
+
+**Term by term.**
+
+- $r + \gamma\max_{a'} Q(s', a')$ is the target: a one-sample estimate of the right side of the Bellman optimality equation, using the current $Q$ for the future.
+- The target doesn't depend on which action the agent takes next, so the agent may explore freely while learning the greedy policy's values. That is what **off-policy** means.
+- The max over noisy estimates tends to overestimate, a bias that **double Q-learning** reduces.
+- If every pair is tried infinitely often and $\alpha$ meets the conditions of @eq-incremental for each pair, $Q$ converges to $Q^*$.
+
+**Why it holds.** In expectation over $(r, s')$ the target equals the Bellman backup of $Q$, and that backup is a contraction (Chapter 7). So Q-learning is a noisy, sample-by-sample version of value iteration on $Q$, and stochastic approximation theory handles the noise.
+
+### Sarsa
+
+Sarsa uses the quintuple $(s, a, r, s', a')$, where $a'$ is the action the agent actually takes next (ADM §17.3; G. A. Rummery and M. Niranjan, 1994):
+
+::: {.key-equation .famous data-name="Sarsa"}
+$$
+Q(s, a) \leftarrow Q(s, a) + \alpha\Big(r + \gamma\, Q(s', a') - Q(s, a)\Big)
+$$ {#eq-sarsa}
+:::
+
+**In words.** Move the value of what you did toward what you got plus the value of what you actually do next.
+
+**Term by term.**
+
+- The target uses $Q(s', a')$ for the action chosen by the behavior policy (for example ε-greedy), not the maximum.
+- So Sarsa estimates $Q^\pi$ for the policy $\pi$ it follows, exploration included: it is **on-policy**.
+- If exploration is reduced over time, so that the policy becomes greedy in the limit, Sarsa too converges to $Q^*$.
+
+**Why it holds.** In expectation, the target is the Bellman *expectation* backup for the behavior policy, $R + \gamma \sum_{s'} T \sum_{a'} \pi(a' \mid s') Q(s', a')$. Sarsa is a sampled version of policy evaluation for the policy it follows, and it improves as that policy improves.
+
+### Eligibility traces
+
+Keep a trace $N(s, a)$ for every pair. With the Sarsa TD error $\delta = r + \gamma Q(s', a') - Q(s, a)$, each step does (ADM §17.4):
+
+::: {.key-equation data-name="Sarsa(λ) with eligibility traces"}
+$$
+N(s, a) \leftarrow N(s, a) + 1;
+\qquad
+Q(\tilde s, \tilde a) \leftarrow Q(\tilde s, \tilde a) + \alpha\,\delta\, N(\tilde s, \tilde a)\ \ \text{and}\ \ N(\tilde s, \tilde a) \leftarrow \gamma\lambda N(\tilde s, \tilde a)\ \ \text{for all } (\tilde s, \tilde a)
+$$ {#eq-traces}
+:::
+
+**In words.** Every pair visited recently gets a share of the current surprise, a smaller share the longer ago it was visited.
+
+**Term by term.**
+
+- $N(\tilde s, \tilde a)$ counts visits, decaying by $\gamma\lambda$ per step: a pair visited $k$ steps ago has trace $(\gamma\lambda)^k$ (if visited once).
+- $\lambda = 0$ is plain Sarsa. $\lambda \to 1$ credits the whole episode, like a Monte Carlo return.
+- Traces are reset at the start of each episode.
+- With Q-learning, traces must be cut whenever an exploratory action is taken, or they credit the greedy policy with the explorer's outcomes (Watkins's $Q(\lambda)$).
+
+**Why it holds.** Summing the trace-weighted updates over an episode gives approximately the update toward a **λ-return**, an average of $n$-step returns with weights $(1 - \lambda)\lambda^{n-1}$. It is the same blend of short and long lookaheads as generalized advantage estimation in Chapter 13 (R. S. Sutton, *Machine Learning*, 1988).
+
+### Reward shaping
+
+During training, add $F(s, a, s')$ to the reward. In general this changes the optimal policy, but not if $F$ is a difference of potentials (ADM §17.5; A. Y. Ng, D. Harada and S. Russell, *ICML*, 1999):
+
+::: {.key-equation .famous data-name="Potential-based reward shaping"}
+$$
+F(s, a, s') = \gamma\, \beta(s') - \beta(s)
+$$ {#eq-shaping}
+:::
+
+**In words.** Reward progress in a "potential" score, discounting the new state's score as the future is discounted.
+
+**Term by term.**
+
+- $\beta(s)$ is any function of the state, for example minus the distance to a goal. On the trail we use $\beta(s) = s$, the position.
+- Along any trajectory, the shaping terms telescope: $\sum_t \gamma^t F_t = \gamma^T\beta(s_T) - \beta(s_0)$. So every policy's value shifts by $-\beta(s_0)$ (plus a vanishing term), which is the same for every policy starting from $s_0$.
+- A bonus that isn't of this form, like "+5 for every step up", can be collected in loops, creating new optima that the designer never intended.
+
+**Why it holds.** With shaping, the optimal action values become $Q'^*(s, a) = Q^*(s, a) - \beta(s)$. Subtracting a function of the state alone doesn't change which action is best. Ng, Harada and Russell also showed the converse: shaping that preserves the optimal policy for every MDP must have this form.
+
+### Action value function approximation
+
+With a parameterized $Q_\theta$, minimize $\frac12\mathbb{E}[(Q^*(s, a) - Q_\theta(s, a))^2]$ by stochastic gradient descent, replacing the unknown $Q^*(s, a)$ by the one-step target (ADM §17.6):
+
+::: {.key-equation data-name="Gradient Q-learning"}
+$$
+\theta \leftarrow \theta + \alpha\Big(r + \gamma\max_{a'} Q_\theta(s', a') - Q_\theta(s, a)\Big)\nabla_\theta Q_\theta(s, a)
+$$ {#eq-gradient-q}
+:::
+
+**In words.** Move the parameters so that $Q_\theta(s, a)$ comes closer to the target, in proportion to the TD error.
+
+**Term by term.**
+
+- For a linear $Q_\theta(s, a) = \theta_a^\top \phi(s)$, the gradient is the feature vector $\phi(s)$ in the block of $\theta$ for action $a$.
+- The target also depends on $\theta$, but the update treats it as fixed: a "semi-gradient". That is one reason such methods can diverge. Scaling each step to a bounded norm (Chapter 12), as here, helps.
+- Every update changes $Q_\theta$ everywhere the features overlap, which generalizes across states, but can also overwrite what was learned elsewhere ("catastrophic forgetting").
+
+**Why it holds.** With the true $Q^*$ in place of the target, it is exactly stochastic gradient descent on the squared error: the gradient of $\frac12(Q^* - Q_\theta)^2$ is $-(Q^* - Q_\theta)\nabla_\theta Q_\theta$. The one-step target is Q-learning's estimate of $Q^*$.
+
+### Experience replay
+
+Store the most recent transitions in a buffer. Periodically sample a random batch of $m_{\text{grad}}$ of them and step along their average gradient (ADM §17.7; L.-J. Lin, 1992; V. Mnih et al., 2013):
+
+::: {.key-equation data-name="Replayed gradient Q-learning"}
+$$
+\theta \leftarrow \theta + \frac{\alpha}{m_{\text{grad}}}\sum_{i=1}^{m_{\text{grad}}}\Big(r^{(i)} + \gamma\max_{a'} Q_\theta(s'^{(i)}, a') - Q_\theta(s^{(i)}, a^{(i)})\Big)\nabla_\theta Q_\theta(s^{(i)}, a^{(i)})
+$$ {#eq-replay}
+:::
+
+**In words.** Learn from a random handful of past experiences at once, not just the latest one.
+
+**Term by term.**
+
+- Each tuple $(s^{(i)}, a^{(i)}, r^{(i)}, s'^{(i)})$ comes from the buffer, which holds recent experience from older versions of the policy. Because Q-learning is off-policy, that's fine.
+- Averaging over a batch reduces the variance of the step, and sampling at random breaks the correlation between consecutive steps.
+- Each experience is used many times, which improves data efficiency.
+- In this page's code the step is taken every step (the book takes one every $m$ steps, discarding the $m$ oldest tuples), and scaled to norm at most 1.
+
+**Why it holds.** It is minibatch stochastic gradient descent on the same objective as @eq-gradient-q. The data are drawn from the recent experience distribution instead of the current state alone.
+
+## Worked example
+
+### A running average by hand
+
+Four bus waits: 12, 6, 9 and 3 minutes, starting from $\hat x_0 = 0$.
+
+| Wait $m$ | Sample | $\alpha = 1/m$: $\hat x_m$ | $\alpha = 0.5$: $\hat x_m$ |
+|---|---|---|---|
+| 1 | 12 | $0 + 1 \times 12 = 12$ | $0 + 0.5 \times 12 = 6$ |
+| 2 | 6 | $12 + \tfrac12(6 - 12) = 9$ | $6 + 0.5(6 - 6) = 6$ |
+| 3 | 9 | $9 + \tfrac13(9 - 9) = 9$ | $6 + 0.5(9 - 6) = 7.5$ |
+| 4 | 3 | $9 + \tfrac14(3 - 9) = 7.5$ | $7.5 + 0.5(3 - 7.5) = 5.25$ |
+
+: Incremental estimates of the mean wait. {#tbl-incremental}
+
+With $\alpha = 1/m$, the last estimate is the exact average, $30/4 = 7.5$. With $\alpha = 0.5$, the most recent wait counts half, and the first one only $0.5^4 = 1/16$. Starting from 0 also drags that estimate down.
+
+### Q-learning and Sarsa disagree by the canal
+
+On the towpath, the agent walks east along the row right next to the canal (reward −1 per step, $\gamma = 1$, $\alpha = 0.5$). Suppose its current estimates at the new cell are: $Q(\text{east}) = -8$, the best, along the edge; $Q(\text{north}) = -10$; $Q(\text{south}) = -101$, into the canal. It currently estimates $Q(\text{east})$ at its old cell as $-10$.
+
+- **Q-learning** uses the best next value: target $-1 + (-8) = -9$, so $Q \leftarrow -10 + 0.5(-9 - (-10)) = -9.5$.
+- **Sarsa** uses the action actually taken next. If ε-greedy happened to pick "south" (probability $0.1 / 4 = 0.025$), the target is $-1 + (-101) = -102$, and $Q \leftarrow -10 + 0.5(-102 + 10) = -56$.
+
+Sarsa's value of standing by the water absorbs the occasional stumble; Q-learning's doesn't. Averaged over many visits, Sarsa learns that edge cells are worth less *for an agent that explores*. So it routes further from the water, where a stumble costs only a step.
+
+### A trace in three steps
+
+Sarsa(λ) with $\gamma = 0.9$, $\lambda = 0.8$, so traces decay by 0.72 per step. The agent visits $(s_1, a_1)$, then $(s_2, a_2)$, then $(s_3, a_3)$, and at the third step receives a surprise $\delta = 5$. The traces are then $0.72^2 = 0.518$, $0.72$ and $1$. With $\alpha = 0.1$ the three values change by $0.1 \times 5 \times (0.518, 0.72, 1) = (0.26, 0.36, 0.5)$. Plain Sarsa would change only the last, by 0.5.
+
+## Interactive
+
+### Q-learning versus Sarsa on the towpath
+
+Scrub through training. Each cell shows its current greedy action, and is shaded by its estimated value (darker is worse). The blue line is the greedy path from start (S) to finish (F); the bottom row between them is the canal.
+
+```{python}
+#| include: false
+tow_snaps = {}
+for name, make, _ in TOW_LEARNERS:
+    snaps = []
+    tow_run(make(), np.random.default_rng(0), snapshots=snaps)
+    tow_snaps[name] = snaps
+write_json({"rows": ROWS, "cols": COLS, "start": START, "goal": GOAL, "every": 5, "snaps": tow_snaps,
+            "style": {"blue": blue, "orange": orange, "ink": style.INK, "muted": style.MUTED,
+                      "surface": style.SURFACE, "water": "#cde2fb"}}, "data/ch17-towpath.json")
+```
+
+```{ojs}
+towData = FileAttachment("data/ch17-towpath.json").json()
+viewof towEp = Inputs.range([5, 500], {step: 5, value: 50, label: "Episodes"})
+```
+
+```{ojs}
+//| label: fig-towpath-explorer
+//| fig-cap: "Greedy actions and values on the towpath after the chosen number of training episodes (one run each; α = 0.5, ε = 0.1). Left: Q-learning. Right: Sarsa. The blue line is the greedy path; the light blue cells are the canal."
+//| fig-alt: "Interactive pair of 4 by 8 grids. The bottom row between the start (S, bottom left) and the finish (F, bottom right) is shaded light blue as the canal. Each other cell shows an arrow for its greedy action and a grey shade for its value. A blue line traces the greedy path. As the slider increases, Q-learning's path settles along the row right above the canal, while Sarsa's path settles on a row further from the water."
+{
+  const S = 44, pad = 10, arrow = ["↑", "→", "↓", "←"];
+  const panel = name => {
+    const snap = towData.snaps[name][towEp / towData.every - 1];
+    // Follow the greedy actions from the start (at most 40 moves) to draw the path.
+    const move = [[-1, 0], [0, 1], [1, 0], [0, -1]];
+    let r = towData.rows - 1, c = 0, path = [[r, c]];
+    for (let k = 0; k < 40 && !(r === towData.rows - 1 && c === towData.cols - 1); k++) {
+      const a = snap.best[r * towData.cols + c];
+      let r2 = Math.min(Math.max(r + move[a][0], 0), towData.rows - 1), c2 = Math.min(Math.max(c + move[a][1], 0), towData.cols - 1);
+      if (r2 === towData.rows - 1 && c2 > 0 && c2 < towData.cols - 1) { r2 = towData.rows - 1; c2 = 0; }  // into the canal
+      r = r2; c = c2; path.push([r, c]);
+    }
+    const shade = d3.scaleLinear([-30, 0], ["#9a9890", "#ffffff"]).clamp(true);
+    const cells = d3.range(towData.rows * towData.cols).map(i => {
+      const r = Math.floor(i / towData.cols), c = i % towData.cols;
+      const canal = r === towData.rows - 1 && c > 0 && c < towData.cols - 1;
+      const label = i === towData.start ? "S" : i === towData.goal ? "F" : canal ? "" : arrow[snap.best[i]];
+      return svg`<g><rect x="${pad + c * S}" y="${pad + r * S}" width="${S - 2}" height="${S - 2}"
+          fill="${canal ? towData.style.water : shade(snap.value[i])}" stroke="#c3c2b7"/>
+        <text x="${pad + c * S + S / 2 - 1}" y="${pad + r * S + S / 2 + 5}" text-anchor="middle" font-size="15"
+          font-family="Helvetica" fill="${towData.style.ink}">${label}</text></g>`;
+    });
+    const line = path.map(([r, c]) => `${pad + c * S + S / 2 - 1},${pad + r * S + S / 2 - 1}`).join(" ");
+    return svg`<svg width="${2 * pad + towData.cols * S}" height="${2 * pad + towData.rows * S + 22}" style="background:${towData.style.surface}">
+      ${cells}<polyline points="${line}" fill="none" stroke="${towData.style.blue}" stroke-width="3" opacity="0.8"/>
+      <text x="${pad}" y="${2 * pad + towData.rows * S + 10}" font-size="13" font-family="Helvetica" fill="${towData.style.ink}">${name}: path of ${path.length - 1} steps</text></svg>`;
+  };
+  return html`<div style="display:flex;flex-wrap:wrap;gap:16px">${panel("Q-learning")}${panel("Sarsa")}</div>`;
+}
+```
+
+### Learning rates, live
+
+Draw a stream of bus waits (average 8 minutes) and compare a constant learning rate with a decaying one, $\alpha = 1/m^p$.
+
+```{ojs}
+viewof alphaConst = Inputs.range([0.01, 1], {step: 0.01, value: 0.1, label: "Constant α"})
+viewof decayP = Inputs.range([0.3, 2], {step: 0.05, value: 1, label: "Decay exponent p"})
+viewof waitSeed = Inputs.range([1, 50], {step: 1, value: 1, label: "Random stream"})
+```
+
+```{ojs}
+waitRun = {
+  // Exponential waits with mean 8 from a seeded generator; running estimates from 0.
+  const rand = d3.randomExponential.source(d3.randomLcg(waitSeed / 51))(1 / 8);
+  let c = 0, d = 0;
+  return d3.range(1, 201).map(m => {
+    const x = rand();
+    c += alphaConst * (x - c);
+    d += Math.pow(m, -decayP) * (x - d);
+    return {m, x, constant: c, decaying: d};
+  });
+}
+md`After 200 waits: constant α gives **${waitRun[199].constant.toFixed(2)}**, decaying α gives **${waitRun[199].decaying.toFixed(2)}** (true mean 8).`
+```
+
+```{ojs}
+//| label: fig-alpha-explorer
+//| fig-cap: "Incremental estimates of the mean wait from one random stream of 200 waits: constant α (orange) and α = 1/m^p (blue), with the individual waits as grey dots and the true mean dotted."
+//| fig-alt: "Interactive chart with wait number 1 to 200 across and minutes up the side, showing grey dots for individual waits scattered from 0 to about 40, a dotted line at 8, an orange line for the constant learning rate and a blue line for the decaying one. A large constant alpha makes the orange line jump with each wait; a small one makes it rise slowly from 0. A decay exponent near 1 makes the blue line settle near 8; a large exponent freezes it early."
+Plot.plot({
+  width: 600, height: 300, style: {background: "#fcfcfb"},
+  x: {label: "wait number m"}, y: {label: "minutes", domain: [0, 25], grid: true},
+  marks: [
+    Plot.dot(waitRun, {x: "m", y: "x", r: 1.5, fill: "#898781", fillOpacity: 0.5, clip: true}),
+    Plot.ruleY([8], {strokeDasharray: "3,3"}),
+    Plot.line(waitRun, {x: "m", y: "constant", stroke: "#eb6834", strokeWidth: 2}),
+    Plot.line(waitRun, {x: "m", y: "decaying", stroke: "#2a78d6", strokeWidth: 2})
+  ]
+})
+```
+
+## Algorithms & code
+
+### Tabular learners
+
+::: {.panel-tabset group="lang"}
+## Python
+```{python}
+#| output: asis
+show_source(mf.incremental_mean, mf.epsilon_greedy, mf.QLearning, mf.Sarsa, mf.SarsaLambda,
+            mf.run_tabular, mf.potential_shaping)
+```
+## Julia
+```{.julia .snippet}
+using ADM, Random, Statistics, LinearAlgebra
+import Distributions
+
+hw = hex_world()                                  # states 1..27; the last one is the terminal
+nS, nA, γ = size(hw.R, 1), size(hw.R, 2), hw.γ
+decision = [s for s in 1:nS-1 if hw.T[s, 1, nS] < 1]   # tiles that don't end the episode
+
+ε_greedy(q, ε, rng) = rand(rng) < ε ? rand(rng, 1:length(q)) : rand(rng, findall(==(maximum(q)), q))
+
+# One learner = a function update!(Q, N, s, a, r, s′, a′); N holds eligibility traces.
+q_learning!(Q, N, s, a, r, s′, a′; α = 0.1) = (Q[s, a] += α * (r + γ * maximum(Q[s′, :]) - Q[s, a]))
+sarsa!(Q, N, s, a, r, s′, a′; α = 0.1) = (Q[s, a] += α * (r + γ * Q[s′, a′] - Q[s, a]))
+function sarsa_λ!(Q, N, s, a, r, s′, a′; α = 0.1, λ = 0.5)
+    N[s, a] += 1
+    δ = r + γ * Q[s′, a′] - Q[s, a]
+    Q .+= α * δ .* N                               # every pair, in proportion to its trace
+    N .*= γ * λ
+end
+
+function learn(update!, steps, rng; ε = 0.1)
+    Q, N = zeros(nS, nA), zeros(nS, nA)
+    s = rand(rng, decision)
+    a = ε_greedy(Q[s, :], ε, rng)
+    for t in 1:steps
+        s′ = rand(rng, Distributions.Categorical(hw.T[s, a, :]))
+        a′ = ε_greedy(Q[s′, :], ε, rng)
+        update!(Q, N, s, a, hw.R[s, a], s′, a′)
+        s, a = s′, a′
+        if s == nS                                 # terminal: start a new episode
+            s = rand(rng, decision)
+            N .= 0.0                               # traces don't cross episodes
+            a = ε_greedy(Q[s, :], ε, rng)
+        end
+    end
+    return Q
+end
+
+# True value of the greedy policy, by exact policy evaluation.
+function greedy_value(Q)
+    π = [argmax(Q[s, :]) for s in 1:nS]
+    Tπ = [hw.T[s, π[s], s′] for s in 1:nS, s′ in 1:nS]
+    Rπ = [hw.R[s, π[s]] for s in 1:nS]
+    return mean(((I - γ * Tπ) \ Rπ)[decision])
+end
+
+for (name, f) in (("Q-learning", q_learning!), ("Sarsa", sarsa!), ("Sarsa(λ)", sarsa_λ!))
+    v = mean(greedy_value(learn(f, 1000, MersenneTwister(seed))) for seed in 1:10)
+    println(rpad(name, 12), "after 1,000 steps: ", round(v; digits = 2))
+end
+@assert mean(greedy_value(learn(q_learning!, 30_000, MersenneTwister(seed))) for seed in 1:5) > 4.0
+```
+:::
+
+### Function approximation and replay
+
+::: {.panel-tabset group="lang"}
+## Python
+```{python}
+#| output: asis
+show_source(mf.GradientQLearning, mf.run_episode)
+```
+## Julia
+```{.julia .snippet}
+using ADM, Random, Statistics, LinearAlgebra
+
+# Fourier features over (position, speed): cos/sin up to order 3 per axis, all products.
+lo, hi = [MOUNTAIN_CAR_X[1], MOUNTAIN_CAR_V[1]], [MOUNTAIN_CAR_X[2], MOUNTAIN_CAR_V[2]]
+function φ(s)
+    z = (s .- lo) ./ (hi .- lo)                    # 0 to 1 across each axis
+    axis(t) = [0.5; [sin(2π * i * t) for i in 1:3]; [cos(2π * i * t) for i in 1:3]]
+    return vec(axis(z[1]) * axis(z[2])')           # all pairwise products (outer product)
+end
+scaled(g) = norm(g) > 1 ? g ./ norm(g) : g        # cap the step's length at 1
+
+# One episode of gradient Q-learning; θ has one row of weights per action.
+# With a replay buffer, each step learns from a random batch of 32 stored tuples.
+function episode!(θ, rng; α = 0.3, buffer = nothing, cap = 1000)
+    s = [-0.6 + 0.2rand(rng), 0.0]
+    for t in 1:cap
+        f = φ(s)
+        q = θ * f
+        a = rand(rng, findall(==(maximum(q)), q))
+        s′ = mountain_car_step(s, MOUNTAIN_CAR_ACTIONS[a])
+        done = mountain_car_goal(s′)
+        batch = buffer === nothing ? [(f, a, φ(s′), done)] : (push!(buffer, (f, a, φ(s′), done));
+                                                               length(buffer) < 32 ? [] : rand(rng, buffer, 32))
+        if !isempty(batch)
+            g = zero(θ)
+            for (fb, ab, f2, d) in batch           # TD error × features, in action ab's row
+                target = -1 + (d ? 0.0 : maximum(θ * f2))
+                g[ab, :] .+= (target - dot(θ[ab, :], fb)) .* fb
+            end
+            θ .+= α .* scaled(g ./ length(batch))
+        end
+        done && return t
+        s = s′
+    end
+    return cap
+end
+
+nf = length(φ([0.0, 0.0]))
+for (name, buf) in (("gradient Q-learning", () -> nothing), ("with replay", () -> Any[]))
+    late = mean(begin
+        rng, θ, b = MersenneTwister(seed), zeros(3, nf), buf()
+        lengths = [episode!(θ, rng; buffer = b) for _ in 1:60]
+        mean(lengths[41:60])
+    end for seed in 1:3)
+    println(rpad(name, 21), "steps per episode, episodes 41-60: ", round(late))
+end
+```
+:::
+
+::: {.callout-note collapse="true" title="Reading the Julia code (for Python programmers)"}
+- **`q_learning!(Q, N, s, a, r, s′, a′; α = 0.1) = (...)`** is a one-line function; keyword arguments come after the `;`. All three learners share one signature, so `learn` can take any of them.
+- **`Q .+= α * δ .* N`** updates the whole table in place, like `Q += alpha * delta * N` on NumPy arrays.
+- **`(I - γ * Tπ) \ Rπ`** solves the linear system for the policy's values: `I` is the identity from `LinearAlgebra`, `\` is NumPy's `np.linalg.solve`.
+- **`vec(axis(z[1]) * axis(z[2])')`**: a column times a row (`'` transposes) gives the outer product, a 7 × 7 matrix of all products, flattened to 49 features.
+- **`(push!(...); expr)`** runs two expressions and returns the second, a compact way to append and then decide.
+- **`rand(rng, buffer, 32)`** draws 32 elements with replacement, like `rng.choice(len(buffer), 32)`.
+:::
+
+### Run them
+
+```{python}
+#| echo: true
+env = hex_world()
+learner = mf.QLearning(len(env.R), 6, env.gamma, alpha=0.1)
+terminal = len(env.R) - 1
+decision = [s for s in range(terminal) if env.T[s, 0, terminal] < 1]
+mf.run_tabular(env, learner, 30_000, decision[0], np.random.default_rng(0), epsilon=0.1,
+               reset=lambda s, rng: rng.choice(decision) if s == terminal else None)
+greedy_value = policy_evaluation_exact(env.T, env.R, env.gamma, learner.Q.argmax(axis=1))[decision].mean()
+```
+
+```{python}
+print(f"Q-learning on Hex World, 30,000 steps: greedy policy worth {greedy_value:.2f} "
+      f"(optimal {OPT_HEX:.2f})")
+```
+
+### Results
+
+#### Learning rates
+
+```{python}
+#| label: fig-incremental
+#| fig-cap: "Incremental estimates of a mean wait of 8 minutes. Left: one stream of 300 waits, for five learning rate schedules. Right: root-mean-square error over 500 streams (log scales)."
+#| fig-alt: "Two line charts with the number of waits across. Left: one stream of waits, grey dots scattered from 0 to over 20, with a dotted line at the true mean 8. The 1/m estimate settles near 9, this stream's own average; 1/m^0.6 and constant 0.05 wander between about 6 and 12; constant 0.3 jumps between about 3 and 20; 1/m^1.5 freezes after a few waits near 7.8, close to 8 here only by luck. Right, log-log, averaged over 500 streams: the 1/m error falls steadily to about 0.5; 1/m^0.6 falls more slowly to about 1; constant 0.05 falls, then levels off near 1.3; 1/m^1.5 levels off near 2; constant 0.3 levels off near 3.4."
+fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(11, 3.6))
+m = np.arange(1, N_SAMPLES + 1)
+for name, _, color in SCHEDULES:
+    ax1.plot(m, inc[name][0], color=color, lw=1.6, label=name)
+    ax2.plot(m, inc_rms[name], color=color, lw=1.6, label=name)
+ax1.scatter(m, streams[0], s=4, color=style.MUTED, alpha=0.4, zorder=0)
+ax1.axhline(MEAN_WAIT, color=style.INK, ls=":", lw=1)
+ax1.set(xlabel="waits seen, m", ylabel="estimated mean wait (min)", ylim=(0, 20))
+ax2.set(xscale="log", yscale="log", xlabel="waits seen, m", ylabel="RMS error (min)")
+ax2.set_yticks([0.5, 1, 2, 4, 8], ["0.5", "1", "2", "4", "8"])            # plain numbers, not 10^x
+ax2.minorticks_off()
+ax2.legend(fontsize=7.5)
+fig.tight_layout()
+plt.show()
+```
+
+#### Tabular learning on Hex World
+
+```{python}
+#| label: fig-hex-learning
+#| fig-cap: "The true value of the greedy policy (averaged over Hex World's 21 decision tiles) against steps of ε-greedy experience (ε = 0.1, α = 0.1; 10 runs; log scale across)."
+#| fig-alt: "Line chart with steps from 100 to 30,000 on a log scale across and the greedy policy's value up the side, with a dotted optimum line near 4.5. All four curves rise from negative values at 100 steps. The Sarsa(lambda) curves rise fastest, reaching about 3.5 by 1,000 steps, while plain Sarsa and Q-learning reach about 2.4 to 2.8. By 30,000 steps all four are between about 4.3 and 4.4."
+fig, ax = plt.subplots(figsize=(7.4, 3.8))
+for name, _, color in HEX_LEARNERS:
+    ax.plot(HEX_CK, hex_curves[name], "o-", ms=3, color=color, label=name)
+ax.axhline(OPT_HEX, color=style.INK, ls=":", lw=1, label="optimal")
+ax.set(xscale="log", xlabel="steps of experience", ylabel="greedy policy's true value")
+ax.legend(fontsize=8, loc="lower right")
+plt.show()
+```
+
+After `{python} f"{HEX_CK[k1000]:,}"` steps, the greedy policies were worth `{python} ", ".join(f"{hex_curves[n][k1000]:.2f} ({n})" for n, _, _ in HEX_LEARNERS)`. After `{python} f"{HEX_CK[-1]:,}"` steps: `{python} ", ".join(f"{hex_curves[n][-1]:.2f}" for n, _, _ in HEX_LEARNERS)`. Traces help most early, when rewards have only been reached a few times. Later all four converge toward the optimum, `{python} f"{OPT_HEX:.2f}"`. None gets there exactly, because a constant $\alpha = 0.1$ keeps the estimates noisy (@eq-incremental).
+
+#### On-policy versus off-policy
+
+```{python}
+#| label: fig-towpath
+#| fig-cap: "The towpath, 20 runs of 500 episodes each (α = 0.5, ε = 0.1). Left: return per episode while learning (average of 20 runs, smoothed over 10 episodes). Right: the greedy path each method learned most often."
+#| fig-alt: "Left: line chart with episodes 0 to 500 across and return per episode up the side. Both methods start far below minus 100 and improve quickly; after about 100 episodes Sarsa stays near minus 20 while Q-learning stays lower, near minus 30, with more dips. Right: a 4 by 8 grid with the canal along the bottom row between the start S and the finish F. Q-learning's path, in orange, goes up one cell, along the row just above the canal, and down to F: 9 steps. Sarsa's path, in blue, goes up two cells, runs along the row two above the canal, rises to the top row for two cells in the middle, and comes back down: 13 steps."
+fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(11, 3.4), gridspec_kw={"width_ratios": [1.2, 1]})
+for name, _, color in TOW_LEARNERS:
+    smooth = np.convolve(tow[name]["returns"].mean(axis=0), np.ones(10) / 10, mode="valid")
+    ax1.plot(np.arange(10, N_EPISODES + 1), smooth, color=color, lw=1.8, label=name)
+ax1.set(xlabel="episode", ylabel="return per episode", ylim=(-120, 0))
+ax1.legend(fontsize=8)
+for c in range(1, COLS - 1):
+    ax2.add_patch(Rectangle((c, 0), 1, 1, color="#cde2fb"))
+for r in range(ROWS + 1):
+    ax2.plot([0, COLS], [r, r], color=style.AXIS, lw=0.8)
+for c in range(COLS + 1):
+    ax2.plot([c, c], [0, ROWS], color=style.AXIS, lw=0.8)
+ax2.text(0.5, 0.5, "S", ha="center", va="center", fontsize=12)
+ax2.text(COLS - 0.5, 0.5, "F", ha="center", va="center", fontsize=12)
+for (name, make, color), off in zip(TOW_LEARNERS, (-0.08, 0.08)):
+    L = make()
+    tow_run(L, np.random.default_rng(int(np.flatnonzero(tow[name]["lengths"] == tow_mode[name])[0])))
+    path = greedy_path(L.Q)
+    xs = [TOW.states[s][1] + 0.5 + off for s in path]
+    ys = [ROWS - 1 - TOW.states[s][0] + 0.5 + off for s in path]
+    ax2.plot(xs, ys, color=color, lw=2.5, label=f"{name} ({len(path) - 1} steps)")
+ax2.set(xlim=(0, COLS), ylim=(0, ROWS), aspect="equal", xticks=[], yticks=[])
+ax2.grid(False)
+ax2.legend(fontsize=8, loc="upper center", bbox_to_anchor=(0.5, -0.03), ncol=2, frameon=False)
+fig.tight_layout()
+plt.show()
+```
+
+In `{python} f"{tow_share['Q-learning']:.0%}"` of runs, Q-learning's greedy path was the `{python} tow_mode['Q-learning']`-step route along the edge, the optimal one. In `{python} f"{tow_share['Sarsa']:.0%}"` of runs, Sarsa's was a `{python} tow_mode['Sarsa']`-step route further from the water. Yet during training, Sarsa collected more reward: `{python} f"{tow_late['Sarsa']:.1f}"` per episode over the last 100 episodes, against `{python} f"{tow_late['Q-learning']:.1f}"` for Q-learning. Both are right about different questions. Q-learning answers "what is the best path if I stop exploring?" Sarsa answers "what is the best path given that I keep exploring?"
+
+#### Exploration and shaping on the trail
+
+```{python}
+Markdown("| Learner (5,000 steps, 20 runs) | Learned to climb | True value of the final greedy policy, from the trailhead | Reward per step, last 1,000 steps |\n|---|---|---|---|\n"
+         + "\n".join(f"| {n} | {d['learned']:.0%} | {d['value'].mean():.2f} | {d['late'].mean():.3f} |" for n, d in trail_res.items())
+         + f"\n| optimal policy | | {U_TRAIL[0]:.2f} | |"
+         + "\n\n: Q-learning on the trail. \"Learned to climb\": the final greedy policy is the optimal one. {#tbl-trail}")
+```
+
+- **Plain ε-greedy exploration fails,** as it did with a model in Chapter 16. Eligibility traces don't help, because the problem is getting to the summit at all, not propagating its reward.
+- **Optimistic initial values** ($Q_0 = 20$, the most any action could be worth) are the model-free version of R-MAX: every untried action looks excellent until tried, so the agent keeps climbing to find out.
+- **Potential-based shaping** with $\beta(s) = s$ rewards each step up by about $\gamma(s + 1) - s$ and charges the same for each step down. The optimal policy for the shaped rewards is `{python} "climb everywhere" if (pi_potential == 1).all() else pi_potential` (true value `{python} f"{v_potential:.2f}"`), the same as for the real rewards, and the hint makes it easy to find.
+- **A naive "+5 per step up" bonus** changes what is optimal. For the shaped rewards, the best policy at the summit is `{python} TRAIL.actions[pi_bonus[-1]]`: step back down, then climb again to collect the bonus. Its true value from the trailhead is `{python} f"{v_bonus:.2f}"`, because the view is never enjoyed.
+
+#### Function approximation on the mountain car
+
+```{python}
+#| label: fig-mountain-car
+#| fig-cap: "Q-learning with a linear action value function (49 Fourier features per action, α = 0.3, steps scaled to norm 1) on the mountain car, with and without experience replay (buffer 10,000, batches of 32). Left: steps per episode (average of 10 runs, smoothed over 5 episodes). Right: the learned value function max_a Q(s, a) from one replay run."
+#| fig-alt: "Left: line chart with episodes 0 to 150 across and steps per episode on a log scale up the side. Both start near the 1,000-step cap. With replay, steps fall to about 150 within 20 episodes and settle near 120; without replay, they fall more slowly and settle near 180 to 200. Right: a heat map of the learned value over position from minus 1.2 to 0.6 across and speed from minus 0.07 to 0.07 up the side. It is lowest, about minus 100, at the valley bottom near position minus 0.5 and speed 0, and rises toward the edges; in corners the car never visits, such as high leftward speed near the goal, the fit extrapolates to impossible positive values of up to about 40."
+fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(11, 3.6))
+for name, _, color in MC_VARIANTS:
+    smooth = np.convolve(car[name]["lengths"].mean(axis=0), np.ones(5) / 5, mode="valid")
+    ax1.plot(np.arange(5, MC_EPISODES + 1), smooth, color=color, lw=1.8, label=name)
+ax1.set(yscale="log", xlabel="episode", ylabel="steps to reach the goal")
+ax1.legend(fontsize=8)
+xg, vg = np.meshgrid(np.linspace(*mc.X_BOUNDS, 120), np.linspace(*mc.V_BOUNDS, 120))
+grid = np.column_stack([xg.ravel(), vg.ravel()])
+U_car = (PHI(grid) @ car["with experience replay"]["theta"].T).max(axis=1).reshape(xg.shape)
+im = ax2.pcolormesh(xg, vg, U_car, cmap=style.sequential_cmap().reversed(), shading="auto", rasterized=True)
+ax2.set(xlabel="position", ylabel="speed")
+ax2.grid(False)
+fig.colorbar(im, ax=ax2, label=r"$\max_a Q(s, a)$")
+fig.tight_layout()
+plt.show()
+```
+
+Over the first 10 episodes, plain gradient Q-learning needed `{python} f"{car_first['gradient Q-learning']:.0f}"` steps per episode and replay `{python} f"{car_first['with experience replay']:.0f}"`. Over the last 50: `{python} f"{car_late['gradient Q-learning']:.0f}"` and `{python} f"{car_late['with experience replay']:.0f}"`. From the ten standard starts of Chapter 10, the final greedy policies needed `{python} f"{car['gradient Q-learning']['final'].mean():.0f}"` and `{python} f"{car['with experience replay']['final'].mean():.0f}"` steps on average. Replay does 32 gradient evaluations per step instead of 1, so it trades computation for data: it gets more out of every step of experience.
+
+The value map is right where the car travels: lowest at rest in the valley, where the most steps remain. With every reward −1 and $\gamma = 1$, no true value can be positive, yet the fit reaches `{python} f"{U_car.max():.0f}"` in corners of the state space the car never visits. A linear function is fitted only where there is data, and extrapolates freely elsewhere. That is harmless here, because the policy never goes there. There's no explicit exploration here. Every step costs −1 and the values start at 0, so untried actions look better than tried ones, which is optimistic initialization again.
+
+## Solved problems
+
+**Problem 1: incremental averages.** Temperatures 20, 22, 18 and 24 arrive. Compute the incremental estimates with $\alpha = 0.25$, starting from $\hat x_0 = 20$. What weight does each sample have in the final estimate?
+
+::: {.callout-tip collapse="true" title="Solution"}
+$\hat x_1 = 20 + 0.25(20 - 20) = 20$; $\hat x_2 = 20 + 0.25(2) = 20.5$; $\hat x_3 = 20.5 + 0.25(-2.5) = 19.875$; $\hat x_4 = 19.875 + 0.25(4.125) \approx 20.91$. Sample $k$ steps before the last has weight $0.25 \times 0.75^k$: 0.25 for 24, 0.1875 for 18, 0.141 for 22, 0.105 for 20. The initial value keeps weight $0.75^4 \approx 0.32$. With a constant rate, the start is never fully forgotten, only exponentially discounted.
+:::
+
+**Problem 2: one Q-learning step.** $\gamma = 0.9$, $\alpha = 0.2$. The agent takes $a$ in $s$, receives $r = 2$ and lands in $s'$ where $Q(s', \cdot) = (1, 4, 3)$. The current $Q(s, a) = 5$. What is the new $Q(s, a)$? What would Sarsa give if the next action were the third?
+
+::: {.callout-tip collapse="true" title="Solution"}
+Q-learning: target $2 + 0.9 \times 4 = 5.6$, TD error $0.6$, new $Q(s, a) = 5 + 0.2 \times 0.6 = 5.12$. Sarsa with $a' = 3$: target $2 + 0.9 \times 3 = 4.7$, TD error $-0.3$, new $Q = 5 - 0.06 = 4.94$. The two updates even go in opposite directions, because Sarsa's target reflects the non-greedy action actually taken.
+:::
+
+**Problem 3: shaping that loops.** A robot gets +1 when it reaches its charger. To help, a designer adds +0.5 every time the robot moves closer to the charger (by distance), and nothing for moving away. With $\gamma = 0.9$, why can this change the optimal policy? Fix it with a potential.
+
+::: {.callout-tip collapse="true" title="Solution"}
+Moving away costs nothing, and moving back earns 0.5, so a two-step loop earns 0.5 every other step, worth about $0.5/(1 - 0.81) \approx 2.6$ discounted, forever. That beats reaching the charger for +1 once. Use $\beta(s) = -0.5 \times \text{distance}(s)$ and $F = \gamma\beta(s') - \beta(s)$. Moving closer by one then earns about $+0.5$ and moving away costs about $-0.5$, so any loop nets roughly nothing (exactly a discount term), and the optimal policy is unchanged.
+:::
+
+**Problem 4: how far back does a trace reach?** With $\gamma = 0.95$ and $\lambda = 0.9$, after how many steps does a pair's trace fall below 0.1 of its value when visited? What happens with $\lambda = 0$?
+
+::: {.callout-tip collapse="true" title="Solution"}
+The trace decays by $\gamma\lambda = 0.855$ per step. $0.855^k < 0.1$ when $k > \ln 0.1 / \ln 0.855 \approx 14.7$, so after 15 steps. A reward found 15 steps after a decision still moves that decision's value by at least a tenth of the full amount. With $\lambda = 0$, traces vanish after one step: plain Sarsa, which updates only the most recent pair.
+:::
+
+**Problem 5: why replay needs an off-policy learner.** The replay buffer holds transitions collected by older, worse policies. Why is that acceptable for Q-learning but not for Sarsa?
+
+::: {.callout-tip collapse="true" title="Solution"}
+Q-learning's target, $r + \gamma\max_{a'} Q(s', a')$, uses only $(s, a, r, s')$ and the current $Q$. It doesn't matter which policy chose $a$, because the target is about the greedy policy. Sarsa's target uses $a'$, the action the *behavior* policy took next. With old transitions, that is an old policy's action, so Sarsa would learn a mixture of outdated policies' values rather than the current one's. Replay pairs naturally with off-policy methods.
+:::
+
+## Recap
+
+1. **Model-free learning is incremental averaging toward sampled targets (@eq-incremental).**
+   *Why it matters:* the learning rate decides whether estimates converge (decaying) or track change (constant). That choice reappears in every method on this page and in deep reinforcement learning.
+2. **Q-learning learns optimal values while exploring (@eq-q-learning).**
+   *Why it matters:* it needs no model and converges to $Q^*$ under mild conditions. It is the ancestor of deep Q-networks.
+3. **Sarsa learns the values of the policy it actually follows (@eq-sarsa).**
+   *Why it matters:* when exploration is risky, on-policy learning is safer while training. On the towpath, Sarsa collected `{python} f"{tow_late['Sarsa']:.0f}"` per episode against Q-learning's `{python} f"{tow_late['Q-learning']:.0f}"`, by choosing a longer, safer route.
+4. **Eligibility traces and shaping speed up learning; only potential-based shaping is safe (@eq-traces, @eq-shaping).**
+   *Why it matters:* sparse rewards are the norm in real problems. A careless bonus on the trail created a policy that never reaches the summit: reward hacking in miniature.
+5. **Function approximation and experience replay scale Q-learning up (@eq-gradient-q, @eq-replay).**
+   *Why it matters:* this pair, with a neural network in place of our linear features, is DQN. On the mountain car, replay cut the steps per episode from `{python} f"{car_late['gradient Q-learning']:.0f}"` to `{python} f"{car_late['with experience replay']:.0f}"`.
+
+## Cheat sheet & connections
+
+| Name | Formula | Ref |
+|---|---|---|
+| Incremental mean | $\hat x \leftarrow \hat x + \alpha(x - \hat x)$; $\sum\alpha = \infty$, $\sum\alpha^2 < \infty$ | @eq-incremental |
+| ★ Q-learning | $Q(s, a) \mathrel{+}= \alpha(r + \gamma\max_{a'}Q(s', a') - Q(s, a))$ | @eq-q-learning |
+| ★ Sarsa | $Q(s, a) \mathrel{+}= \alpha(r + \gamma Q(s', a') - Q(s, a))$ | @eq-sarsa |
+| Sarsa(λ) | $Q \mathrel{+}= \alpha\delta N$, $N \leftarrow \gamma\lambda N$ | @eq-traces |
+| ★ Potential-based shaping | $F(s, a, s') = \gamma\beta(s') - \beta(s)$ | @eq-shaping |
+| Gradient Q-learning | $\theta \mathrel{+}= \alpha(r + \gamma\max_{a'}Q_\theta(s', a') - Q_\theta(s, a))\nabla_\theta Q_\theta(s, a)$ | @eq-gradient-q |
+| Experience replay | average the gradient over a random batch from a buffer | @eq-replay |
+
+: Key equations from this page (★ = well-known by name). {#tbl-cheatsheet}
+
+**Common pitfalls**
+
+- **A learning rate that decays too fast.** $\alpha = 1/m^{1.5}$ stops learning while the estimate is still wrong; constant rates never settle.
+- **Judging Q-learning by its training rewards.** It learns the greedy policy's values, but earns the exploring policy's rewards. Evaluate the greedy policy separately.
+- **Reward bonuses that can be farmed.** Any shaping reward that isn't a difference of potentials can create loops that pay more than the real goal.
+- **Eligibility traces with off-policy learning.** Cut the traces when an exploratory action is taken, or the greedy policy is credited with the explorer's luck.
+- **Divergence with function approximation.** Bootstrapping, off-policy learning and function approximation together can make the parameters blow up. Small or scaled steps, replay and target networks help.
+
+**Connections**
+
+- [Ch 15 · Exploration and Exploitation](ch15-exploration-and-exploitation.qmd): ε-greedy and optimism, now at every state.
+- [Ch 16 · Model-Based Methods](ch16-model-based-methods.qmd): the same trail learned with a model; optimistic initial values mirror R-MAX.
+- [Ch 8 · Approximate Value Functions](../part2/ch08-approximate-value-functions.qmd): the Fourier features and the mountain car.
+- [Ch 13 · Actor-Critic Methods](../part2/ch13-actor-critic-methods.qmd): TD errors and λ-weighted returns (GAE) for training a critic.
+- [Ch 18 · Imitation Learning](ch18-imitation-learning.qmd): learning from demonstrations when rewards are hard to specify.

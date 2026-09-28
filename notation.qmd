@@ -121,6 +121,14 @@ This site uses the book's notation. Symbols are added here as chapters are writt
 | $m$, $r_{\max}$ | R-MAX's visit threshold and the largest possible reward | Ch 16 |
 | $\mathrm{Dir}(\theta \mid \boldsymbol\alpha)$ | Dirichlet distribution over probability vectors, with pseudocounts $\boldsymbol\alpha$ | Ch 16 |
 | $b$, $\tau(s, b, a, s')$ | Belief over models, and its Bayes update in a Bayes-adaptive MDP | Ch 16 |
+| $\alpha(m)$, $\alpha$ | Learning rate: how far an estimate moves toward each new sample | Ch 17 |
+| $\hat x_m$ | Incremental estimate of a mean after $m$ samples | Ch 17 |
+| $\delta$ | Temporal difference error, e.g. $r + \gamma Q(s', a') - Q(s, a)$ | Ch 17 |
+| $N(s, a)$ (traces) | Eligibility trace: a decaying count of recent visits (not the Ch 16 transition count) | Ch 17 |
+| $\lambda$ (traces) | Trace decay parameter in Sarsa(λ) | Ch 17 |
+| $F(s, a, s')$, $\beta(s)$ | Shaping reward, and the potential function that makes it safe | Ch 17 |
+| $Q_\theta(s, a)$ | Parameterized action value function | Ch 17 |
+| $m_{\text{grad}}$ | Batch size for experience replay | Ch 17 |
 | $o$ | An observation | Ch 19 |
 | $O(o \mid a, s')$ | Observation model: probability of observing $o$ after taking $a$ and landing in $s'$ | Ch 19 |
 | $b(s)$ | Belief: probability that the current state is $s$, given the history | Ch 19 |

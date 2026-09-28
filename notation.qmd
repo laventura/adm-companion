@@ -185,6 +185,8 @@ This site uses the book's notation. Symbols are added here as chapters are writt
 | $\Pi^i_h$ | Agent $i$'s set of $h$-step conditional plans | Ch 26 |
 | $b(\boldsymbol{\pi}^{-i}, s)$ | Distribution over the other agents' plans and the state (pruning LP) | Ch 26 |
 | $\boldsymbol{x} = (x^1, \dots, x^k)$ | Joint controller node | Ch 26 |
+| $R(s, \boldsymbol{a})$ (shared) | The team's single reward in a Dec-POMDP | Ch 27 |
+| $U^*_{\text{MPOMDP}}(b)$ | Optimal team value if observations were shared (an upper bound) | Ch 27 |
 | $o$ | An observation | Ch 19 |
 | $O(o \mid a, s')$ | Observation model: probability of observing $o$ after taking $a$ and landing in $s'$ | Ch 19 |
 | $b(s)$ | Belief: probability that the current state is $s$, given the history | Ch 19 |

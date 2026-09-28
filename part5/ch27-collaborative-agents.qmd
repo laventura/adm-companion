@@ -1,8 +1,590 @@
 ---
 title: "27 · Collaborative Agents"
 subtitle: "Part V — Multiagent Systems"
+jupyter: python3
+execute:
+  echo: false
 ---
 
 ::: {.callout-note appearance="minimal"}
-**In progress.** This page will cover ADM Ch. 27, *Collaborative Agents*.
+**Executed in:** Python · **Book:** ADM Ch. 27 · **Lecture:** to be added
 :::
+<!-- TODO(video): link the official Stanford AA228 lecture on Dec-POMDPs / collaborative agents. -->
+
+```{python}
+#| include: false
+import itertools
+
+import numpy as np
+import matplotlib.pyplot as plt
+
+from adm import dec_pomdp as D
+from adm import pomg as P
+from adm import style
+from adm.io import write_json
+from adm.page import show_source
+from adm.problems.lost_hiker import lost_hiker
+from adm.problems.multicaregiver import multicaregiver
+
+style.apply()
+blue, orange, green, yellow, pink, dkgreen, purple, red = style.CATEGORICAL
+fmt = lambda x, d=2: f"{x:.{d}f}".replace("-", "−")
+
+LH = lost_hiker()
+B0 = np.array([0.5, 0.5])
+U = P.plan_evaluator(LH)
+LETTER = "LAB"                                       # listen, search left (A), right (B)
+def words(p):
+    return LETTER[p[0]] if len(p) == 1 else f"{LETTER[p[0]]}[{words(p[1][0])} | {words(p[1][1])}]"
+
+# --- Exact optima and the value of communication -------------------------------------------------
+EXACT = {h: D.exact_best_plans(LH, B0, h, U) for h in (1, 2, 3)}
+OPT = {h: EXACT[h][2] for h in EXACT}
+CENTRAL = {h: D.centralized_value(LH, B0, h) for h in (1, 2, 3, 4)}
+assert np.isclose(OPT[2], 7.36) and np.isclose(OPT[3], OPT[2])
+# Dynamic programming prunes nothing here at two steps.
+_, DP_COUNTS = D.optimal_plans(LH, B0, 2, np.random.default_rng(0), U)
+assert DP_COUNTS[-1] == ((27, 27), (27, 27))
+
+# --- Approximate methods at three steps --------------------------------------------------------
+FULL3 = P.all_plans(3, 2, 3)
+JESP = [D.iterated_best_response(LH, B0, [FULL3, FULL3], np.random.default_rng(s), U=U) for s in range(20)]
+JESP_V = np.array([j[2] for j in JESP])
+JESP_KINDS = {}
+for p1, p2, v in JESP:
+    JESP_KINDS.setdefault(round(v, 3), (words(p1), words(p2), 0))
+    a, b_, n = JESP_KINDS[round(v, 3)]
+    JESP_KINDS[round(v, 3)] = (a, b_, n + 1)
+MBDP = {k: np.array([D.memory_bounded_search(LH, B0, 3, k, np.random.default_rng(s), U)[2] for s in range(20)])
+        for k in (1, 2, 3, 5)}
+
+# --- The caregivers as a team ------------------------------------------------------------------------
+TEAM = D.shared(multicaregiver())
+TEAM_OPT = {h: D.exact_best_plans(TEAM, B0, h)[2] for h in (2, 3)}
+assert np.isclose(TEAM_OPT[3], -9.75 - 5.0)          # = Ch 26's "caregiver 1 feeds" equilibrium
+
+# --- Controllers (infinite horizon) ---------------------------------------------------------------
+def ctrl(acts, nxt, n):
+    """Deterministic n-node controller: action acts[x]; node nxt[2x + o] after report o."""
+    psi, eta = np.zeros((n, 3)), np.zeros((n, 3, 2, n))
+    for x in range(n):
+        psi[x, acts[x]] = 1
+        for o in range(2):
+            eta[x, :, o, nxt[2 * x + o]] = 1
+    return psi, eta
+cval = lambda c1, c2: P.evaluate_controllers(LH, c1, c2)[0, 0, 0] @ B0
+SYM = {}
+for n in (1, 2, 3):
+    SYM[n] = max((cval(c, c), a, x) for a in itertools.product(range(3), repeat=n)
+                 for x in itertools.product(range(n), repeat=2 * n) for c in [ctrl(a, x, n)])
+LISTEN_SEARCH = ctrl((0, 1, 2), (1, 2, 0, 0, 0, 0), 3)
+assert np.isclose(SYM[3][0], cval(LISTEN_SEARCH, LISTEN_SEARCH))
+# Can one rescuer do better with any other deterministic 3-node controller?
+BR3 = max(cval(LISTEN_SEARCH, ctrl(a, x, 3)) for a in itertools.product(range(3), repeat=3)
+          for x in itertools.product(range(3), repeat=6))
+NLP3 = D.optimize_controllers(LH, B0, 3, np.random.default_rng(0), starts=5)
+NLP3 = 0.0 if abs(NLP3) < 1e-6 else NLP3             # print 0, not −0.00
+BLIND = ctrl((1,), (0, 0), 1)                          # always search left
+```
+
+## Big picture
+
+### Where this chapter fits
+
+[Chapter 26](ch26-state-uncertainty.qmd)'s agents each had their own reward, so the question was which joint policies were stable. Here all agents share **one reward**: a team. The model, a **decentralized POMDP** (Dec-POMDP), is a POMG with identical rewards. Now there is a single best joint policy, and the question is how to find it when each agent acts on its own observations. This is the last chapter of the book's main text; it ties together plans and controllers (Chapters [20](../part4/ch20-exact-belief-state-planning.qmd) and [23](../part4/ch23-controller-abstractions.qmd)), equilibria ([Chapter 24](ch24-multiagent-reasoning.qmd)) and multiagent dynamics.
+
+**The question:** how should a team act when its members can't share what they observe?
+
+The short answer: **plan all members' policies together, offline, knowing that each will act on its own observations; exact methods are hopeless beyond tiny problems, so use search that improves one member at a time or keeps a bounded set of plans.**
+
+- A shared reward removes the conflict of Part V's earlier chapters, but not the coordination problem: each agent must guess what the others have seen.
+- **Exact planning** (dynamic programming, or brute force on tiny problems) is NEXP-complete in general.
+- **Iterated best response** (JESP) improves one agent at a time and can stop at a poor joint policy.
+- **Memory-bounded search** (MBDP) keeps a few plans per agent, chosen at sampled beliefs.
+- **Controllers** of fixed size can be optimized directly, if the optimizer doesn't get stuck.
+
+```{dot}
+//| label: fig-ch27-map
+//| fig-width: 7
+//| fig-height: 1.67
+//| fig-cap: "Map of this chapter. A Dec-POMDP is a POMG with one shared reward. Exact planning optimizes all agents' plans together; approximate methods improve one agent at a time, keep a bounded set of plans, or optimize fixed-size controllers. Sharing observations would turn it into a single POMDP, which bounds what the team can achieve."
+//| fig-alt: "Diagram. A blue box, Dec-POMDP (one shared reward, private observations), points to four boxes: Exact planning (DP, brute force), Iterated best response (JESP), Memory-bounded search (MBDP) and Controllers (fixed size). A gray box, Shared observations (MPOMDP), is linked to the Dec-POMDP by an edge labeled upper bound."
+digraph ch27 {
+  rankdir=TB; bgcolor="#fcfcfb"; pad=0.25; nodesep=0.3; ranksep=0.45;
+  node [shape=box, style="rounded,filled", fillcolor="white", color="#c3c2b7", penwidth=1.2,
+        fontname="Helvetica", fontsize=13, fontcolor="#0b0b0b", margin="0.12,0.07"];
+  edge [color="#52514e", penwidth=1.2, arrowsize=0.7, fontname="Helvetica", fontsize=11, fontcolor="#52514e"];
+  dec [label=<<B>Dec-POMDP</B><BR/><FONT POINT-SIZE="11">one shared reward,<BR/>private observations</FONT>>, fillcolor="#cde2fb", color="#2a78d6"];
+  mpomdp [label=<<B>Shared observations</B><BR/><FONT POINT-SIZE="11">MPOMDP: one big POMDP</FONT>>, fillcolor="#f0efec"];
+  exact [label=<<B>Exact planning</B><BR/><FONT POINT-SIZE="11">DP, brute force</FONT>>];
+  jesp [label=<<B>Iterated best response</B><BR/><FONT POINT-SIZE="11">JESP</FONT>>];
+  mbdp [label=<<B>Memory-bounded search</B><BR/><FONT POINT-SIZE="11">MBDP</FONT>>];
+  ctrl [label=<<B>Controllers</B><BR/><FONT POINT-SIZE="11">fixed size</FONT>>];
+  { rank=same; dec; mpomdp; }
+  mpomdp -> dec [label="upper bound", dir=forward];
+  dec -> exact; dec -> jesp; dec -> mbdp; dec -> ctrl;
+}
+```
+
+### The key ideas at a glance
+
+1. **A Dec-POMDP** has a hidden state, joint actions, private observations and one reward $R(s, \boldsymbol{a})$ that every agent maximizes. It is a POMG whose agents all have that same reward.
+
+2. **Cooperation doesn't remove the hard part.** Each agent acts on its own observation history, without knowing the others'. Policies are again conditional plans or controllers. Finding the optimal joint policy is NEXP-complete (D. S. Bernstein et al., 2002), harder than POMDPs.
+
+3. **Structure helps.** Subclasses make it easier: if the joint observations reveal the state (Dec-MDP); if the state, transitions, observations and rewards factor per agent; or if observations can be shared freely (an MPOMDP, which is just a big POMDP). Sharing observations gives an **upper bound** on what the team can do.
+
+4. **Search.** Dynamic programming with pruning (Chapter 26) is exact but can prune little when rewards are shared. **Iterated best response** (JESP) improves one agent at a time; it converges to a joint policy no single agent can improve, which may be far from the best. **Memory-bounded search** (MBDP) keeps a fixed number of plans per agent, chosen at beliefs sampled by simulation.
+
+5. **Controllers** of fixed size handle infinite horizons. They can be optimized by nonlinear programming, which can also stop at a poor local optimum.
+
+### Vocabulary
+
+| Term | Plain meaning |
+|:---|:---|
+| Dec-POMDP | A team problem: shared reward, private observations |
+| Dec-MDP | A Dec-POMDP whose agents' observations, pooled, would reveal the state |
+| MMDP / MPOMDP | Multiagent MDP / POMDP: the team shares everything, so it's one big MDP / POMDP |
+| Factored model | State split into one part per agent (plus the environment) |
+| JESP | Joint equilibrium-based search for policies: iterated best response for teams |
+| MBDP | Memory-bounded dynamic programming: keep a few plans per agent |
+| Value of communication | How much more the team could earn by sharing observations |
+
+: Terms used on this page. {#tbl-vocab}
+
+### After this chapter you can
+
+- Write down a Dec-POMDP, and place a problem among its subclasses.
+- Compute a team's optimal joint plan for small problems, and an upper bound by pooling observations.
+- Run iterated best response and memory-bounded search, and recognize the local optima they reach.
+- Evaluate and search over joint controllers.
+- Explain why a shared reward doesn't make decentralized planning easy.
+
+## Intuition
+
+::: {.callout-tip title="Analogy"}
+Two rescuers at separate lookouts are looking for a lost hiker in one of two valleys. Each hears a crackly, private radio report about which valley. Carrying the hiker out takes both of them, in the same valley. They agreed on a plan before setting out, but now they can't talk. Should a rescuer who heard "left" go left, trusting that the other heard the same? Or listen again?
+:::
+
+We use **the lost hiker**, this site's problem ([problem gallery](../appendices/f-problems.qmd#the-lost-hiker)). Each rescuer can listen (cost 1; the report is right 80% of the time), search the left valley, or search the right. Both searching the right valley earns 20; one alone earns 5; each wrong search costs 10. Any search starts a new episode with a new hiker in a random valley. We also revisit Chapter 26's **caregivers**, now scored by their total reward.
+
+### Coordinate on what each will hear
+
+Over three steps, the best joint plan is worth `{python} fmt(OPT[3], 2)`: both listen once, then each searches the valley their own report names. Their reports agree `{python} fmt(0.8 ** 2 + 0.2 ** 2, 2)` of the time; when they disagree, the two search different valleys. Listening a second time wouldn't help: the benefit of better information doesn't outweigh the cost and the delay. See @eq-dec-value.
+
+### Talking would be worth a lot
+
+If the rescuers could pool their reports, the team could earn `{python} fmt(CENTRAL[3], 2)` over three steps instead of `{python} fmt(OPT[3], 2)`: they would search only when the pooled evidence is strong, and always together. That gap, `{python} fmt(CENTRAL[3] - OPT[3], 2)`, is the **value of communication**. See @eq-mpomdp.
+
+### Improving one at a time gets stuck
+
+Iterated best response starts from random plans and lets each rescuer improve given the other's plan. In `{python} JESP_KINDS[0.0][2]` of 20 runs it ended with both rescuers searching the left valley blindly every step, worth 0. A rescuer who listens instead pays 1 and learns nothing, since the other's search keeps resetting the hiker; one who searches the other valley splits the team. Only `{python} int(np.isclose(JESP_V, OPT[3]).sum())` run found the optimum. See @eq-best-response-team.
+
+### Small controllers need the right memory
+
+Over an infinite horizon, each rescuer can follow a small controller. With 3 nodes, "listen; search where told; listen again", a pair is worth `{python} fmt(SYM[3][0], 2)`. With 2 nodes, no deterministic controller pair beats 0: a rescuer can't remember both "go left" and "go right". An optimizer started at random 3-node controllers found only `{python} fmt(NLP3, 2)`.
+
+## Formalism
+
+### Dec-POMDPs
+
+A Dec-POMDP (ADM §27.1; D. S. Bernstein, R. Givan, N. Immerman and S. Zilberstein, *Mathematics of Operations Research*, 2002) is a POMG (Chapter 26) with a single reward $R(s, \boldsymbol{a})$ shared by all agents. A joint policy $\boldsymbol{\pi}$ of conditional plans or controllers is scored by its common value, and the goal is the best one:
+
+::: {.key-equation data-name="Dec-POMDP objective"}
+$$
+\begin{aligned}
+\boldsymbol{\pi}^* &= \arg\max_{\boldsymbol{\pi} = (\pi^1, \dots, \pi^k)} U^{\boldsymbol{\pi}}(b), \\
+U^{\boldsymbol{\pi}}(s) &= R(s, \boldsymbol{\pi}()) + \gamma \sum_{s'} T(s' \mid s, \boldsymbol{\pi}()) \sum_{\boldsymbol{o}} O(\boldsymbol{o} \mid \boldsymbol{\pi}(), s')\, U^{\boldsymbol{\pi}(\boldsymbol{o})}(s')
+\end{aligned}
+$$ {#eq-dec-value}
+:::
+
+**In words.** Choose every agent's plan together to maximize the team's expected reward, evaluating joint plans exactly as in Chapter 26.
+
+**Term by term.**
+
+- $U^{\boldsymbol{\pi}}(b) = \sum_s b(s) U^{\boldsymbol{\pi}}(s)$, one number for the whole team.
+- Each $\pi^i$ still branches only on agent $i$'s own observations.
+- The search space is every combination of plans: $\prod_i |\Pi^i_h|$, doubly exponential in the horizon $h$.
+
+**Why it holds.** It's the POMG evaluation with every $R^i = R$; with identical rewards, the best joint policy is also a Nash equilibrium (nobody can gain by deviating from the optimum), but not every equilibrium is optimal.
+
+### Subclasses
+
+The general problem is NEXP-complete for finite horizons (Bernstein et al.). Structure changes that (ADM §27.2):
+
+- **Dec-MDP**: pooled observations would reveal the state. Still NEXP-complete: the pooling can't happen during execution.
+- **Factored, with independence**: each agent has its own state factor, and transitions, observations and rewards split per agent. With all three independent, each agent solves its own MDP (P-complete). With transitions and observations independent only, NP-complete. Otherwise NEXP-complete (ADM Table 27.1).
+- **ND-POMDP**: rewards are sums over small groups of agents (a coordination graph), which scales to many agents.
+- **MMDP / MPOMDP**: agents share all observations instantly, so the team is a single agent with joint actions: an MDP or a POMDP.
+
+```{dot}
+//| label: fig-taxonomy
+//| fig-width: 5.02
+//| fig-height: 5.57
+//| fig-cap: "How the models of this book relate. An arrow points from a more general model to a special case, labeled with what's assumed."
+//| fig-alt: "Diagram. POMG points, labeled shared reward, to Dec-POMDP; labeled full observability, to Markov game; labeled one agent, to POMDP. Dec-POMDP points, labeled pooled observations reveal state, to Dec-MDP, and labeled free communication, to MPOMDP. MPOMDP points, labeled full observability, to MMDP. Markov game points, labeled one state, to Simple game. POMDP points, labeled full observability, to MDP. MMDP points, labeled one agent, to MDP."
+digraph tax {
+  rankdir=TB; bgcolor="#fcfcfb"; pad=0.2; nodesep=0.3; ranksep=0.4;
+  node [shape=box, style="rounded,filled", fillcolor="white", color="#c3c2b7", penwidth=1.2,
+        fontname="Helvetica", fontsize=12, fontcolor="#0b0b0b", margin="0.1,0.05"];
+  edge [color="#52514e", penwidth=1.1, arrowsize=0.6, fontname="Helvetica", fontsize=10, fontcolor="#52514e"];
+  pomg [label="POMG", fillcolor="#cde2fb", color="#2a78d6"];
+  dec [label="Dec-POMDP", fillcolor="#cde2fb", color="#2a78d6"];
+  mg [label="Markov game"]; pomdp [label="POMDP"]; decmdp [label="Dec-MDP"];
+  mpomdp [label="MPOMDP"]; mmdp [label="MMDP"]; sg [label="Simple game"]; mdp [label="MDP"];
+  pomg -> dec [label="shared reward"]; pomg -> mg [label="full obs."]; pomg -> pomdp [label="one agent"];
+  dec -> decmdp [label="pooled obs.\nreveal state"]; dec -> mpomdp [label="free talk"];
+  mpomdp -> mmdp [label="full obs."]; mg -> sg [label="one state"];
+  pomdp -> mdp [label="full obs."]; mmdp -> mdp [label="one agent"];
+}
+```
+
+### The value of communication
+
+If the agents could share every observation, they would act as one agent with joint actions and joint observations: a POMDP over the same states (an MPOMDP). Its optimal value bounds the team's:
+
+::: {.key-equation data-name="Communication upper bound"}
+$$
+\begin{aligned}
+\max_{\boldsymbol{\pi}} U^{\boldsymbol{\pi}}(b) &\;\le\; U^*_{\text{MPOMDP}}(b), \\
+U^*_{\text{MPOMDP}}(b) &= \max_{\boldsymbol{a}} \Big[ R(b, \boldsymbol{a}) + \gamma \sum_{\boldsymbol{o}} P(\boldsymbol{o} \mid b, \boldsymbol{a})\, U^*_{\text{MPOMDP}}\big(\text{Update}(b, \boldsymbol{a}, \boldsymbol{o})\big) \Big]
+\end{aligned}
+$$ {#eq-mpomdp}
+:::
+
+**In words.** A team that shares everything can do at least as well as one that can't.
+
+**Term by term.**
+
+- The right side is the Chapter 20 lookahead, with joint actions and joint observations; here it is computed by forward search to the horizon.
+- Every decentralized policy is also a policy of the shared team (one that ignores the others' observations), so the maximum over the larger set is at least as large.
+- The difference is the **value of communication**: the most the team would pay for a perfect, free radio.
+
+**Why it holds.** Decentralized policies are a subset of centralized ones.
+
+### Iterated best response (JESP)
+
+Pick an agent and replace its plan with its best response to the others' current plans, keeping the current plan in a tie (ADM §27.4; R. Nair, M. Tambe, M. Yokoo, D. Pynadath and S. Marsella, *IJCAI*, 2003):
+
+::: {.key-equation data-name="Team best response"}
+$$
+\pi^i \leftarrow \arg\max_{\pi^{i\prime} \in \Pi^i} U^{\pi^{i\prime}, \boldsymbol{\pi}^{-i}}(b)
+$$ {#eq-best-response-team}
+:::
+
+**In words.** Holding everyone else's plan fixed, give one agent the plan that's best for the team.
+
+**Term by term.**
+
+- Each step searches only one agent's plans, $|\Pi^i|$ of them, instead of all joint plans.
+- The team value never decreases, so the process stops, at a joint plan that no single agent can improve.
+
+**Why it holds.** With a shared reward, an improvement for one agent is an improvement for the team. But a joint plan that no *single* agent can improve can still be improved by several agents changing together: the process can stop at a poor local optimum, as the blind searchers show.
+
+### Memory-bounded search (MBDP) and controllers
+
+MBDP (ADM §27.5; S. Seuken and S. Zilberstein, *IJCAI*, 2007) builds plans from the last step backward, like dynamic programming, but keeps only a fixed number per agent. To choose them, it simulates random actions from $b$ to reach a belief a few steps into the future, and keeps the best joint plan for that belief. Its memory is fixed, so it scales to long horizons, but the plans it keeps depend on which beliefs it samples.
+
+For infinite horizons, fixed-size **controllers** (ADM §27.6; C. Amato, D. S. Bernstein and S. Zilberstein, 2010) are evaluated by Chapter 26's linear solve (eq. 26.3) and optimized over all agents' $\psi$ and $\eta$ together, a nonlinear program (as in Chapter 23). The page solves it with SciPy's SLSQP from random starts.
+
+## Worked example
+
+### The best two-step plan
+
+Both listen, then each searches the valley their own report names. Step 1 costs 2 (two listeners). The two reports are independent given the valley, each right with probability 0.8:
+
+- both right (0.64): both search the right valley, +20;
+- one right, one wrong (2 × 0.16 = 0.32): one finds the hiker alone (+5) and the other searches the wrong valley (−10): −5;
+- both wrong (0.04): both search the wrong valley, −20.
+
+So step 2 is worth $0.64 \times 20 + 0.32 \times (-5) + 0.04 \times (-20) = 10.4$, and the plan $-2 + 0.9 \times 10.4 = 7.36$.
+
+```{python}
+#| output: asis
+p1, p2, v = EXACT[2]
+print(f"Brute force over all {27 ** 2} pairs of two-step plans agrees: {fmt(v, 2)}, for "
+      f"{words(p1)} (both rescuers), where L = listen, A = search left, B = search right, "
+      f"and the brackets give the next action after hearing \"left\" | \"right\".")
+```
+
+### What pooled reports would add
+
+With both reports shared after one round of listening, the team could search together and only when it makes sense. If the reports agree (probability 0.68), the valley they name is right with probability $0.64/0.68 = 0.94$: searching together there is worth $0.94 \times 20 + 0.06 \times (-20) = 17.6$. If they disagree, the valley is a coin flip, and searching blind is worth 0, no better than doing nothing useful. Two steps are then worth $-2 + 0.9 \times 0.68 \times 17.6 = 8.8$:
+
+```{python}
+#| output: asis
+print(f"The code's forward search over shared beliefs: {fmt(CENTRAL[2], 3)} for two steps, "
+      f"{fmt(CENTRAL[3], 3)} for three (decentralized optimum {fmt(OPT[3], 3)}).")
+```
+
+## Interactive
+
+### Two rescuers, one radio short
+
+Pick a pair of controllers and step through a simulated search. Each rescuer's private report is shown only to that rescuer; the team's total reward accumulates.
+
+```{python}
+#| include: false
+def run(c1, c2, seed, steps=40):
+    rng = np.random.default_rng(seed)
+    s, x = rng.choice(2, p=B0), [0, 0]
+    rows, total = [], 0.0
+    for t in range(steps):
+        a = [int(rng.choice(3, p=c[0][x[i]])) for i, c in enumerate((c1, c2))]
+        r = float(LH.R[0, s, a[0], a[1]])
+        s2 = rng.choice(2, p=LH.T[s, a[0], a[1]])
+        o = divmod(int(rng.choice(4, p=LH.O[a[0], a[1], s2].ravel())), 2)
+        total += r
+        rows.append({"valley": LH.states[s], "acts": [LH.actions[0][k] for k in a],
+                     "reports": [LH.observations[0][k] for k in o], "reward": r, "total": total})
+        x = [int(rng.choice(len(c[0]), p=c[1][x[i], a[i], o[i]])) for i, c in enumerate((c1, c2))]
+        s = s2
+    return rows
+
+matchups = {"listen, then search where told (3 nodes each)": (LISTEN_SEARCH, LISTEN_SEARCH),
+            "both search left blindly (the JESP trap)": (BLIND, BLIND),
+            "one listens and searches, the other searches left blindly": (LISTEN_SEARCH, BLIND)}
+write_json({k: run(*v, seed=2) for k, v in matchups.items()}, "data/ch27-rescue.json")
+```
+
+```{ojs}
+rescueData = FileAttachment("data/ch27-rescue.json").json()
+viewof rescueName = Inputs.select(Object.keys(rescueData), {label: "Team"})
+viewof rescueT = Inputs.range([1, 40], {step: 1, value: 6, label: "Step"})
+```
+
+```{ojs}
+rescueNow = rescueData[rescueName][rescueT - 1]
+md`Step **${rescueT}**: the hiker is in the **${rescueNow.valley}** valley. Rescuer 1 **${rescueNow.acts[0]}**, rescuer 2 **${rescueNow.acts[1]}**; team reward **${rescueNow.reward}**. Reports heard afterwards: rescuer 1 "${rescueNow.reports[0]}", rescuer 2 "${rescueNow.reports[1]}". Team total so far: **${rescueNow.total}**.`
+```
+
+```{ojs}
+//| label: fig-rescue
+//| fig-cap: "The team's running total reward over one simulated search, for the chosen pair of controllers; the chosen step is marked."
+//| fig-alt: "Interactive line chart with steps 1 to 40 across and the team's running total reward up the side. In the run shown, the listen-then-search team climbs to about 145, with occasional small drops when reports disagree; the blind searchers swing between about minus 60 and 60; the mixed team mostly loses, falling as low as about minus 88."
+Plot.plot({
+  width: 640, height: 260, style: {background: "#fcfcfb"},
+  x: {label: "step", domain: [1, 40]}, y: {label: "team total", grid: true},
+  marks: [Plot.line(rescueData[rescueName].map((d, i) => ({t: i + 1, total: d.total})), {x: "t", y: "total", stroke: "#2a78d6", strokeWidth: 2}),
+          Plot.dot([{t: rescueT, total: rescueNow.total}], {x: "t", y: "total", r: 5, fill: "#eb6834"}), Plot.ruleY([0])]
+})
+```
+
+## Algorithms & code
+
+### Exact planning, search and controllers for teams
+
+::: {.panel-tabset group="lang"}
+## Python
+```{python}
+#| output: asis
+show_source(D.shared, D.best_joint_plan, D.exact_best_plans, D.iterated_best_response,
+            D.explore_belief, D.memory_bounded_search, D.centralized_value, D.optimize_controllers)
+```
+## Julia
+```{.julia .snippet}
+using ADM
+
+g = lost_hiker()            # POMG with identical reward rows; 1 = listen / left
+b = [0.5, 0.5]
+
+# A plan is (a,) at the last step, or (a, (plan after "left", plan after "right")).
+plans(h) = h == 1 ? [(a,) for a in 1:3] :
+           [(a, (p, q)) for a in 1:3 for p in plans(h - 1) for q in plans(h - 1)]
+
+# Shared value of joint plans (p1, p2) from state s (eq. 27 as in eq. 26.1).
+function value(p1, p2, s)
+    a1, a2 = p1[1], p2[1]
+    u = g.R[1, s, a1, a2]
+    length(p1) == 1 && return u
+    for s′ in 1:2, o1 in 1:2, o2 in 1:2
+        w = g.T[s, a1, a2, s′] * g.O[a1, a2, s′, o1, o2]
+        w > 0 && (u += g.γ * w * value(p1[2][o1], p2[2][o2], s′))   # own branches
+    end
+    return u
+end
+
+# Brute force over all 27 × 27 two-step joint plans (in a function, so the
+# loop's assignments are local: Julia's soft-scope rule).
+function brute_force(h)
+    best, arg = -Inf, nothing
+    for p1 in plans(h), p2 in plans(h)
+        v = sum(b[s] * value(p1, p2, s) for s in 1:2)
+        v > best && ((best, arg) = (v, (p1, p2)))
+    end
+    return best, arg
+end
+best, arg = brute_force(2)
+println("best two-step team value: ", round(best; digits = 3), ", plans ", arg)
+@assert isapprox(best, 7.36; atol = 1e-9) && arg[1] == (1, ((2,), (3,)))
+```
+:::
+
+::: {.callout-note collapse="true" title="Reading the Python code"}
+- **`D.shared`** turns a POMG into a team problem by giving every agent the sum of the rewards; for the lost hiker, both rows are already equal.
+- **`exact_best_plans`** uses broadcasting: `M[0, 0][:, None, :, None]` has axes (agent 1's subplan after "left", agent 1's after "right", agent 2's after "left", agent 2's after "right"), and adding the four such terms scores all $27^4$ subplan combinations for one pair of first actions at once.
+- **`iterated_best_response`** uses `max(plans[i], key=v)`: the plan with the highest team value, holding the other agent's plan fixed.
+- **`centralized_value`** is the Chapter 20 lookahead, written recursively over joint actions and joint observations.
+:::
+
+### Run them
+
+```{python}
+#| echo: true
+game = lost_hiker()
+b = np.array([0.5, 0.5])
+p1, p2, v = D.exact_best_plans(game, b, 3)
+print(f"exact, 3 steps: {v:.3f}; with shared reports: {D.centralized_value(game, b, 3):.3f}")
+full = P.all_plans(3, 2, 3)
+for seed in range(3):
+    print("JESP:", round(D.iterated_best_response(game, b, [full, full],
+                                                  np.random.default_rng(seed))[2], 3))
+```
+
+### Results
+
+#### The value of communication
+
+```{python}
+#| label: fig-comm
+#| fig-cap: "The lost hiker: the team's best value from a 50–50 start by horizon, with private reports (decentralized, exact) and with pooled reports (MPOMDP, exact). The gap is the value of communication."
+#| fig-alt: "Line chart with horizon 1 to 4 across and value up the side. The pooled-reports line rises from 0 to 8.8, 11.3 and 16.9. The private-reports line rises from 0 to 7.36 at horizon 2 and stays at 7.36 at horizon 3."
+fig, ax = plt.subplots(figsize=(6.4, 3.3))
+ax.plot(list(CENTRAL), list(CENTRAL.values()), "o-", color=orange, label="pooled reports (MPOMDP)")
+ax.plot(list(OPT), list(OPT.values()), "o-", color=blue, label="private reports (Dec-POMDP)")
+for h in OPT:
+    if CENTRAL[h] - OPT[h] > 0.5:
+        ax.annotate("", xy=(h, CENTRAL[h]), xytext=(h, OPT[h]),
+                    arrowprops={"arrowstyle": "<->", "color": style.MUTED})
+ax.set_xticks([1, 2, 3, 4])
+ax.set_xlabel("horizon (steps)")
+ax.set_ylabel("team value")
+ax.legend(fontsize=9)
+plt.tight_layout()
+plt.show()
+```
+
+- With private reports, the team's best is `{python} fmt(OPT[2], 2)` at both two and three steps. Over three steps, no joint plan that listens twice does better.
+- With pooled reports, it's `{python} fmt(CENTRAL[2], 2)`, `{python} fmt(CENTRAL[3], 2)` and `{python} fmt(CENTRAL[4], 2)` for two to four steps. By three steps, communication is worth `{python} fmt(CENTRAL[3] - OPT[3], 2)`, more than half the decentralized value.
+- Dynamic programming with pruning (Chapter 26) kept all `{python} DP_COUNTS[-1][1][0]` two-step plans per rescuer: with a shared reward, nearly every plan is the best one for *some* guess about the other's plan and the valley. So exact search at three steps needs the brute force above.
+
+#### Approximate search at three steps
+
+```{python}
+#| label: fig-search
+#| fig-cap: "The lost hiker, three steps: values reached by iterated best response (JESP, 20 random starts) and by memory-bounded search (MBDP, 20 runs for each number of kept plans), against the exact optimum (dashed) and the pooled-reports bound (dotted)."
+#| fig-alt: "Strip chart. JESP's 20 values cluster at 0, about 6.1 and about 6.6, with one at 7.36. MBDP's values are mostly about 6.6; with one kept plan a few runs end at 0; with three and with five kept plans, one run each reaches 7.36. A dashed line marks the optimum, 7.36, and a dotted line the pooled-reports value, 11.33."
+fig, ax = plt.subplots(figsize=(7.5, 3.4))
+jit = np.random.default_rng(0)
+cols = [("JESP", JESP_V)] + [(f"MBDP, {k} plan{'s' if k > 1 else ''}", MBDP[k]) for k in MBDP]
+for i, (lab, vals) in enumerate(cols):
+    ax.scatter(i + jit.uniform(-0.15, 0.15, len(vals)), vals, color=blue if i == 0 else green, s=18, alpha=0.7)
+ax.axhline(OPT[3], color=style.INK, ls="--", lw=1, label="exact optimum")
+ax.axhline(CENTRAL[3], color=orange, ls=":", lw=1.5, label="pooled reports")
+ax.set_xticks(range(len(cols)), [c[0] for c in cols], fontsize=9)
+ax.set_ylabel("team value")
+ax.legend(fontsize=8, loc="center right")
+plt.tight_layout()
+plt.show()
+```
+
+```{python}
+#| output: asis
+print("| JESP ended at | runs (of 20) | rescuer 1's plan | rescuer 2's plan |\n|---:|---:|:---|:---|")
+for v in sorted(JESP_KINDS):
+    a, b_, n = JESP_KINDS[v]
+    print(f"| {fmt(v, 3)} | {n} | `{a}` | `{b_}` |")
+print("\n: The joint plans where iterated best response stopped (L = listen, A = search left, "
+      "B = search right; brackets: next action after hearing \"left\" | \"right\"). {#tbl-jesp}")
+```
+
+- **Iterated best response stops wherever no single rescuer can improve.** The blind-searching pair (0) is such a point (see solved problem 4). It reached the optimum in `{python} int(np.isclose(JESP_V, OPT[3]).sum())` of 20 runs.
+- **Memory-bounded search mostly settles for less.** With 3 kept plans, `{python} int(np.isclose(MBDP[3], OPT[3]).sum())` of 20 runs found the optimum; the rest kept a plan worth about `{python} fmt(np.median(MBDP[3]), 2)`. Keeping more plans helped little here: with 5, `{python} int(np.isclose(MBDP[5], OPT[3]).sum())` of 20.
+
+#### Controllers and the caregivers as a team
+
+| Controllers (each rescuer, infinite horizon) | Team value |
+|---|---:|
+| Best identical 1-node pair (brute force) | `{python} fmt(SYM[1][0], 2)` |
+| Best identical 2-node pair (brute force) | `{python} fmt(SYM[2][0], 2)` |
+| Best identical 3-node pair (brute force): listen; search where told; listen | `{python} fmt(SYM[3][0], 2)` |
+| Best response of one rescuer to that controller, over all 3-node controllers | `{python} fmt(BR3, 2)` |
+| Nonlinear programming (SLSQP), 3 nodes, 5 random starts | `{python} fmt(NLP3, 2)` |
+
+: Controllers for the lost hiker. {#tbl-controllers}
+
+- Three nodes are the least that can remember "listen", "go left" and "go right", and the listen-then-search pair is worth `{python} fmt(SYM[3][0], 2)`. Neither rescuer can do better by switching to any other deterministic 3-node controller (`{python} fmt(BR3, 2)`).
+- The nonlinear program, from random starts, stopped at `{python} fmt(NLP3, 2)`: the same trap as JESP's, where neither rescuer listens because listening alone doesn't pay.
+- **The caregivers of Chapter 26, scored by their total**, do best with `{python} fmt(TEAM_OPT[3], 2)` over three steps: exactly the total of the Chapter 26 equilibrium in which caregiver 1, whose feeding is cheaper, does the feeding (−9.75 − 5). Here the selfish equilibrium happened to be the team's best.
+
+## Solved problems
+
+**Problem 1: why isn't a Dec-MDP just an MDP?** In a Dec-MDP, the agents' observations together reveal the state. Why can't each agent just act on the state?
+
+::: {.callout-tip collapse="true" title="Solution"}
+Because no agent has all the observations while acting. Each sees only its own part, so it must plan for what the others might have seen. The state is known "jointly" only at planning time, not during execution; that's why Dec-MDPs remain NEXP-complete.
+:::
+
+**Problem 2: fully independent agents.** A factored Dec-MDP has transition, observation and reward independence. How would you solve it?
+
+::: {.callout-tip collapse="true" title="Solution"}
+Solve one MDP per agent: agent $i$'s own states, actions, transitions and reward component. Because nothing couples the agents (not their dynamics, their observations or their rewards), the sum of the individually optimal values is the team's optimum, and the total cost is linear in the number of agents.
+:::
+
+**Problem 3: a two-step value by hand.** In the lost hiker, suppose rescuer 1 listens then searches where told, while rescuer 2 searches the left valley both steps. What is the team's two-step value from 50–50?
+
+::: {.callout-tip collapse="true" title="Solution"}
+Step 1: rescuer 1 listens (−1); rescuer 2 searches left alone: right valley half the time (+5), else wrong (−10): −2.5. Total step 1: −3.5. Because rescuer 2 searched, the hiker resets, and the report rescuer 1 hears is uninformative, so its step-2 search is a coin flip. Step 2 (both search): same valley with probability 0.5, and then right half the time: $0.5 \times 0.5 \times 20 + 0.5 \times 0.5 \times (-20) = 0$; different valleys (0.5): one finds the hiker (+5), one is wrong (−10): −5 × 0.5 = −2.5. Value: $-3.5 + 0.9 \times (-2.5) = -5.75$. A mixed team is worse than either coordinated one.
+:::
+
+**Problem 4: a JESP trap.** Show that "both always search left" is a point iterated best response can't leave, even though it's worth only 0.
+
+::: {.callout-tip collapse="true" title="Solution"}
+Hold rescuer 2 at "always search left". Every step, rescuer 2's search resets the hiker, so rescuer 1's reports are uninformative, and listening costs 1 for nothing. Searching right while rescuer 2 searches left splits the team: one wrong search every time (−5 per step). Searching left with rescuer 2 earns 0 on average. So rescuer 1's best response is to keep searching left; by symmetry the same for rescuer 2. Both agents would have to switch to listening together to escape.
+:::
+
+**Problem 5: the price of silence.** Using the page's numbers, how much would the rescuers pay per three-step mission for a perfect radio, and why is it so large here?
+
+::: {.callout-tip collapse="true" title="Solution"}
+Up to `{python} fmt(CENTRAL[3] - OPT[3], 2)`, the value of communication: the pooled-reports value minus the decentralized optimum. It's large because the reward demands coordination: +20 needs both rescuers in the right valley at once. Without sharing, they must act on reports that disagree 32% of the time, splitting up; with sharing, they search only when the pooled evidence is strong, and always together.
+:::
+
+## Recap
+
+1. **A Dec-POMDP is a team version of a POMG: one shared reward, private observations (@eq-dec-value).**
+   *Why it matters:* it models robot teams, sensor networks and rescuers, and it is the hardest model in the book (NEXP-complete).
+2. **Structure makes it tractable (subclasses).**
+   *Why it matters:* independence between agents, or free communication, can turn it into separate MDPs or one POMDP; model a problem with its structure.
+3. **Communication has a computable value (@eq-mpomdp).**
+   *Why it matters:* the lost hiker's team would gain `{python} fmt(CENTRAL[3] - OPT[3], 2)` per three-step mission by sharing reports; that's the case for spending on a radio.
+4. **Improving one agent at a time finds local optima (@eq-best-response-team).**
+   *Why it matters:* JESP, and nonlinear programming over controllers, both stopped at "both search blindly", a joint policy no single agent can improve. Coordinated changes require search over several agents at once.
+5. **Bounded memory trades optimality for scale.**
+   *Why it matters:* MBDP and small controllers handle long horizons with fixed resources; how good they are depends on the beliefs sampled and the nodes allowed.
+
+## Cheat sheet & connections
+
+| Name | Formula | Ref |
+|---|---|---|
+| Dec-POMDP objective | $\max_{\boldsymbol{\pi}} U^{\boldsymbol{\pi}}(b)$, plans branching on own observations | @eq-dec-value |
+| Communication bound | $\max_{\boldsymbol{\pi}} U^{\boldsymbol{\pi}}(b) \le U^*_{\text{MPOMDP}}(b)$ | @eq-mpomdp |
+| JESP step | $\pi^i \leftarrow \arg\max_{\pi^{i\prime}} U^{\pi^{i\prime}, \boldsymbol{\pi}^{-i}}(b)$ | @eq-best-response-team |
+| MBDP | keep $m$ plans per agent, chosen at sampled beliefs | §27.5 |
+| Controllers | maximize $\sum_s b(s) U(\boldsymbol{x}_1, s)$ over all $\psi^i, \eta^i$ (eq. 26.3 constraints) | §27.6 |
+
+: Key equations from this page. {#tbl-cheatsheet}
+
+**Common pitfalls**
+
+- **Assuming cooperation makes it easy.** Shared goals remove conflict, not the need to coordinate on private information.
+- **Letting plans use others' observations.** That's the MPOMDP, an upper bound, not an executable decentralized policy.
+- **Trusting one run of a local method.** JESP and nonlinear programming need many starts; compare against an exact answer or a bound when you can.
+- **Too little controller memory.** If the best controller does nothing useful, it may not have enough nodes to represent a sensible policy.
+
+**Connections**
+
+- [Ch 20 · Exact Belief State Planning](../part4/ch20-exact-belief-state-planning.qmd): conditional plans and the lookahead used for the communication bound.
+- [Ch 23 · Controller Abstractions](../part4/ch23-controller-abstractions.qmd): fixed-size controllers and their optimization.
+- [Ch 24 · Multiagent Reasoning](ch24-multiagent-reasoning.qmd): best responses; the optimum of a team game is also an equilibrium.
+- [Ch 26 · State Uncertainty](ch26-state-uncertainty.qmd): POMGs, joint evaluation and pruning, used here with a shared reward.

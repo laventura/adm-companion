@@ -66,7 +66,7 @@ This page collects every problem used on the site, implemented in both Python (`
 | F.3 Cart-Pole | MDP, continuous state | added when first used |
 | F.4 Mountain Car | MDP, continuous state | ✅ [below](#mountain-car) |
 | F.5 Simple Regulator | MDP, linear-quadratic | ✅ [below](#simple-regulator) |
-| F.6 Aircraft Collision Avoidance | MDP, discrete | added when first used |
+| F.6 Aircraft Collision Avoidance | MDP, discrete | ✅ [below](#collision-avoidance) |
 | F.7 Crying Baby | POMDP | added when first used |
 | F.8 Machine Replacement | POMDP | added when first used |
 | F.9 Catch | POMDP | added when first used |
@@ -260,6 +260,52 @@ using ADM
 :::
 
 **Where it's used.** [Ch 10](../part2/ch10-policy-search.qmd): every policy search method is scored by the exact value of the policy it finds. [Ch 11](../part2/ch11-policy-gradient-estimation.qmd): the exact gradient (`exact_gradient`, from differentiating the same recursion) scores every gradient estimator's bias and variance. [Ch 12](../part2/ch12-policy-gradient-optimization.qmd): the policy's `log_policy` and `policy_kl` drive TRPO and PPO, and exact values score every update rule. [Ch 13](../part2/ch13-actor-critic-methods.qmd): actor-critic with a quadratic critic, and the deterministic policy gradient.
+
+## Aircraft collision avoidance {#collision-avoidance}
+
+**The story.** Our aircraft flies head on toward an intruder and will meet it in 40 seconds. Each second, a collision avoidance system can advise the pilot to climb, to descend, or nothing. Gusts nudge the vertical rate, and the pilot can change it only gradually. The system must avoid passing within 50 m of the intruder vertically, without issuing needless or frequently changing advisories. It is a highly simplified version of the problem behind airborne collision avoidance systems.
+
+| Part | Definition |
+|---|---|
+| State | altitude relative to the intruder $h$ (m), vertical rate $\dot h$ (m/s), previous advisory, time to collision $t_{\text{col}}$ (s) |
+| Actions | no advisory; descend at 5 m/s; climb at 5 m/s |
+| Transition, each second | $h \leftarrow h + \dot h$, $\ \dot h \leftarrow \dot h + \ddot h + \nu$, $\ t_{\text{col}} \leftarrow t_{\text{col}} - 1$ |
+| Pilot response $\ddot h$ | toward the advised rate, at most 1 m/s² (so $\ddot h = \operatorname{clip}(\text{rate} - \dot h, -1, 1)$); 0 with no advisory |
+| Gusts $\nu$ | −2, 0, +2 m/s with probabilities ¼, ½, ¼ |
+| Costs | 1 if $|h| < 50$ m at $t_{\text{col}} = 0$ (collision); 0.01 for each change of advisory |
+| Start (this site) | $t_{\text{col}} = 40$, no advisory; $h$ and $\dot h$ uniform on the integers in ±200 m and ±10 m/s |
+
+: Aircraft collision avoidance. {#tbl-collision}
+
+Two choices are this site's. The book's formula for $\ddot h$ reads $a/\Delta t$ when the advised rate is within reach; we take the step that reaches the advised rate, $(\text{rate} - \dot h)/\Delta t$. And starts are integers: then $h$ and $\dot h$ stay integers forever (every change is a whole number), so the problem is an exact finite MDP on an integer lattice. `optimal_policy` solves it by backward induction on that lattice in about 0.1 s, with no interpolation. That gives exact answers for every metric, which Ch 14 uses to check its sampling methods. The lattice is clamped at ±500 m and ±30 m/s; a lattice of ±800 m and ±50 m/s changes the collision probabilities by less than $10^{-10}$ (tested).
+
+The `Model` settings (`noise`, `p_noise`, `accel_limit`, `compliance`, the two costs) describe variants for robustness checks. For instance, `compliance = 0.8` is a pilot who follows each advisory only 80% of the time. `simple_policy` is a threshold policy for comparison: climb or descend away from the intruder when it is within 50 m vertically and less than 30 s away.
+
+::: {.panel-tabset group="lang"}
+## Python
+```{python}
+#| echo: true
+from adm.problems import collision_avoidance as ca
+m = ca.Model()
+policy, cost = ca.optimal_policy(m)                          # policy[t][a_prev, i_h, i_hdot]
+p_collision = ca.start_average(m, ca.evaluate(m, policy))    # exact, by policy evaluation
+p_simple = ca.start_average(m, ca.evaluate(m, ca.simple_policy(m)))
+```
+```{python}
+print(f"collision probability: optimal {p_collision:.2e}, simple {p_simple:.3f}")
+```
+## Julia
+```{.julia .snippet}
+using ADM
+m = CAModel()
+policy, cost = ca_optimal_policy(m)                          # policy[t][a_prev, i_h, i_ḣ]
+p_collision = ca_start_average(m, ca_evaluate(m, policy))
+p_simple = ca_start_average(m, ca_evaluate(m, ca_simple_policy(m)))
+@assert 6e-4 < p_collision < 7e-4 && 0.07 < p_simple < 0.075
+```
+:::
+
+**Where it's used.** [Ch 14](../part2/ch14-policy-validation.qmd): exact evaluation of collision risk and advisory changes, Monte Carlo and importance sampling checked against it, robustness to pilot compliance and gusts, robust dynamic programming, trade-off curves, and the most likely failure found by an adversary.
 
 ## Problems made for this site
 

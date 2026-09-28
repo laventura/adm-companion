@@ -67,7 +67,7 @@ This page collects every problem used on the site, implemented in both Python (`
 | F.4 Mountain Car | MDP, continuous state | ✅ [below](#mountain-car) |
 | F.5 Simple Regulator | MDP, linear-quadratic | ✅ [below](#simple-regulator) |
 | F.6 Aircraft Collision Avoidance | MDP, discrete | ✅ [below](#collision-avoidance) |
-| F.7 Crying Baby | POMDP | added when first used |
+| F.7 Crying Baby | POMDP | ✅ [below](#crying-baby) |
 | F.8 Machine Replacement | POMDP | added when first used |
 | F.9 Catch | POMDP | added when first used |
 | F.10–F.12 Prisoner's Dilemma, Rock-Paper-Scissors, Traveler's Dilemma | Simple games | added with Part V |
@@ -306,6 +306,40 @@ p_simple = ca_start_average(m, ca_evaluate(m, ca_simple_policy(m)))
 :::
 
 **Where it's used.** [Ch 14](../part2/ch14-policy-validation.qmd): exact evaluation of collision risk and advisory changes, Monte Carlo and importance sampling checked against it, robustness to pilot compliance and gusts, robust dynamic programming, trade-off curves, and the most likely failure found by an adversary.
+
+## Crying baby {#crying-baby}
+
+**The story.** A caregiver can't tell whether a baby is hungry; it only hears whether the baby cries. Each hour it can feed the baby (effective but costly), sing to it (cheap, and more informative about hunger), or ignore it. It is the standard small POMDP: two hidden states, three actions and two observations. It is small enough to solve exactly and to draw every belief on a single axis, $P(\text{hungry})$.
+
+| Part | Definition |
+|---|---|
+| States | sated, hungry |
+| Actions | feed, sing, ignore |
+| Observations | crying, quiet |
+| Transitions | feeding always sates; otherwise a sated baby becomes hungry w.p. 0.1, and a hungry one stays hungry |
+| Observations | $P(\text{cry} \mid \text{hungry})$ = 0.8 (feed, ignore), 0.9 (sing); $P(\text{cry} \mid \text{sated})$ = 0.1 (feed, ignore), 0 (sing); both depend on the state after the action |
+| Rewards | −10 while hungry, −5 more to feed, −0.5 more to sing; discount 0.9 |
+
+: The crying baby. {#tbl-crying-baby}
+
+::: {.panel-tabset group="lang"}
+## Python
+```{python}
+#| echo: true
+from adm.problems.crying_baby import belief_update, crying_baby
+pomdp = crying_baby()                    # T[s, a, s2], R[s, a], O[a, s2, o]; 0 = sated / feed / crying
+b = belief_update(pomdp, np.array([0.8, 0.2]), 2, 0)   # ignore, then hear crying
+```
+## Julia
+```{.julia .snippet}
+using ADM
+p = crying_baby()                        # 1-based: 1 = sated / feed / crying
+b = update_discrete([0.8, 0.2], p.T, p.O, 3, 1)       # ignore, then hear crying
+@assert b[2] ≈ 0.224 / 0.296
+```
+:::
+
+**Where it's used.** [Ch 20](../part4/ch20-exact-belief-state-planning.qmd): conditional plans, alpha vectors, pruning and exact value iteration. The long-horizon policy ignores the baby until $P(\text{hungry})$ reaches about 0.28, then feeds; with the problem as defined here, singing is never optimal.
 
 ## Problems made for this site
 

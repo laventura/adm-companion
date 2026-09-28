@@ -1,8 +1,779 @@
 ---
 title: "21 · Offline Belief State Planning"
 subtitle: "Part IV — State Uncertainty"
+engine: julia
+execute:
+  echo: false
 ---
 
 ::: {.callout-note appearance="minimal"}
-**In progress.** This page will cover ADM Ch. 21, *Offline Belief State Planning*.
+**Executed in:** Julia · **Book:** ADM Ch. 21 · **Lecture:** to be added
 :::
+<!-- TODO(video): link the official Stanford AA228 lecture on offline POMDP methods. -->
+
+```{julia}
+#| include: false
+using ADM, CairoMakie, LinearAlgebra, Random, Statistics
+import Distributions   # qualified use only: Makie also exports a `Categorical`
+include("../julia/src/makie_theme.jl")
+set_theme!(adm_theme())
+CairoMakie.activate!(type = "png", px_per_unit = 2)
+C = ADM.CATEGORICAL
+fmt(x; d = 2) = string(round(x; digits = d))
+bel(x) = [1 - x, x]
+const XS = collect(0:0.01:1)
+const GRID = bel.(XS)
+
+# --- Crying baby: exact reference (200 steps: within 1e-7 of the infinite horizon) ---------
+const CB = crying_baby()
+const Γ_OPT = value_iteration_pomdp(CB, 200)[1][end][2]
+opt(b) = utility(Γ_OPT, b)
+curve(f) = [f(b) for b in GRID]
+const OPT = curve(opt)
+
+# Upper bounds by iteration, and converged.
+const QMDP_IT = Dict(k => qmdp(CB; k_max = k) for k in (1, 2, 3, 5, 10, 20, 300))
+const FIB_IT = Dict(k => fast_informed_bound(CB; k_max = k) for k in (1, 2, 3, 5, 10, 20, 300))
+const Q_EXCESS = maximum(curve(b -> utility(QMDP_IT[300], b)) .- OPT)
+const F_EXCESS = maximum(curve(b -> utility(FIB_IT[300], b)) .- OPT)
+const BAWS = baws_lowerbound(CB)
+const BLIND = blind_lowerbound(CB; k_max = 300)
+
+# Point-based value iteration and Perseus on five beliefs.
+const B5 = bel.(0:0.25:1)
+const PB_IT = Dict(k => pbvi(CB, B5; k_max = k) for k in (0, 5, 10, 20, 40, 100))
+const PS_IT = Dict(k => perseus(CB, B5, MersenneTwister(1); k_max = k) for k in (0, 5, 10, 20, 40, 100))
+shortfall(Γ) = maximum(OPT .- curve(b -> utility(Γ, b)))
+
+# Sawtooth: corners from the fast informed bound, points every 0.2.
+const V0 = Dict(e => utility(FIB_IT[300], e) for e in ([1.0, 0.0], [0.0, 1.0]))
+const B_SAW = bel.(0:0.2:1)
+const SAW_IT = Dict(k => sawtooth_iteration(CB, V0, B_SAW; k_max = k) for k in (1, 2, 3, 20))
+saw_excess(k) = maximum(curve(b -> sawtooth(SAW_IT[k], b)) .- OPT)
+
+# Sawtooth heuristic search from a sated baby.
+const HS_V, HS_Γ, HS_GAPS = sawtooth_heuristic_search(CB, [1.0, 0.0]; depth = 10, k_max = 30)
+
+# Triangulated value iteration.
+const TRI = Dict(m => triangulated_iteration(CB, m; k_max = 150)[2] for m in (2, 5, 10))
+tri_excess(m) = maximum(curve(TRI[m]) .- OPT)
+
+# --- The fork -------------------------------------------------------------------------------
+const FK = fork()
+const B0 = [0.5, 0.5]
+const FK_Q, FK_F = qmdp(FK; k_max = 300), fast_informed_bound(FK; k_max = 300)
+const B21 = bel.(range(0, 1, length = 21))
+const FK_P = pbvi(FK, B21; k_max = 300)
+const FK_TRI = triangulated_iteration(FK, 20; k_max = 400)[2]
+const FK_EXACT_HIST, FK_EXACT_COUNTS = value_iteration_pomdp(FK, 10)   # exact, 10 steps
+const FK_EXACT_KEPT = length(FK_EXACT_HIST[end][2])
+const FK_EXACT_EXPANDED = FK_EXACT_COUNTS[end]
+const FK_EXACT_U = utility(FK_EXACT_HIST[end][2], [0.5, 0.5])
+look(p, Γ) = b -> greedy_belief(p, b -> utility(Γ, b), b).a
+const FK_ACT = Dict(name => [look(FK, Γ)(b) for b in GRID] for (name, Γ) in
+                    (("QMDP", FK_Q), ("fast informed bound", FK_F), ("point-based", FK_P)))
+@assert FK_ACT["QMDP"][51] == 1 && FK_ACT["fast informed bound"][51] == 1   # both wait at b0
+@assert FK_ACT["point-based"][51] == 2                                       # point-based asks
+# Where the point-based policy stops asking and goes (P(home right) = x).
+const GO_LEFT_BELOW = XS[findlast(==(3), FK_ACT["point-based"])]
+const GO_RIGHT_ABOVE = XS[findfirst(==(4), FK_ACT["point-based"])]
+# The band of beliefs where each upper bound's lookahead policy waits.
+wait_band(name) = (XS[findfirst(==(1), FK_ACT[name])], XS[findlast(==(1), FK_ACT[name])])
+const Q_BAND, F_BAND = wait_band("QMDP"), wait_band("fast informed bound")
+
+# Simulated return of the point-based policy from b0 (10,000 hikers, 250 steps).
+const FK_SIM = let act = look(FK, FK_P)
+    rets, asks, goes, wrong = Float64[], 0, 0, 0
+    for i in 1:10_000
+        rng = MersenneTwister(i)
+        s, b, r = rand(rng, 1:2), copy(B0), 0.0
+        for t in 1:250
+            a = act(b)
+            r += FK.γ^(t - 1) * FK.R[s, a]
+            asks += a == 2
+            goes += a >= 3
+            wrong += (a == 3 && s == 2) || (a == 4 && s == 1)
+            s2 = rand(rng, Distributions.Categorical(FK.T[s, a, :]))
+            o = rand(rng, Distributions.Categorical(FK.O[a, s2, :]))
+            b, s = update_discrete(b, FK.T, FK.O, a, o), s2
+        end
+        push!(rets, r)
+    end
+    (mean = mean(rets), se = std(rets) / sqrt(length(rets)), asks_per_go = asks / goes, wrong = wrong / goes)
+end
+```
+
+## Big picture
+
+### Where this chapter fits
+
+[Chapter 20](ch20-exact-belief-state-planning.qmd) solved POMDPs exactly by value iteration over conditional plans. That works for toy problems only. Exact solution of a finite-horizon POMDP is PSPACE-complete in the worst case, and the sets of alpha vectors can grow without bound. This chapter keeps Chapter 20's representation, a value function over beliefs, but computes it approximately and **offline**, before the agent acts. Many methods here produce **bounds**: an upper bound that the true value never exceeds, or a lower bound it never falls below. Bounds let us say how good an approximation is, and they guide the search for better ones. [Chapter 22](ch22-online-belief-state-planning.qmd) plans online instead, from the current belief only.
+
+**The question:** how can we get a good value function over beliefs, with a guarantee on its quality, without solving the POMDP exactly?
+
+The short answer: **bound it from both sides, and refine where it matters.**
+
+- **Cheap upper bounds** pretend the agent will soon know more than it will: QMDP assumes the state becomes known after one step; the fast informed bound also uses the observations.
+- **Cheap lower bounds** assume it can't adapt at all.
+- **Point-based value iteration** computes alpha vectors only at a chosen set of beliefs, giving a lower bound. **Sawtooth** and **triangulated** value functions interpolate between beliefs, giving an upper bound.
+- **Heuristic search** tightens both bounds along the beliefs reachable from the start, until they meet.
+
+```{dot}
+//| label: fig-ch21-map
+//| fig-width: 7
+//| fig-height: 3.12
+//| fig-cap: "Map of this chapter. Offline methods bound the optimal value over beliefs from above and below; point-based methods and interpolation refine the bounds at chosen beliefs."
+//| fig-alt: "Diagram. Top row: Upper bounds (QMDP, fast informed bound, sawtooth, triangulation), Lower bounds (best-action worst-state, blind, point-based value iteration, Perseus) and Point selection (which beliefs to use). Upper and lower bounds point, labeled from above and from below, to a blue box, Value over beliefs (the unknown U*). All three top boxes also point to a blue box, Heuristic search (tighten both where the start leads), which points to Policy (with a guaranteed gap)."
+digraph ch21 {
+  rankdir=TB; bgcolor="#fcfcfb"; pad=0.25; nodesep=0.35; ranksep=0.45;
+  node [shape=box, style="rounded,filled", fillcolor="white", color="#c3c2b7", penwidth=1.2,
+        fontname="Helvetica", fontsize=13, fontcolor="#0b0b0b", margin="0.12,0.07"];
+  edge [color="#52514e", penwidth=1.2, arrowsize=0.7, fontname="Helvetica", fontsize=11, fontcolor="#52514e"];
+  upper [label=<<B>Upper bounds</B><BR/><FONT POINT-SIZE="11">QMDP, fast informed bound,<BR/>sawtooth, triangulation</FONT>>];
+  value [label=<<B>Value over beliefs</B><BR/><FONT POINT-SIZE="11">the unknown U*</FONT>>, fillcolor="#cde2fb", color="#2a78d6"];
+  lower [label=<<B>Lower bounds</B><BR/><FONT POINT-SIZE="11">best-action worst-state, blind,<BR/>point-based VI, Perseus</FONT>>];
+  points [label=<<B>Point selection</B><BR/><FONT POINT-SIZE="11">which beliefs to use</FONT>>, fillcolor="#f0efec"];
+  search [label=<<B>Heuristic search</B><BR/><FONT POINT-SIZE="11">tighten both where the start leads</FONT>>, fillcolor="#cde2fb", color="#2a78d6"];
+  policy [label=<<B>Policy</B><BR/><FONT POINT-SIZE="11">with a guaranteed gap</FONT>>];
+  { rank=same; upper; lower; points; }
+  { rank=same; value; search; }
+  upper -> value [label="from above"]; lower -> value [label="from below"];
+  upper -> search; lower -> search; points -> search; search -> policy;
+}
+```
+
+### The key ideas at a glance
+
+1. **Bounds make approximations checkable.** If $U_{\text{lo}}(b) \le U^*(b) \le U_{\text{hi}}(b)$, then either bound's policy is within the gap $U_{\text{hi}}(b) - U_{\text{lo}}(b)$ of optimal, in the sense of the value it guarantees. A gap near zero certifies near-optimality.
+
+2. **Upper bounds assume too much information.** **QMDP** solves the fully observed MDP and averages its action values over the belief, as if the state would be revealed after one step. The **fast informed bound** lets the next action depend on the observation, which is tighter. Both give one alpha vector per action.
+
+3. **Lower bounds assume too little flexibility.** The **best-action worst-state** bound takes the best action's worst reward forever. The **blind** bound commits to a single action forever, ignoring observations.
+
+4. **Point-based value iteration.** Instead of all beliefs, back up alpha vectors only at a finite set of beliefs $B$, one per belief. Starting from a lower bound, it stays a lower bound and is exact at the chosen beliefs when they are well placed. **Perseus** backs up random beliefs until all have improved, often with fewer vectors.
+
+5. **Interpolating upper bounds.** The **sawtooth** bound stores values at a few beliefs and interpolates with teeth that dip to each stored value. **Triangulation** interpolates over a regular grid of beliefs. Both remain upper bounds because the true value is convex.
+
+6. **Search where it matters.** **Sawtooth heuristic search** starts from the initial belief, follows the upper bound's actions and the observations with the largest gap, and tightens both bounds on the way back, until the gap at the start closes.
+
+### Vocabulary
+
+| Term | Plain meaning |
+|:---|:---|
+| Offline planning | Computing a policy for all beliefs before acting |
+| Upper / lower bound | A value that the optimal value never exceeds / never falls below |
+| QMDP | Upper bound: the fully observed MDP's action values averaged over the belief |
+| Fast informed bound (FIB) | Upper bound that also accounts for the observations, one step ahead |
+| Best-action worst-state (BAWS) | Lower bound: the best action's worst reward, forever |
+| Blind lower bound | Lower bound: one fixed action forever |
+| Point-based value iteration (PBVI) | Alpha-vector backups only at a chosen set of beliefs |
+| Perseus | Randomized point-based value iteration |
+| Sawtooth bound | Upper bound interpolating stored belief values with "teeth" |
+| Triangulated value function | Upper bound interpolating over a regular grid of beliefs |
+| Gap | Upper bound minus lower bound at a belief |
+
+: Terms used on this page. {#tbl-vocab}
+
+### After this chapter you can
+
+- Compute QMDP and fast informed upper bounds, and blind and best-action worst-state lower bounds.
+- Explain why QMDP undervalues information-gathering actions, and recognize problems where that matters.
+- Run point-based value iteration and Perseus on a set of beliefs, and choose those beliefs.
+- Evaluate sawtooth and triangulated upper bounds at any belief.
+- Use heuristic search to close the gap between the bounds from a starting belief.
+
+## Intuition
+
+::: {.callout-tip title="Analogy"}
+You're estimating how long a trip across an unfamiliar city will take.
+
+- **An optimistic estimate:** "if I knew exactly where every traffic jam was, it would take 30 minutes". That's QMDP: pretend you'll know everything. It can't be beaten, so it's an upper bound on how well you'll do.
+- **A pessimistic estimate:** "if I just drive my usual route and ignore the radio, it takes 55 minutes". That's the blind bound: a plan you can certainly carry out.
+- **Refining both:** check the estimates at a few key intersections and interpolate. The truth lies between the bounds, and when they meet, you know it.
+:::
+
+We use two problems. The **crying baby** of [Chapter 20](ch20-exact-belief-state-planning.qmd) has an exact solution to compare against. The **fork** is a small problem built for this chapter, in the [problem gallery](../appendices/f-problems.qmd#the-fork). A hiker at a fork doesn't know which trail leads home. Choosing right earns 10, choosing wrong costs 50, and then a new hike starts. The hiker can **ask** a passerby for 1, and the answer is right 85% of the time; or **wait**, which costs nothing and teaches nothing.
+
+### Pretend you'll know: QMDP
+
+QMDP assumes the state will be revealed after one step. For the crying baby that's a mild fiction, and its bound is at most `{julia} fmt(Q_EXCESS)` above the true value. At the fork, it's a disaster. If you'll know the right trail for free next step anyway, why pay to ask? QMDP waits, the belief never changes, and it waits forever: a return of 0, where the best policy earns about 27. See @eq-qmdp.
+
+### Use what you'll observe: the fast informed bound
+
+The fast informed bound lets the next action depend on the observation, which tightens the crying baby's bound to within `{julia} fmt(F_EXCESS)`. At the fork it still fails: after waiting, the state is unchanged and certain in its per-state calculation, so waiting still looks like it reveals the trail. Its value at the fork's start is `{julia} fmt(utility(FK_F, B0); d = 1)`, compared with QMDP's `{julia} fmt(utility(FK_Q, B0); d = 1)` and the true `{julia} fmt(utility(FK_P, B0); d = 2)`. See @eq-fib.
+
+### Plan at a few beliefs: point-based value iteration
+
+Back up alpha vectors only at a handful of beliefs. For the crying baby, 5 beliefs spaced 0.25 apart give a lower bound within `{julia} fmt(shortfall(PB_IT[100]); d = 3)` of the true value everywhere. At the fork, 21 beliefs give a policy that asks until fairly sure (below $P(\text{home right}) =$ `{julia} fmt(GO_LEFT_BELOW)` go left, above `{julia} fmt(GO_RIGHT_ABOVE)` go right). It earns `{julia} fmt(FK_SIM.mean)` ± `{julia} fmt(FK_SIM.se)` in simulation, asking `{julia} fmt(FK_SIM.asks_per_go; d = 1)` times per hike. See @eq-pbvi.
+
+### Interpolate from above: sawtooth and triangulation
+
+Store upper-bound values at a few beliefs and interpolate. Because the true value is convex, straight-line interpolation between true values stays above it. Six beliefs and three sawtooth iterations bring the crying baby's upper bound to within `{julia} fmt(saw_excess(3))`. A triangulation with 11 grid beliefs gets within `{julia} fmt(tri_excess(10))`. See @eq-sawtooth and @eq-triangulated.
+
+### Close the gap where you'll go
+
+Starting from a sated baby, sawtooth heuristic search follows the most uncertain branch, tightening both bounds. The gap at the start fell from `{julia} fmt(HS_GAPS[1]; d = 1)` to `{julia} fmt(HS_GAPS[end]; d = 3)` in `{julia} length(HS_GAPS) - 1` explorations (@fig-hsvi). See @eq-gap.
+
+## Formalism
+
+### QMDP
+
+Compute one alpha vector per action by value iteration on the fully observed MDP (ADM §21.1; M. L. Littman, A. R. Cassandra and L. P. Kaelbling, *ICML*, 1995):
+
+::: {.key-equation .famous data-name="QMDP"}
+$$
+\alpha_a^{(k+1)}(s) = R(s, a) + \gamma \sum_{s'} T(s' \mid s, a) \max_{a'} \alpha_{a'}^{(k)}(s'),
+\qquad
+U_{\text{QMDP}}(b) = \max_a \alpha_a^\top b
+$$ {#eq-qmdp}
+:::
+
+**In words.** Solve the problem as if the state were visible, then average each action's value over the belief.
+
+**Term by term.**
+
+- At convergence, $\alpha_a(s) = Q^*_{\text{MDP}}(s, a)$, the fully observed action value.
+- The $\max_{a'}$ inside the sum picks the best next action *for each next state*, as if the next state were known.
+- Each iteration costs $O(|\mathcal{A}|^2|\mathcal{S}|^2)$.
+- For any problem, $U_{\text{QMDP}}(b) \ge U^*(b)$ (when run to convergence or started from an upper bound).
+
+**Why it holds.** An agent that will be told the state after one step can do everything the real agent can, and more. So its value is an upper bound. The flip side: QMDP treats information as free, so it never pays for it. Actions whose only purpose is to learn look no better than doing nothing.
+
+### Fast informed bound
+
+Let the next alpha vector depend on the observation (ADM §21.2; M. Hauskrecht, *JAIR*, 2000):
+
+::: {.key-equation data-name="Fast informed bound"}
+$$
+\alpha_a^{(k+1)}(s) = R(s, a) + \gamma \sum_o \max_{a'} \sum_{s'} O(o \mid a, s')\, T(s' \mid s, a)\, \alpha_{a'}^{(k)}(s')
+$$ {#eq-fib}
+:::
+
+**In words.** After acting from $s$, the agent sees an observation and may choose its next alpha vector accordingly, but still knows where it started.
+
+**Term by term.**
+
+- The max over $a'$ now sits outside the sum over $s'$ but inside the sum over $o$. The choice may depend on the observation, not on the unobserved next state.
+- It is never looser than QMDP, and it costs $O(|\mathcal{A}|^2|\mathcal{S}|^2|\mathcal{O}|)$ per iteration.
+- It still knows the *current* state $s$ exactly. When an action doesn't change the state, as waiting at the fork doesn't, that knowledge carries over, and the bound again treats the state as known.
+
+**Why it holds.** Knowing the current state, and choosing the next plan after seeing the observation, is more information than the real agent has. So the value is still an upper bound, but it credits the information carried by observations rather than assuming the next state is revealed.
+
+### Fast lower bounds
+
+The **best-action worst-state** bound and the **blind** bound (ADM §21.3):
+
+::: {.key-equation data-name="BAWS and blind lower bounds"}
+$$
+r_{\text{baws}} = \frac{1}{1 - \gamma}\max_a \min_s R(s, a),
+\qquad
+\alpha_a^{(k+1)}(s) = R(s, a) + \gamma \sum_{s'} T(s' \mid s, a)\, \alpha_a^{(k)}(s')
+$$ {#eq-lower}
+:::
+
+**In words.** The first is the reward of the best action in its worst state, received forever. The second is the value of repeating one action forever, whatever is observed.
+
+**Term by term.**
+
+- The BAWS bound is one flat alpha vector: very loose, but safe.
+- The blind iteration has no max over next actions: each vector follows a single action. It is started from the BAWS bound.
+
+**Why it holds.** Both describe policies the agent could actually follow (always do $a$). An achievable policy's value can't exceed the optimum, so both are lower bounds.
+
+### Point-based value iteration
+
+Keep a set of beliefs $B$ and one alpha vector per belief. The backup at a belief $b$ (ADM §21.4; J. Pineau, G. Gordon and S. Thrun, *IJCAI*, 2003):
+
+::: {.key-equation .famous data-name="Point-based backup"}
+$$
+\alpha_{a,o} = \arg\max_{\alpha \in \Gamma} \alpha^\top \text{Update}(b, a, o),
+\qquad
+\alpha_a(s) = R(s, a) + \gamma \sum_{s', o} O(o \mid a, s')\, T(s' \mid s, a)\, \alpha_{a,o}(s'),
+\qquad
+\alpha = \arg\max_{\alpha_a} \alpha_a^\top b
+$$ {#eq-pbvi}
+:::
+
+**In words.** For each action, find the best existing plan to follow after each possible observation. Combine them into a new plan, as in Chapter 20, and keep the action whose plan is best at $b$.
+
+**Term by term.**
+
+- $\alpha_{a,o}$ is chosen at the belief that would actually follow, $\text{Update}(b, a, o)$, not over all beliefs. That's what makes it cheap.
+- The combination is Chapter 20's backup (eq. 20.17) with the chosen subplans.
+- Each backup costs $O(|\mathcal{A}||\mathcal{O}||\Gamma||\mathcal{S}|^2)$, and there are $|B|$ of them per iteration: polynomial, not exponential.
+
+**Why it holds.** Each new vector is the value of a real conditional plan: act, then follow an existing plan chosen by the observation. If every vector in $\Gamma$ is the value of a real plan (a lower bound), so is the new one. At the beliefs in $B$, it is exactly the Bellman backup restricted to those plans, so values rise toward the optimum there.
+
+**Perseus** (M. T. J. Spaan and N. Vlassis, *JAIR*, 2005; ADM §21.5) backs up beliefs chosen at random and skips any belief whose value an earlier backup in the same round already improved. It often needs far fewer backups and vectors.
+
+### Sawtooth upper bound
+
+Store belief-utility pairs $V$, including every corner belief $e_i$ (the states themselves). Each non-corner pair $(b', u')$ defines a tooth (ADM §21.6):
+
+::: {.key-equation data-name="Sawtooth interpolation"}
+$$
+U^{(b', u')}(b) = u_E^\top b + \rho(b, b')\big(u' - u_E^\top b'\big),
+\qquad
+\rho(b, b') = \min_{i:\, b'_i > 0} \frac{b_i}{b'_i},
+\qquad
+U^V(b) = \min_{(b', u') \in V} U^{(b', u')}(b)
+$$ {#eq-sawtooth}
+:::
+
+**In words.** Start from the plane through the corners' values. Near each stored belief, the bound dips down to the stored value, like a tooth, and the overall bound is the lowest of the teeth.
+
+**Term by term.**
+
+- $u_E$ is the vector of corner values.
+- $\rho(b, b')$ is the largest multiple of $b'$ that fits inside $b$: 1 at $b = b'$, and 0 at the corners that $b'$ doesn't use.
+- With two states, each tooth is two line segments from the corners down to $(b', u')$.
+- The result is piecewise linear but not convex.
+
+**Why it holds.** Write $b = \rho b' + (1 - \rho)c$, where $c$ is some other belief. The true value is convex, so $U^*(b) \le \rho U^*(b') + (1 - \rho)U^*(c)$. Bounding $U^*(b')$ by $u'$ and $U^*(c)$ by the corners' plane gives exactly the tooth.
+
+**Sawtooth iteration** replaces each stored value by its one-step lookahead (Chapter 20, eq. 20.13) on the current bound. Since the lookahead of an upper bound is again an upper bound, it stays one.
+
+### Heuristic search on the gap
+
+From the initial belief, repeatedly explore (ADM §21.8; T. Smith and R. Simmons, *UAI*, 2004):
+
+::: {.key-equation data-name="Gap-driven exploration"}
+$$
+a = \pi_{\text{hi}}(b),
+\qquad
+o = \arg\max_o \Big[U_{\text{hi}}\big(\text{Update}(b, a, o)\big) - U_{\text{lo}}\big(\text{Update}(b, a, o)\big)\Big],
+\qquad
+\text{stop when } U_{\text{hi}}(b) - U_{\text{lo}}(b) \le \delta/\gamma^d
+$$ {#eq-gap}
+:::
+
+**In words.** Follow the optimistic policy's action, and go wherever the bounds disagree most. On the way back, back up both bounds at every belief visited.
+
+**Term by term.**
+
+- $U_{\text{hi}}$ is a sawtooth bound, started from the fast informed bound; $U_{\text{lo}}$ is a set of alpha vectors, started from the BAWS bound.
+- At depth $d$, a gap of $\delta/\gamma^d$ contributes at most $\delta$ to the gap at the start, so exploration stops there.
+- The algorithm stops when the gap at the start belief is below $\delta$.
+
+**Why it holds.** The gap at a belief after a backup is at most $\gamma$ times the average gap at its successors. Tightening the successors with the largest gaps shrinks the start's gap fastest. Following the upper bound's action is optimism under uncertainty (Chapter 15): either that action really is good, or exploring it lowers its upper bound.
+
+### Triangulated value functions
+
+Place beliefs on a regular grid of granularity $m$ over the simplex, the Freudenthal triangulation (ADM §21.9; W. S. Lovejoy, *Operations Research*, 1991), and interpolate within the small simplex that contains $b$:
+
+::: {.key-equation data-name="Triangulated interpolation"}
+$$
+U(b) = \sum_{i=1}^{n} \lambda_i\, U\big(b^{(i)}\big),
+\qquad
+\sum_i \lambda_i = 1,\quad \sum_i \lambda_i b^{(i)} = b,\quad \lambda_i \ge 0
+$$ {#eq-triangulated}
+:::
+
+**In words.** A belief's value is a weighted average of the values at the nearby grid beliefs that surround it.
+
+**Term by term.**
+
+- The grid has $\binom{m + n - 1}{n - 1}$ beliefs: for two states, $m + 1$ evenly spaced beliefs.
+- The $b^{(i)}$ are the corners of the grid simplex containing $b$, and the $\lambda_i$ its barycentric weights. The code finds them in $O(n \log n)$ by sorting the fractional parts of cumulative coordinates.
+- Value iteration updates the grid values by one-step lookahead on the interpolated function.
+
+**Why it holds.** Linear interpolation of a convex function between points *on* the function lies on or above it. Value iteration on the interpolated function therefore converges to an upper bound (Lovejoy's lemma 4).
+
+## Worked example
+
+### QMDP's first step for the crying baby
+
+Start from zero vectors. After one iteration, $\alpha_a = R(\cdot, a)$: feed $(-5, -15)$, sing $(-0.5, -10.5)$, ignore $(0, -10)$ over (sated, hungry). After two, with $\max_{a'}\alpha_{a'}(\text{sated}) = 0$ (ignore) and $\max_{a'}\alpha_{a'}(\text{hungry}) = -10$ (ignore):
+
+- **feed, from hungry:** $-15 + 0.9 \times 0 = -15$, since feeding always sates;
+- **ignore, from sated:** $0 + 0.9\,(0.9 \times 0 + 0.1 \times -10) = -0.9$;
+- **ignore, from hungry:** $-10 + 0.9 \times -10 = -19$.
+
+```{julia}
+#| output: asis
+let Γ = QMDP_IT[2]
+    println("The code's two-step QMDP vectors: ",
+            join(["$(CB.actions[a]) (" * join(fmt.(Γ[a]; d = 2), ", ") * ")" for a in 1:3], "; "), ".")
+end
+```
+
+### A tooth by hand
+
+Suppose the corners have upper-bound values $u_E = (-2, -20)$ for (sated, hungry), and one stored belief $b' = (0.6, 0.4)$ has upper-bound value $-10$. Evaluate the bound at $b = (0.8, 0.2)$:
+
+- **The corners' plane:** $u_E^\top b = 0.8(-2) + 0.2(-20) = -5.6$ at $b$, and $u_E^\top b' = -9.2$ at $b'$. The stored value, $-10$, is 0.8 below the plane there.
+- **The ratio:** $\rho = \min(0.8/0.6,\ 0.2/0.4) = 0.5$: half of $b'$ fits inside $b$.
+- **The tooth:** the plane plus half the dip, $-5.6 + 0.5\,(-10 - (-9.2)) = -6.0$.
+- **The bound:** the smaller of the plane and the tooth, $-6.0$.
+
+A stored value above the plane (say $-8$) would make a tooth above the plane, and the bound would stay at the plane. Only stored values below the corners' plane tighten the bound.
+
+```{julia}
+#| output: asis
+let V = Dict([1.0, 0.0] => -2.0, [0.0, 1.0] => -20.0, [0.6, 0.4] => -10.0)
+    V2 = Dict([1.0, 0.0] => -2.0, [0.0, 1.0] => -20.0, [0.6, 0.4] => -8.0)
+    println("The code gives ", fmt(sawtooth(V, [0.8, 0.2]); d = 3), " with the stored −10, and ",
+            fmt(sawtooth(V2, [0.8, 0.2]); d = 3), " with −8.")
+end
+```
+
+### Why QMDP waits at the fork
+
+With the trail known, the hiker would always go home: $+10$ per hike, worth $10/(1 - 0.95) = 200$. QMDP's value of waiting in either state is $0 + 0.95 \times 200 = 190$, since it pretends it will then know the trail. Asking is worth $-1 + 0.95 \times 200 = 189$, less than waiting. Going left at $P(\text{home right}) = 0.5$ is worth $0.5\,(10 + 190) + 0.5\,(-50 + 190) = 170$. So QMDP waits, the belief stays at 0.5, and it waits again, forever.
+
+The policies on this page act by one-step lookahead on QMDP's value, which takes one real step first. Waiting then scores $0 + 0.95 \times 190 = 180.5$. Asking scores $-1 + 0.95 \times 190 = 180.45$, because either answer (0.15 or 0.85) lands where QMDP's value is still flat at 190. The ranking is the same:
+
+```{julia}
+#| output: asis
+let b = B0
+    q = [lookahead_belief(FK, b -> utility(FK_Q, b), b, a) for a in 1:4]
+    println("QMDP's one-step lookahead values at the start: ",
+            join(["$(FK.actions[a]) $(fmt(q[a]; d = 1))" for a in 1:4], ", "), ".")
+end
+```
+
+## Interactive
+
+### Bounds explorer
+
+Choose a method and the number of iterations. The crying baby's exact value is black; upper bounds should stay above it, lower bounds below.
+
+```{julia}
+#| include: false
+let data = Dict{String,Any}("x" => XS, "exact" => OPT)
+    series = Dict{String,Any}()
+    series["QMDP (upper)"] = Dict(string(k) => curve(b -> utility(QMDP_IT[k], b)) for k in (1, 2, 3, 5, 10, 20, 300))
+    series["fast informed bound (upper)"] = Dict(string(k) => curve(b -> utility(FIB_IT[k], b)) for k in (1, 2, 3, 5, 10, 20, 300))
+    series["point-based VI (lower)"] = Dict(string(k) => curve(b -> utility(PB_IT[k], b)) for k in (0, 5, 10, 20, 40, 100))
+    series["Perseus (lower)"] = Dict(string(k) => curve(b -> utility(PS_IT[k], b)) for k in (0, 5, 10, 20, 40, 100))
+    series["sawtooth (upper)"] = Dict(string(k) => curve(b -> sawtooth(SAW_IT[k], b)) for k in (1, 2, 3, 20))
+    series["triangulated, m = grid size (upper)"] = Dict(string(m) => curve(TRI[m]) for m in (2, 5, 10))
+    data["series"] = series
+    write_json(data, "data/ch21-bounds.json")
+end
+```
+
+```{ojs}
+boundsData = FileAttachment("data/ch21-bounds.json").json()
+viewof boundMethod = Inputs.select(Object.keys(boundsData.series).sort(), {label: "Method", value: "QMDP (upper)"})
+viewof boundIter = Inputs.select(Object.keys(boundsData.series[boundMethod]).map(Number).sort((a, b) => a - b),
+                                 {label: "Iterations (or m)"})
+```
+
+```{ojs}
+boundNow = {
+  const y = boundsData.series[boundMethod][String(boundIter)];
+  const diff = y.map((v, i) => v - boundsData.exact[i]);
+  return {pts: boundsData.x.map((x, i) => ({x, bound: y[i], exact: boundsData.exact[i]})),
+          worst: d3.max(diff.map(Math.abs)), above: d3.min(diff) >= -1e-6, below: d3.max(diff) <= 1e-6};
+}
+md`Largest distance from the exact value: **${boundNow.worst.toFixed(3)}**. ${boundNow.above ? "The curve is on or above the exact value everywhere." : boundNow.below ? "The curve is on or below the exact value everywhere." : "The curve crosses the exact value (not yet a bound of either kind)."}`
+```
+
+```{ojs}
+//| label: fig-bounds-explorer
+//| fig-cap: "The chosen bound (blue) and the exact value (black) for the crying baby, over P(hungry)."
+//| fig-alt: "Interactive line chart with P(hungry) from 0 to 1 across and value up the side. A black curve shows the exact value, falling from about minus 15.5 to about minus 29. A blue curve shows the chosen bound after the chosen number of iterations: QMDP and the fast informed bound approach from above as iterations grow, point-based methods and Perseus rise toward it from far below, and sawtooth and triangulated bounds sit just above it."
+Plot.plot({
+  width: 600, height: 330, style: {background: "#fcfcfb"},
+  x: {domain: [0, 1], label: "P(hungry)"}, y: {label: "value", grid: true},
+  marks: [
+    Plot.line(boundNow.pts, {x: "x", y: "exact", stroke: "#0b0b0b", strokeWidth: 2.5}),
+    Plot.line(boundNow.pts, {x: "x", y: "bound", stroke: "#2a78d6", strokeWidth: 2})
+  ]
+})
+```
+
+## Algorithms & code
+
+### Bounds, point-based methods, interpolation and search
+
+::: {.panel-tabset group="lang"}
+## Julia
+```{julia}
+#| output: asis
+show_source("pomdp/offline.jl")
+```
+## Python
+```{.python .snippet}
+import numpy as np
+
+from adm.problems.crying_baby import belief_update
+from adm.problems.fork import fork
+
+p = fork()                       # states: home left, home right; actions: wait, ask, go left, go right
+nS, nA, nO = p.T.shape[0], p.T.shape[1], p.O.shape[2]
+
+
+def qmdp(p, k_max=300):
+    """eq. 21.1: one alpha vector per action; the max over next actions is per next state."""
+    G = np.zeros((nA, nS))
+    for _ in range(k_max):
+        G = p.R.T + p.gamma * np.einsum("sat,t->as", p.T, G.max(axis=0))
+    return G
+
+
+def backup(p, G, b):
+    """eq. 21.8-21.10: the best new alpha vector at belief b from the vectors G."""
+    best = None
+    for a in range(nA):
+        alpha = p.R[:, a].copy()
+        for o in range(nO):
+            po = (b @ p.T[:, a, :]) @ p.O[a, :, o]
+            sub = G[np.argmax(G @ belief_update(p, b, a, o))] if po > 0 else G[0]
+            alpha += p.gamma * p.T[:, a, :] @ (p.O[a, :, o] * sub)
+        if best is None or alpha @ b > best @ b:
+            best = alpha
+    return best
+
+
+def lookahead_action(p, G, b):
+    """eq. 20.13 with U(b) = max over G of alpha . b."""
+    q = []
+    for a in range(nA):
+        v = p.R[:, a] @ b
+        for o in range(nO):
+            po = (b @ p.T[:, a, :]) @ p.O[a, :, o]
+            if po > 0:
+                v += p.gamma * po * (G @ belief_update(p, b, a, o)).max()
+        q.append(v)
+    return int(np.argmax(q))
+
+
+B = [np.array([1 - x, x]) for x in np.linspace(0, 1, 21)]
+G = np.full((1, nS), p.R.min(axis=0).max() / (1 - p.gamma))    # best-action worst-state bound
+for _ in range(300):
+    G = np.array([backup(p, G, b) for b in B])
+
+b0 = np.array([0.5, 0.5])
+print("QMDP at the start:", p.actions[lookahead_action(p, qmdp(p), b0)],
+      "| point-based:", p.actions[lookahead_action(p, G, b0)], f"(value {(G @ b0).max():.3f})")
+assert lookahead_action(p, qmdp(p), b0) == 0 and lookahead_action(p, G, b0) == 1
+assert abs((G @ b0).max() - 27.1149) < 1e-3
+```
+:::
+
+::: {.callout-note collapse="true" title="Reading the Julia code (for Python programmers)"}
+- **`map(1:nobs(p)) do o ... end`** applies the block to each observation, like a list comprehension with a multi-line body; `return` inside the block returns from the block only.
+- **`filter!(b -> ..., todo)`** removes, in place, every belief for which the condition fails.
+- **`Dict(e => utility(fib, e) for e in corners)`** builds a dictionary from pairs, like a dict comprehension.
+- **`function explore(b, d) ... end` inside another function** is a closure that sees and changes `V` and `Γ`, like a nested `def` using `nonlocal`.
+- **`sortperm(1:n, by = i -> (i == 1, -d[i]))`** sorts indices by a tuple key: `false` sorts before `true`, so index 1 goes last, and ties within each group are ordered by decreasing `d`.
+- **`Iterators.product(fill(0:m, n)...)`** is `itertools.product(range(m + 1), repeat=n)`.
+:::
+
+### Run them
+
+```{julia}
+#| echo: true
+p = crying_baby()
+upper = fast_informed_bound(p; k_max = 300)
+beliefs = [[1 - x, x] for x in 0:0.25:1]
+lower = pbvi(p, beliefs; k_max = 100)
+gap(b) = utility(upper, b) - utility(lower, b)
+```
+
+```{julia}
+println("gap between the fast informed bound and point-based VI: ",
+        join(["$(round(x; digits = 2)): $(round(gap([1 - x, x]); digits = 3))" for x in 0:0.25:1], ", "))
+```
+
+### Results
+
+#### Upper and lower bounds for the crying baby
+
+```{julia}
+#| label: fig-fast-bounds
+#| fig-cap: "Fast bounds for the crying baby. Left: QMDP (dashed) and the fast informed bound (solid) after 1, 2, 3 and 300 iterations, above the exact value (black). Right: the best-action worst-state and blind lower bounds, far below it."
+#| fig-alt: "Two line charts with P(hungry) from 0 to 1 across. Left: the exact value falls from about minus 15.5 to about minus 29; QMDP and the fast informed bound start near zero after one iteration and move down toward it as iterations grow; at 300 iterations QMDP lies up to about 4 above the exact value and the fast informed bound within about 0.7. Right: the blind bound runs from about minus 47 to minus 60, roughly 30 below the exact value, and the flat best-action worst-state bound lies at minus 100."
+let fig = Figure(size = (980, 360))
+    ax1 = Axis(fig[1, 1], xlabel = "P(hungry)", ylabel = "value", title = "Upper bounds")
+    for (k, shade) in zip((1, 2, 3, 300), (0.25, 0.45, 0.65, 1.0))
+        lines!(ax1, XS, curve(b -> utility(QMDP_IT[k], b)), color = (C[2], shade), linestyle = :dash, linewidth = 1.8)
+        lines!(ax1, XS, curve(b -> utility(FIB_IT[k], b)), color = (C[1], shade), linewidth = 1.8)
+    end
+    lines!(ax1, XS, OPT, color = :black, linewidth = 2.5)
+    Legend(fig[2, 1], [LineElement(color = C[2], linestyle = :dash), LineElement(color = C[1]), LineElement(color = :black)],
+           ["QMDP", "fast informed bound", "exact"], orientation = :horizontal, framevisible = false)
+    ax2 = Axis(fig[1, 2], xlabel = "P(hungry)", ylabel = "value", title = "Lower bounds")
+    lines!(ax2, XS, OPT, color = :black, linewidth = 2.5, label = "exact")
+    lines!(ax2, XS, curve(b -> utility(BLIND, b)), color = C[3], linewidth = 2, label = "blind")
+    lines!(ax2, XS, curve(b -> BAWS ⋅ b), color = C[5], linewidth = 2, label = "best-action worst-state")
+    Legend(fig[2, 2], ax2, orientation = :horizontal, framevisible = false)
+    fig
+end
+```
+
+At convergence, QMDP overestimates by up to `{julia} fmt(Q_EXCESS)` and the fast informed bound by up to `{julia} fmt(F_EXCESS)`. The blind bound, one action forever, falls up to `{julia} fmt(maximum(OPT .- curve(b -> utility(BLIND, b))); d = 1)` below. Always feeding and always ignoring are both far from adaptive care.
+
+#### Point-based value iteration and Perseus
+
+```{julia}
+#| label: fig-pointbased
+#| fig-cap: "Lower bounds from point-based value iteration (left) and Perseus (right) on five beliefs (P(hungry) = 0, 0.25, 0.5, 0.75, 1; ticks), after 0, 5, 10, 20 and 40 iterations, rising toward the exact value (black)."
+#| fig-alt: "Two line charts with P(hungry) from 0 to 1 across and value from about minus 100 up to minus 15. Both start as a flat line at minus 100 (the best-action worst-state bound) and rise with each set of iterations; by 40 iterations both lie just below the black exact curve, which falls from about minus 16 to about minus 30. Short ticks along the bottom mark the five belief points."
+let fig = Figure(size = (980, 360))
+    for (col, (title, IT)) in enumerate((("Point-based value iteration", PB_IT), ("Perseus", PS_IT)))
+        ax = Axis(fig[1, col], xlabel = "P(hungry)", ylabel = col == 1 ? "value" : "", title = title)
+        for (k, shade) in zip((0, 5, 10, 20, 40), (0.2, 0.35, 0.5, 0.7, 1.0))
+            lines!(ax, XS, curve(b -> utility(IT[k], b)), color = (C[1], shade), linewidth = 2, label = "$k iterations")
+        end
+        lines!(ax, XS, OPT, color = :black, linewidth = 2.5, label = "exact")
+        scatter!(ax, [b[2] for b in B5], fill(-105, 5), marker = :vline, markersize = 14, color = :gray)
+        col == 2 && axislegend(ax, position = :lb, labelsize = 10)
+    end
+    fig
+end
+```
+
+After 40 iterations, point-based value iteration is within `{julia} fmt(shortfall(PB_IT[40]); d = 3)` of the exact value everywhere, using `{julia} length(unique(PB_IT[40]))` distinct alpha vectors. Perseus is within `{julia} fmt(shortfall(PS_IT[40]); d = 3)` with `{julia} length(unique(PS_IT[40]))`. Five well-spread beliefs suffice here because the exact value has only 2 pieces (Chapter 20).
+
+#### Sawtooth and triangulated upper bounds
+
+```{julia}
+#| label: fig-interp
+#| fig-cap: "Interpolating upper bounds for the crying baby. Left: the sawtooth bound on six beliefs (ticks) after 1, 2, 3 and 20 iterations, started from the fast informed bound's corner values. Right: triangulated value iteration with grids of 3, 6 and 11 beliefs. The exact value is black."
+#| fig-alt: "Two line charts with P(hungry) from 0 to 1 across. Left: sawtooth curves made of straight segments with small dips at the stored beliefs, lying slightly above the black exact curve, tighter after more iterations. Right: piecewise linear curves through grid beliefs; the 3-point grid lies noticeably above the exact curve, the 11-point grid almost on it."
+let fig = Figure(size = (980, 360))
+    ax1 = Axis(fig[1, 1], xlabel = "P(hungry)", ylabel = "value", title = "Sawtooth")
+    for (k, shade) in zip((1, 2, 3, 20), (0.3, 0.5, 0.7, 1.0))
+        lines!(ax1, XS, curve(b -> sawtooth(SAW_IT[k], b)), color = (C[2], shade), linewidth = 2, label = "$k iterations")
+    end
+    lines!(ax1, XS, OPT, color = :black, linewidth = 2.5, label = "exact")
+    scatter!(ax1, [b[2] for b in B_SAW], fill(-30, 6), marker = :vline, markersize = 14, color = :gray)
+    axislegend(ax1, position = :rt, labelsize = 10)
+    ax2 = Axis(fig[1, 2], xlabel = "P(hungry)", title = "Triangulated")
+    for (m, shade) in zip((2, 5, 10), (0.35, 0.65, 1.0))
+        lines!(ax2, XS, curve(TRI[m]), color = (C[3], shade), linewidth = 2, label = "$(m + 1) grid beliefs")
+    end
+    lines!(ax2, XS, OPT, color = :black, linewidth = 2.5, label = "exact")
+    axislegend(ax2, position = :rt, labelsize = 10)
+    fig
+end
+```
+
+The sawtooth bound is within `{julia} fmt(saw_excess(20))` after 20 iterations; its remaining error sits between the stored beliefs, where the teeth interpolate. The triangulated bound with 3, 6 and 11 grid beliefs exceeds the exact value by at most `{julia} fmt(tri_excess(2))`, `{julia} fmt(tri_excess(5))` and `{julia} fmt(tri_excess(10))`.
+
+#### Closing the gap from a starting belief
+
+```{julia}
+#| label: fig-hsvi
+#| fig-cap: "Sawtooth heuristic search from a sated baby: the gap between the upper (sawtooth) and lower (alpha vector) bounds at the start belief, after each exploration (log scale)."
+#| fig-alt: "Line chart with explorations from 0 to about 25 across and the gap on a log scale up the side. The gap starts near 84, falls by about half with each of the first several explorations, passes 1 after about 6, and ends near 0.01."
+let fig = Figure(size = (640, 330))
+    ax = Axis(fig[1, 1], xlabel = "explorations", ylabel = "gap at the start belief", yscale = log10)
+    scatterlines!(ax, 0:length(HS_GAPS)-1, HS_GAPS, color = C[1], linewidth = 2)
+    fig
+end
+```
+
+The search only visits beliefs reachable from a sated baby, under the upper bound's policy. It closes the gap there without making either bound tight elsewhere.
+
+#### The fork: when information has to be paid for
+
+```{julia}
+#| label: fig-fork
+#| fig-cap: "The fork. Left: value over P(home right) according to QMDP and the fast informed bound (upper bounds), point-based value iteration on 21 beliefs (lower bound) and triangulated value iteration (upper bound); the last two nearly coincide. Right: each method's one-step lookahead action at every belief."
+#| fig-alt: "Left: line chart over P(home right) from 0 to 1. QMDP is flat at 190 across the middle and rises to 200 at the ends; the fast informed bound is flat near 97 and rises to about 103 at the ends; point-based and triangulated values nearly coincide, about 27 in the middle and about 36 at the ends. Right: three horizontal strips colored by action. QMDP goes left below about 0.06, asks, waits in a narrow band around 0.5, asks again, and goes right above about 0.94. The fast informed bound goes left below about 0.14, asks, waits across a wide band from about 0.26 to 0.74, asks, and goes right above about 0.86. The point-based strip goes left below about 0.08, asks across the whole middle, and goes right above about 0.92."
+let fig = Figure(size = (980, 380))
+    ax1 = Axis(fig[1, 1], xlabel = "P(home right)", ylabel = "value")
+    lines!(ax1, XS, curve(b -> utility(FK_Q, b)), color = C[2], linestyle = :dash, linewidth = 2, label = "QMDP")
+    lines!(ax1, XS, curve(b -> utility(FK_F, b)), color = C[5], linewidth = 2, label = "fast informed bound")
+    lines!(ax1, XS, curve(FK_TRI), color = C[3], linewidth = 4, label = "triangulated (upper)")
+    lines!(ax1, XS, curve(b -> utility(FK_P, b)), color = :black, linewidth = 1.5, label = "point-based (lower)")
+    axislegend(ax1, position = :cb, labelsize = 10)
+    actcolor = Dict(1 => C[6], 2 => C[4], 3 => C[1], 4 => C[7])
+    ax2 = Axis(fig[1, 2], xlabel = "P(home right)", yticks = (1:3, ["point-based", "fast informed bound", "QMDP"]),
+               limits = (0, 1, 0.5, 3.5))
+    for (row, name) in enumerate(("point-based", "fast informed bound", "QMDP"))
+        acts = FK_ACT[name]
+        for (i, x) in enumerate(XS)
+            poly!(ax2, Point2f[(x - 0.005, row - 0.35), (x + 0.005, row - 0.35), (x + 0.005, row + 0.35), (x - 0.005, row + 0.35)],
+                  color = actcolor[acts[i]])
+        end
+    end
+    Legend(fig[2, 2], [PolyElement(color = actcolor[a]) for a in 1:4], FK.actions, orientation = :horizontal, framevisible = false)
+    fig
+end
+```
+
+- **QMDP waits in a band around 50–50,** from $P(\text{home right}) =$ `{julia} fmt(Q_BAND[1])` to `{julia} fmt(Q_BAND[2])`, and asks outside it. Its value is flat at `{julia} fmt(utility(FK_Q, B0); d = 0)` across the middle and rises only near the ends. So asking looks worthwhile only if a likely answer would land near an end. Starting from 50–50, the hiker waits, the belief never moves, and the return is exactly 0.
+- **The fast informed bound waits over a wider band,** from `{julia} fmt(F_BAND[1])` to `{julia} fmt(F_BAND[2])`, with a value near `{julia} fmt(utility(FK_F, B0); d = 0)` there. It too never leaves the fork from 50–50. Both values assume the trail will somehow become known.
+- **The point-based policy asks** until $P(\text{home right})$ is below `{julia} fmt(GO_LEFT_BELOW)` or above `{julia} fmt(GO_RIGHT_ABOVE)`, then goes. In simulation it asked `{julia} fmt(FK_SIM.asks_per_go; d = 1)` times per hike, chose wrong `{julia} fmt(100 * FK_SIM.wrong; d = 1)`% of the time, and earned `{julia} fmt(FK_SIM.mean)` ± `{julia} fmt(FK_SIM.se)`.
+- **The bounds pinch.** Point-based value iteration (a lower bound) and triangulation (an upper bound) agree at the start to within `{julia} string(round(FK_TRI(B0) - utility(FK_P, B0); sigdigits = 2))`. So the optimal value is `{julia} fmt(utility(FK_P, B0); d = 3)`, and the point-based policy is essentially optimal.
+- **Exact value iteration struggles here.** Chapter 20's method still keeps `{julia} FK_EXACT_KEPT` alpha vectors after 10 steps, and has to build `{julia} FK_EXACT_EXPANDED` candidate plans to get there, a number that grows with the square of the kept set. Its 10-step value at the start is only `{julia} fmt(FK_EXACT_U; d = 2)`, far from the infinite-horizon `{julia} fmt(utility(FK_P, B0); d = 2)`: many hikes lie beyond 10 steps.
+
+## Solved problems
+
+**Problem 1: a QMDP value.** A two-state POMDP has fully observed action values $Q(s_1, a_1) = 10$, $Q(s_1, a_2) = 4$, $Q(s_2, a_1) = 0$, $Q(s_2, a_2) = 6$. What does QMDP choose at $b = (0.4, 0.6)$, and what value does it claim?
+
+::: {.callout-tip collapse="true" title="Solution"}
+$\alpha_{a_1} = (10, 0)$ and $\alpha_{a_2} = (4, 6)$. At $b$: $a_1 \to 4$ and $a_2 \to 1.6 + 3.6 = 5.2$. QMDP chooses $a_2$ and claims 5.2. That's an upper bound on the true value: a real agent at $b$ can't do better than one who will learn the state immediately.
+:::
+
+**Problem 2: why the fast informed bound is tighter.** In @eq-fib the max over $a'$ sits inside the sum over $o$; in QMDP it sits inside the sum over $s'$. Explain why moving the max outward can only lower the bound.
+
+::: {.callout-tip collapse="true" title="Solution"}
+QMDP computes $\sum_{s'} T(s')\max_{a'}\alpha_{a'}(s')$, choosing the best vector separately for every next state. That is the same as $\sum_o \sum_{s'} O(o \mid s')T(s')\max_{a'}\alpha_{a'}(s')$, since the observation probabilities sum to 1. The fast informed bound instead computes $\sum_o \max_{a'}\sum_{s'} O\,T\,\alpha_{a'}(s')$, one vector per observation. For every $o$, a maximum of a sum is at most the sum of maxima, so the fast informed value is at most QMDP's. It knows less at choice time: the observation, not the next state.
+:::
+
+**Problem 3: a point-based backup's guarantee.** Your alpha vectors are all lower bounds. After a point-based backup at belief $b$, why is the new vector also a lower bound everywhere, not just at $b$?
+
+::: {.callout-tip collapse="true" title="Solution"}
+The new vector is the exact value of a concrete conditional plan: take action $a$, then after each observation $o$ follow the plan behind $\alpha_{a,o}$. That plan's value at any belief is at most the optimal value there. Its value is at least what the new vector says, because each $\alpha_{a,o}$ is itself a lower bound on its plan. Choosing the subplans using $b$ only affects how *good* the plan is, not whether its vector is achievable.
+:::
+
+**Problem 4: triangulation weights.** With two states and granularity $m = 4$, which grid beliefs surround $b = (0.3, 0.7)$, with what weights, and what is the interpolated value if the grid values are $U(0.25, 0.75) = -20$ and $U(0.5, 0.5) = -16$?
+
+::: {.callout-tip collapse="true" title="Solution"}
+The grid beliefs are $(1, 0), (0.75, 0.25), (0.5, 0.5), (0.25, 0.75), (0, 1)$. $b$ lies between $(0.25, 0.75)$ and $(0.5, 0.5)$: $0.3 = 0.8 \times 0.25 + 0.2 \times 0.5$, so the weights are 0.8 and 0.2. $U(b) \approx 0.8(-20) + 0.2(-16) = -19.2$. If the grid values are upper bounds and the true value is convex, this interpolation is also an upper bound.
+:::
+
+**Problem 5: design a problem that breaks QMDP.** The fork breaks QMDP because a free action teaches nothing. Would QMDP still wait if waiting cost 2 per step? What does that suggest?
+
+::: {.callout-tip collapse="true" title="Solution"}
+QMDP would value waiting at $-2 + 0.95 \times 200 = 188$ and asking at $189$, so it would ask. Then it would ask again and again: at any belief short of certainty, QMDP compares asking (189) with going under uncertainty, and only goes when it's nearly sure. It would behave reasonably, by accident: its preference would be right only because asking happens to be cheaper than waiting. QMDP's rankings of information-gathering actions are driven by their *costs*, never by their information. Any problem where the informative action is not the cheapest safe action will fool it.
+:::
+
+## Recap
+
+1. **Offline approximations come with bounds; the gap measures their quality (@eq-gap).**
+   *Why it matters:* for the fork, the lower and upper bounds pinched to within a thousandth at the start, certifying the point-based policy as essentially optimal without solving exactly.
+2. **QMDP and the fast informed bound are cheap upper bounds that overvalue information (@eq-qmdp, @eq-fib).**
+   *Why it matters:* they are often good enough, within `{julia} fmt(F_EXCESS)` for the crying baby. But in problems like the fork, where information must be bought, both wait forever from an even start. Online methods (Chapter 22) often use them as optimistic heuristics instead.
+3. **Point-based value iteration gives lower bounds at polynomial cost (@eq-pbvi).**
+   *Why it matters:* backing up only at chosen beliefs sidesteps Chapter 20's explosion of alpha vectors; this is the idea behind modern solvers such as SARSOP.
+4. **Convexity turns interpolation into upper bounds (@eq-sawtooth, @eq-triangulated).**
+   *Why it matters:* sawtooth and triangulated values bound from above, giving the other side of the gap.
+5. **Heuristic search focuses on beliefs that matter from the start (@eq-gap).**
+   *Why it matters:* reachable beliefs are usually a tiny part of the belief space, and closing the gap only there is what makes large POMDPs solvable offline.
+
+## Cheat sheet & connections
+
+| Name | Formula | Ref |
+|---|---|---|
+| ★ QMDP | $\alpha_a(s) = R(s, a) + \gamma\sum_{s'}T(s' \mid s, a)\max_{a'}\alpha_{a'}(s')$ | @eq-qmdp |
+| Fast informed bound | $\alpha_a(s) = R + \gamma\sum_o\max_{a'}\sum_{s'}O\,T\,\alpha_{a'}(s')$ | @eq-fib |
+| BAWS and blind bounds | $\max_a\min_s R(s, a)/(1 - \gamma)$; $\alpha_a = R + \gamma T\alpha_a$ | @eq-lower |
+| ★ Point-based backup | best $\alpha_{a,o}$ at $\text{Update}(b, a, o)$, combined, best at $b$ | @eq-pbvi |
+| Sawtooth | $\min_{(b', u')}\, u_E^\top b + \rho(b, b')(u' - u_E^\top b')$ | @eq-sawtooth |
+| Gap-driven search | follow $\pi_{\text{hi}}$, the widest-gap observation; stop at $\delta/\gamma^d$ | @eq-gap |
+| Triangulation | $U(b) = \sum_i\lambda_i U(b^{(i)})$ over the enclosing grid simplex | @eq-triangulated |
+
+: Key equations from this page (★ = well-known by name). {#tbl-cheatsheet}
+
+**Common pitfalls**
+
+- **Using QMDP where information costs something.** It will never pay for information, and may do nothing at all.
+- **Stopping QMDP early.** Before convergence, it's an upper bound only if started from one (for example, the best-action best-state value).
+- **Belief points that miss the reachable beliefs.** Point-based bounds are only tight near the chosen beliefs; choose them by simulating from the start belief.
+- **Comparing against a finite-horizon "exact" value.** A 60-step solution is not the infinite-horizon value; with rewards of −10 per step it can be off by tenths.
+- **Reading a lower bound as the value of its policy.** A lower bound is guaranteed, but the policy acting greedily on it may do better; simulate to find out.
+
+**Connections**
+
+- [Ch 20 · Exact Belief State Planning](ch20-exact-belief-state-planning.qmd): alpha vectors, the backup, and one-step lookahead used throughout this page.
+- [Ch 8 · Approximate Value Functions](../part2/ch08-approximate-value-functions.qmd): interpolation over grids and simplexes, here over beliefs.
+- [Ch 9 · Online Planning](../part2/ch09-online-planning.qmd): heuristic search with bounds in fully observed problems.
+- [Ch 15 · Exploration and Exploitation](../part3/ch15-exploration-and-exploitation.qmd): the value of information, which QMDP ignores.
+- [Ch 22 · Online Belief State Planning](ch22-online-belief-state-planning.qmd): planning from the current belief, using these bounds as heuristics.

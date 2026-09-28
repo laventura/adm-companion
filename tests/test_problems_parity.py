@@ -8,8 +8,8 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from adm.problems import (collision_avoidance, crying_baby, fork, markov_games, mountain_car,
-                          multicaregiver, park, simple_games, simple_regulator, trail)
+from adm.problems import (collision_avoidance, crying_baby, fork, lost_hiker, markov_games,
+                          mountain_car, multicaregiver, park, simple_games, simple_regulator, trail)
 from adm.problems.coffee import COFFEE
 from adm.problems.commute import (
     COMMUTE, COMMUTE_DECISION, COMMUTE_TIMES_COV, COMMUTE_TIMES_MEAN, COMMUTE_UTILITY,
@@ -52,6 +52,9 @@ print(JSON.json(Dict(
     "markov_games" => Dict(g.name => Dict("T" => rowmajor(g.T), "R" => rowmajor(g.R))
                            for g in (predator_prey(), lake())),
     "multicaregiver" => let g = multicaregiver()
+        Dict("T" => rowmajor(g.T), "O" => rowmajor(g.O), "R" => rowmajor(g.R))
+    end,
+    "lost_hiker" => let g = lost_hiker()
         Dict("T" => rowmajor(g.T), "O" => rowmajor(g.O), "R" => rowmajor(g.R))
     end,
     "crying_baby" => let p = crying_baby()
@@ -180,8 +183,10 @@ def test_markov_games_match(julia_problems, make):
     assert np.allclose(theirs["T"], game.T.ravel()) and np.allclose(theirs["R"], game.R.ravel())
 
 
-def test_multicaregiver_matches(julia_problems):
-    theirs, ours = julia_problems["multicaregiver"], multicaregiver.multicaregiver()
+@pytest.mark.parametrize("name, make", [("multicaregiver", multicaregiver.multicaregiver),
+                                        ("lost_hiker", lost_hiker.lost_hiker)])
+def test_pomgs_match(julia_problems, name, make):
+    theirs, ours = julia_problems[name], make()
     for key, arr in (("T", ours.T), ("O", ours.O), ("R", ours.R)):
         assert np.allclose(theirs[key], arr.ravel()), key
 

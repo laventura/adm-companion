@@ -29,6 +29,7 @@ include("pomdp/controllers.jl")
 include("problems/simple_games.jl")
 include("problems/markov_games.jl")
 include("problems/multicaregiver.jl")
+include("problems/lost_hiker.jl")
 
 export write_json, show_source
 export predict_discrete, correct_discrete, update_discrete
@@ -61,7 +62,7 @@ export run_controller, reachable_nodes, controller_policy_iteration, controller_
 export controller_gradient_ascent, random_controller, best_deterministic_controller
 export SimpleGame, prisoners_dilemma, rock_paper_scissors, travelers_dilemma, intersection
 export MarkovGame, predator_prey, lake, hex_moves, PREDATOR_PREY_TILES, PREDATOR_START, PREY_START
-export POMG, multicaregiver
+export POMG, multicaregiver, lost_hiker
 
 """
     write_json(obj, path) -> path

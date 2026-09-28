@@ -72,7 +72,8 @@ This page collects every problem used on the site, implemented in both Python (`
 | F.9 Catch | POMDP | added when first used |
 | F.10–F.12 Prisoner's Dilemma, Rock-Paper-Scissors, Traveler's Dilemma | Simple games | ✅ [below](#simple-games) |
 | F.13 Predator-Prey Hex World | Markov game | ✅ [below](#predator-prey) |
-| F.14–F.15 Multicaregiver Crying Baby, Collaborative Predator-Prey | Multiagent | added with Part V |
+| F.14 Multicaregiver Crying Baby | POMG | ✅ [below](#multicaregiver) |
+| F.15 Collaborative Predator-Prey | Dec-POMDP | added with Part V |
 
 : Appendix F problems on this site. {#tbl-problems}
 
@@ -402,6 +403,38 @@ g = predator_prey()                        # 1-based; s = (pred - 1) * 12 + prey
 :::
 
 **Where it's used.** [Ch 25](../part5/ch25-sequential-problems.qmd): a predator's best response to a random prey and the prey's reply; iterated best response cycles without settling; fictitious play's exploitability falls from about 67 after 1,000 steps to about 19 after 50,000.
+
+## Multicaregiver crying baby {#multicaregiver}
+
+**The story.** Two caregivers look after one baby. Each hour, each can feed, sing to or ignore it. Either caregiver feeding sates the baby; otherwise a hungry baby stays hungry and a sated one stays sated with probability 0.5. Both hear the same thing: a hungry baby cries 90% of the time, a sated one never. Both pay 10 per hour while the baby is hungry; feeding costs caregiver 1 an extra 2.5 and caregiver 2 an extra 5; singing costs 0.5 and 0.25. It's implemented exactly as Appendix F.14 defines it. Two consequences of that definition: singing is no more informative than ignoring, and there is no discount for both doing the same thing (the book's Example 26.1 describes a variant where the cost is halved).
+
+| Part | Definition |
+|---|---|
+| States | sated, hungry |
+| Actions (each) | feed, sing, ignore |
+| Observations (each) | crying, quiet; always the same for both |
+| Transitions | a feed by either sates; else hungry stays hungry, sated stays sated w.p. 0.5 |
+| Rewards (each) | −10 while hungry; feeding −2.5 (caregiver 1) or −5 (caregiver 2); singing −0.5 or −0.25 |
+| Discount | 0.9 |
+
+: The multicaregiver crying baby. {#tbl-multicaregiver}
+
+::: {.panel-tabset group="lang"}
+## Python
+```{python}
+#| echo: true
+from adm.problems.multicaregiver import multicaregiver
+game = multicaregiver()                    # T[s, a1, a2, s2], O[a1, a2, s2, o1, o2], R[i, s, a1, a2]
+```
+## Julia
+```{.julia .snippet}
+using ADM
+g = multicaregiver()                       # 1-based: 1 = sated / feed / crying
+@assert g.O[3, 3, 2, 1, 1] == 0.9 && g.R[2, 2, 3, 1] == -15.0
+```
+:::
+
+**Where it's used.** [Ch 26](../part5/ch26-state-uncertainty.qmd): evaluation of joint conditional plans and controllers; the two-step game over plans (27 × 27) and dynamic programming with pruning (32 of 48 four-step candidates survive); equilibria where one caregiver feeds and the other free-rides.
 
 ## Problems made for this site
 

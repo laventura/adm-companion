@@ -74,6 +74,13 @@ This site uses the book's notation. Symbols are added here as chapters are writt
 | $c$ | Exploration constant in UCB1 | Ch 9 |
 | $\delta$ | Residual threshold for a state to count as solved | Ch 9 |
 | $a_{1:d}$ | An open-loop sequence of actions | Ch 9 |
+| $\pi_\theta$, $U(\theta)$ | A policy with parameters $\theta$, and its expected return | Ch 10 |
+| $\tau$, $R(\tau)$, $p_\pi(\tau)$ | A trajectory, its discounted return, and its probability under $\pi$ | Ch 10 |
+| $b(s)$ | Initial state distribution (for policy search) | Ch 10 |
+| $\alpha$, $c$, $\epsilon$ | Step size, its reduction factor, and the stopping step size (Hooke–Jeeves) | Ch 10 |
+| $m_{\text{elite}}$ | Number of elite samples kept each iteration | Ch 10 |
+| $p(\theta \mid \psi)$ | Search distribution over policy parameters, with parameters $\psi$ | Ch 10 |
+| $w^{(i)}$ | Rank-shaped weight of the $i$-th best sample | Ch 10 |
 | $o$ | An observation | Ch 19 |
 | $O(o \mid a, s')$ | Observation model: probability of observing $o$ after taking $a$ and landing in $s'$ | Ch 19 |
 | $b(s)$ | Belief: probability that the current state is $s$, given the history | Ch 19 |

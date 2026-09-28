@@ -1,8 +1,1040 @@
 ---
 title: "10 · Policy Search"
 subtitle: "Part II — Sequential Problems"
+jupyter: python3
+execute:
+  echo: false
 ---
 
 ::: {.callout-note appearance="minimal"}
-**In progress.** This page will cover ADM Ch. 10, *Policy Search*.
+**Executed in:** Python · **Book:** ADM Ch. 10 · **Lecture:** to be added
 :::
+<!-- TODO(video): link the official Stanford AA228 lecture on policy search. -->
+
+```{python}
+#| include: false
+import numpy as np
+import matplotlib.pyplot as plt
+from IPython.display import Markdown
+from matplotlib.colors import LogNorm
+from matplotlib.patches import Ellipse
+
+from adm import style
+from adm.io import write_json
+from adm.page import show_source
+from adm.policy_search import (
+    cross_entropy, evolution_strategies, genetic_search, hooke_jeeves,
+    isotropic_evolution_strategies, rank_weights,
+)
+from adm.problems import mountain_car as mc
+from adm.problems import simple_regulator as sr
+
+style.apply()
+blue, orange, green = style.CATEGORICAL[:3]
+purple = style.CATEGORICAL[6]
+
+# --- The simple regulator: exact objective, its optimum, and a noisy Monte Carlo version ---
+U_STAR = sr.exact_value([-1.0, 0.0])            # the best policy: cancel the state, add no noise
+M_ROLLOUTS = 30                                  # rollouts per evaluation in the experiments
+
+
+def noisy_U(rng, m=M_ROLLOUTS):
+    """Monte Carlo policy evaluation: the average return of m rollouts."""
+    return lambda theta: float(sr.rollout_returns(np.asarray(theta, float), m, rng).mean())
+
+
+# Exact U over a grid of (theta_1, theta_2), for the landscape figures.
+T1, T2 = np.meshgrid(np.linspace(-2.5, 1.0, 141), np.linspace(-0.5, 3.5, 161))
+U_GRID = np.vectorize(lambda a, b: sr.exact_value([a, b]))(T1, T2)
+
+
+def landscape(ax, cbar=False):
+    """Heat map of -U(theta) on a log scale (darker = better policy) plus the optimum."""
+    im = ax.pcolormesh(T1, T2, -U_GRID, cmap=style.sequential_cmap().reversed(),
+                       norm=LogNorm(vmin=-U_STAR, vmax=100), shading="auto")
+    ax.plot(-1, 0, "*", color="white", markersize=14, markeredgecolor=style.INK)
+    ax.set(xlabel=r"$\theta_1$ (gain)", ylabel=r"$\theta_2$ (action noise)", xlim=(-2.5, 1), ylim=(-0.5, 3.5))
+    return im
+
+
+def ellipse(ax, mean, cov, color, k=2.0, **kw):
+    """Draw the k-standard-deviation ellipse of a 2-D Gaussian."""
+    vals, vecs = np.linalg.eigh(cov)
+    angle = np.degrees(np.arctan2(vecs[1, 1], vecs[0, 1]))
+    ax.add_patch(Ellipse(mean, 2 * k * np.sqrt(vals[1]), 2 * k * np.sqrt(vals[0]), angle=angle,
+                         facecolor="none", edgecolor=color, **kw))
+
+
+# --- Mountain car with a two-parameter switching rule ---
+MC_CAP = 200                                     # a car not out by then counts as 201 steps
+
+
+def mc_steps(theta):
+    """Average steps to escape from the 10 standard starts under the switching rule."""
+    policy = lambda s: mc.switching_rule(theta, s)
+    return float(mc.steps_to_goal(policy, mc.STANDARD_STARTS, MC_CAP).mean())
+
+
+def mc_steps_grid(th1, th2):
+    """Average steps for every (theta_1, theta_2) on a grid, simulated all at once."""
+    P = np.array([(a, b) for a in th1 for b in th2])
+    s = np.tile(mc.STANDARD_STARTS, (len(P), 1))
+    p = np.repeat(P, len(mc.STANDARD_STARTS), axis=0)
+    steps, done = np.zeros(len(s)), mc.is_goal(s)
+    for _ in range(MC_CAP + 1):
+        a = np.where(s[:, 1] + p[:, 0] * s[:, 0] + p[:, 1] > 0, 1, -1)
+        s[~done] = mc.step(s[~done], a[~done])
+        steps[~done] += 1
+        done |= mc.is_goal(s)
+    return steps.reshape(len(P), -1).mean(axis=1).reshape(len(th1), len(th2))
+
+
+MC_TH = np.linspace(-0.1, 0.1, 81)
+MC_GRID = mc_steps_grid(MC_TH, MC_TH)            # MC_GRID[i, j]: theta_1 = MC_TH[i], theta_2 = MC_TH[j]
+mc_heuristic = mc_steps([0.0, 0.0])
+mc_share_escape = float(np.mean(MC_GRID <= MC_CAP))
+mc_best = float(MC_GRID.min())
+```
+
+```{python}
+#| include: false
+# Scorecard on the regulator: every method, 20 seeds, noisy evaluations (30 rollouts each).
+SEEDS = 20
+methods = {
+    "Hooke–Jeeves": lambda U, rng: hooke_jeeves(U, [0.0, 1.0], 0.75, 0.75, 0.01),
+    "Genetic algorithm (25, 5 elite)": lambda U, rng: genetic_search(U, rng.normal([0, 3], 1.0, (25, 2)), 0.25, 5, 10, rng),
+    "Cross entropy (25, 5 elite)": lambda U, rng: cross_entropy(U, [0, 3], 2 * np.eye(2), 25, 5, 10, rng)[0],
+    "Cross entropy (200, 40 elite)": lambda U, rng: cross_entropy(U, [0, 3], 2 * np.eye(2), 200, 40, 10, rng)[0],
+    "Evolution strategies (10)": lambda U, rng: evolution_strategies(U, [0, 3], np.log([1.0, 1.0]), 10, 0.5, 50, rng)[0],
+    "Isotropic ES, mirrored (10)": lambda U, rng: isotropic_evolution_strategies(U, [0, 3], 0.25, 10, 0.02, 50, rng),
+    "Isotropic ES, not mirrored (10)": lambda U, rng: isotropic_evolution_strategies(U, [0, 3], 0.25, 10, 0.02, 50, rng,
+                                                                                     mirrored=False),
+}
+reg_scores = {}
+for name, run in methods.items():
+    finals, evals = [], []
+    for seed in range(SEEDS):
+        count = [0]
+        U_seed = noisy_U(np.random.default_rng(seed))
+
+        def U(theta):
+            count[0] += 1
+            return U_seed(theta)
+        finals.append(sr.exact_value(run(U, np.random.default_rng(1000 + seed))))
+        evals.append(count[0])
+    finals = np.array(finals)
+    reg_scores[name] = dict(median=np.median(finals), worst=finals.min(),
+                            close=np.mean(finals > U_STAR - 0.01), evals=np.mean(evals))
+cem_small, cem_big = reg_scores["Cross entropy (25, 5 elite)"], reg_scores["Cross entropy (200, 40 elite)"]
+iso_m, iso_p = reg_scores["Isotropic ES, mirrored (10)"], reg_scores["Isotropic ES, not mirrored (10)"]
+
+# Hooke–Jeeves with very noisy evaluations (3 rollouts), for the text.
+hj3 = np.array([sr.exact_value(hooke_jeeves(noisy_U(np.random.default_rng(s), 3), [0.0, 1.0], 0.75, 0.75, 0.01))
+                for s in range(SEEDS)])
+
+# Mountain car: local search from the push-with-motion rule and from random starts; a genetic algorithm.
+MC_SEEDS = 10
+hj_rule = mc_steps(hooke_jeeves(lambda t: -mc_steps(t), [0.0, 0.0], 0.02, 0.5, 1e-4))
+hj_random_starts, hj_random_ends = [], []
+for seed in range(MC_SEEDS):
+    start = np.random.default_rng(seed).uniform(-0.1, 0.1, 2)
+    end = hooke_jeeves(lambda t: -mc_steps(t), start, 0.02, 0.5, 1e-4)
+    hj_random_starts.append(start)
+    hj_random_ends.append((end, mc_steps(end)))
+hj_random_escape = np.mean([steps <= MC_CAP for _, steps in hj_random_ends])
+ga_ends = []
+for seed in range(MC_SEEDS):
+    rng = np.random.default_rng(seed)
+    end = genetic_search(lambda t: -mc_steps(t), rng.normal(0, 0.05, (20, 2)), 0.01, 5, 15, rng)
+    ga_ends.append((end, mc_steps(end)))
+ga_mean = np.mean([steps for _, steps in ga_ends])
+ga_worst = np.max([steps for _, steps in ga_ends])
+
+# For comparison: Chapter 8's greedy policy on a 41 x 41 value grid, from the same ten starts.
+from adm.value_approx import MultilinearValue, approximate_value_iteration, greedy_actions
+grid41 = MultilinearValue([-1.2, -0.07], [0.6, 0.07], (41, 41))
+approximate_value_iteration(grid41, grid41.points(), mc.step, mc.ACTIONS, -1.0, 1.0, mc.is_goal, 400)
+ch8_steps = float(mc.steps_to_goal(lambda s: greedy_actions(grid41, s, mc.step, mc.ACTIONS, -1.0, 1.0, mc.is_goal),
+                                   mc.STANDARD_STARTS, MC_CAP).mean())
+```
+
+## Big picture
+
+### Where this chapter fits
+
+Chapters 7–9 chose actions through **value functions**: compute how good each state is, then act greedily. This chapter starts a different approach, **policy search**, which runs through Chapters 10–13. Pick a family of policies described by parameters $\theta$, such as the weights of a controller, a few thresholds, or a neural network. Then adjust $\theta$ directly to maximize the expected return, **without ever computing a value function**. Often a good policy is much simpler than the value function it implies. For example, "push in the direction you're moving" nearly solves mountain car, whose value function (Chapter 8) is a complicated spiral. This chapter treats the expected return as a **black box** and searches without gradients. [Chapter 11](ch11-policy-gradient-estimation.qmd) estimates gradients, [Chapter 12](ch12-policy-gradient-optimization.qmd) uses them, and Chapter 13 combines policies with value functions again.
+
+**The question:** how do you improve a policy when all you can do is try it out and measure how well it did?
+
+The short answer: **estimate the policy's value by simulating it, then search the parameter space like any other noisy optimization problem.** You can search locally from one point, evolve a population, or move a whole search distribution toward better regions.
+
+```{dot}
+//| label: fig-ch10-map
+//| fig-width: 7
+//| fig-height: 2.1
+//| fig-cap: "Map of this chapter. A parameterized policy is scored by Monte Carlo rollouts; four families of search methods use those scores to find better parameters."
+//| fig-alt: "Flow diagram. Parameterized policy pi theta leads to a blue box, Monte Carlo evaluation (average return of rollouts). That feeds four boxes: Local search (Hooke–Jeeves: step, shrink); Genetic algorithm (population: elites and mutation); Cross entropy (refit a Gaussian to the elites); and Evolution strategies (follow the search gradient), which leads to Isotropic ES (mirrored sampling)."
+digraph ch10 {
+  rankdir=LR; bgcolor="#fcfcfb"; pad=0.25; nodesep=0.2; ranksep=0.5;
+  node [shape=box, style="rounded,filled", fillcolor="white", color="#c3c2b7", penwidth=1.2,
+        fontname="Helvetica", fontsize=13, fontcolor="#0b0b0b", margin="0.12,0.07"];
+  edge [color="#52514e", penwidth=1.2, arrowsize=0.7, fontname="Helvetica", fontsize=11, fontcolor="#52514e"];
+  pol [label=<<B>Policy π<FONT POINT-SIZE="10">θ</FONT></B><BR/><FONT POINT-SIZE="11">parameters θ</FONT>>];
+  mc [label=<<B>Monte Carlo evaluation</B><BR/><FONT POINT-SIZE="11">average return of rollouts</FONT>>, fillcolor="#cde2fb", color="#2a78d6"];
+  hj [label=<<B>Local search</B><BR/><FONT POINT-SIZE="11">Hooke–Jeeves: step, shrink</FONT>>];
+  ga [label=<<B>Genetic algorithm</B><BR/><FONT POINT-SIZE="11">elites + mutation</FONT>>];
+  cem [label=<<B>Cross entropy</B><BR/><FONT POINT-SIZE="11">refit a Gaussian to elites</FONT>>];
+  es [label=<<B>Evolution strategies</B><BR/><FONT POINT-SIZE="11">follow the search gradient</FONT>>];
+  iso [label=<<B>Isotropic ES</B><BR/><FONT POINT-SIZE="11">mirrored sampling</FONT>>];
+  pol -> mc [label="score"];
+  mc -> hj; mc -> ga; mc -> cem; mc -> es; es -> iso [label="special case"];
+}
+```
+
+### The key ideas at a glance
+
+1. **A policy is a point in parameter space, and its score is noisy.** Write the policy as $\pi_\theta$ and its value as $U(\theta)$: the expected discounted return from the initial state distribution. You rarely have a formula, so estimate it by running $m$ simulated episodes (**rollouts**) and averaging their returns: **Monte Carlo policy evaluation**. The estimate is unbiased, but noisy. Its standard deviation shrinks like $1/\sqrt{m}$, so halving the noise costs four times the simulation.
+
+2. **Local search: step, compare, shrink.** The **Hooke–Jeeves** method tries a step of $\pm\alpha$ along each parameter, moves to the best improvement, and halves (or otherwise shrinks) the step when nothing improves. It's simple and cheap, but it can get stuck: on flat regions, at local optima, or when a lucky noisy estimate makes the current point look better than it is.
+
+3. **Populations: keep many candidates.** A **genetic algorithm** evaluates a population of parameter vectors, keeps the best few (the **elites**), and breeds the next generation by adding random noise to copies of them. Spreading out makes it much harder to get stranded.
+
+4. **Search distributions: move a cloud.** The **cross entropy method (CEM)** samples parameters from a Gaussian, keeps the elites, and refits the Gaussian to them. The cloud shifts and shrinks toward good regions. If it shrinks faster than it moves, it freezes before reaching the optimum, so it needs enough samples.
+
+5. **Evolution strategies: a gradient without derivatives.** **Evolution strategies (ES)** treat the search distribution's parameters $\psi$ as what's being optimized. They compute the gradient of the *expected* score under that distribution from samples alone, with the **log-derivative trick**. **Rank shaping** replaces raw scores by weights based on each sample's rank. **Isotropic ES** fixes the spread and uses **mirrored sampling**: each random perturbation is paired with its negative, which cancels much of the noise.
+
+6. **The landscape decides which method works.** Real objectives are noisy, have **plateaus** (every nearby policy fails in the same way), and have local optima. Populations and distributions cope better than single-point search, and averaging over a search distribution also smooths a jagged objective. None of these methods needs gradients, the model's equations, or even differentiable policies.
+
+### Vocabulary
+
+| Term | Plain meaning |
+|:---|:---|
+| Parameterized policy $\pi_\theta$ | A policy described by a vector of numbers $\theta$ |
+| $U(\theta)$ | Expected discounted return of $\pi_\theta$ from the initial state distribution |
+| Rollout, trajectory $\tau$ | One simulated episode, and its sequence of states, actions and rewards |
+| Monte Carlo policy evaluation | Estimate $U(\theta)$ by averaging the returns of $m$ rollouts |
+| Hooke–Jeeves | Coordinate-wise local search with a shrinking step size |
+| Population, elite samples | A set of candidate $\theta$s; the best few of them |
+| Search distribution $p(\theta \mid \psi)$ | A distribution over policy parameters, with its own parameters $\psi$ |
+| Cross entropy method | Refit the search distribution to the elite samples |
+| Log-derivative trick | $\nabla p = p\, \nabla \log p$: turns a gradient of an expectation into an expectation |
+| Rank shaping | Use weights based on each sample's rank instead of its raw score |
+| Mirrored sampling | Evaluate both $\psi + \sigma\epsilon$ and $\psi - \sigma\epsilon$ |
+
+: Terms used on this page. {#tbl-vocab}
+
+### After this chapter you can
+
+- Estimate a policy's value by Monte Carlo rollouts, and say how its noise shrinks with the number of rollouts.
+- Run Hooke–Jeeves, a genetic algorithm, the cross entropy method and evolution strategies on a policy.
+- Derive the search gradient with the log-derivative trick, and explain rank shaping and mirrored sampling.
+- Predict how noise, plateaus and local optima affect each method, and pick one accordingly.
+
+## Intuition
+
+::: {.callout-tip title="Analogy"}
+Tuning a recipe without knowing any chemistry: you can only cook it and taste. Each tasting is a bit unreliable, because your palate varies, so you might cook each version a few times and average. Then:
+
+- **Local search:** tweak one ingredient at a time, keep a tweak if it tastes better, and make smaller tweaks when nothing helps.
+- **Genetic algorithm:** a cooking class where everyone cooks a variant, the best few recipes are copied with small random changes, and the class repeats.
+- **Cross entropy:** keep a "zone" of promising amounts, sample recipes from it, and redraw the zone around the best ones.
+- **Evolution strategies:** from the tasting results, work out which *direction* of change tends to help, and move the zone that way.
+:::
+
+Two problems run through the page.
+
+- **The simple regulator** (a benchmark problem from the book's appendix): keep a number $s$ near 0. Each step you add an action $a$, and nature adds noise: $s' = s + a + \text{noise}$. The reward is $-s^2$. The policy family is $a \sim \mathcal{N}(\theta_1 s, \theta_2^2)$: $\theta_1$ is a **gain** on the state, and $\theta_2$ is how much random noise the policy adds to its own action. The best policy is obviously $\theta_1 = -1$ (cancel $s$) and $\theta_2 = 0$ (add no noise). That's what makes it a good test: we can check whether each method finds it. For this family we can even compute $U(\theta)$ exactly, so every result can be scored without noise.
+- **Mountain car** (Chapter 8), with the rule "accelerate right if $v + \theta_1 x + \theta_2 > 0$, else left". This landscape is much harsher.
+
+### Scoring a policy by simulation
+
+At $\theta = (-0.5, 0.5)$ the exact value is `{python} f"{sr.exact_value([-0.5, 0.5]):.3f}"`. One rollout's return can be far from this, because a single episode is noisy. The average of $m$ rollouts has a spread that shrinks like $1/\sqrt{m}$: 100 rollouts are 10 times less noisy than 1 (@fig-evaluation, right). See @eq-mc-eval.
+
+### Local search and noise
+
+Hooke–Jeeves on the regulator, from $\theta = (0, 1)$ with 30 rollouts per evaluation, ends at a median value of `{python} f"{reg_scores['Hooke–Jeeves']['median']:.3f}"` (the optimum is `{python} f"{U_STAR:.3f}"`). With only 3 rollouts per evaluation, the median is `{python} f"{np.median(hj3):.3f}"`, and the worst of 20 runs `{python} f"{hj3.min():.3f}"`. The noise is the problem. A lucky, too-good estimate at the current point makes every true improvement look worse, so the search shrinks its step and stops early. See @eq-hooke-jeeves.
+
+### Populations and plateaus
+
+On mountain car, only `{python} f"{mc_share_escape:.0%}"` of the parameter square we search ever gets the car out. Everywhere else, every nearby policy fails in the same way, scoring the capped `{python} MC_CAP + 1` steps (@fig-mountain-landscape). Local search started at random points escapes this plateau in only `{python} f"{hj_random_escape:.0%}"` of 10 tries, because when all its neighbors tie, it just shrinks its step. Started from the "push with the motion" rule, it does much better. That rule averages `{python} f"{mc_heuristic:.1f}"` steps (every car gets out, but two need just over 200 steps and count as 201), and local search improves it to `{python} f"{hj_rule:.1f}"`. A genetic algorithm with 20 candidates per generation finds a working policy in every run, averaging `{python} f"{ga_mean:.1f}"` steps. See @eq-ga.
+
+### A cloud that can freeze
+
+The cross entropy method refits its Gaussian to the best 20% of samples each round. With 25 samples, the cloud shrinks faster than it travels, and only `{python} f"{cem_small['close']:.0%}"` of 20 runs end within 0.01 of the optimal value. With 200 samples, `{python} f"{cem_big['close']:.0%}"` do (@fig-search-paths, and the explorer below). See @eq-cem.
+
+### Mirrored sampling
+
+Isotropic evolution strategies estimate which direction improves the score from random perturbations. Pairing each perturbation $\epsilon$ with $-\epsilon$ cancels the part of the estimate that comes from the score's overall level rather than its slope, which is pure noise (Problem 5). With the same budget of 10 evaluations per step, `{python} f"{iso_m['close']:.0%}"` of runs end within 0.01 of the optimum with mirroring, and `{python} f"{iso_p['close']:.0%}"` without (@fig-mirrored). See @eq-isotropic-es.
+
+```{python}
+#| label: fig-evaluation
+#| fig-cap: "Left: the exact value of every regulator policy (darker is better, log scale; the star is the optimum θ = (−1, 0)). Policies with |1 + θ₁| > 1 amplify the state and are terrible. Right: Monte Carlo estimates of U at θ = (−0.5, 0.5), from 400 repetitions per sample size: the band holding the middle 90% narrows like 1/√m."
+#| fig-alt: "Two panels. The left is a heat map over theta 1 from minus 2.5 to 1 and theta 2 from minus 0.5 to 3.5. It is darkest along a horizontal band near theta 2 equals 0, from theta 1 of about minus 2 to 0.3, deepest at a white star at (minus 1, 0), and pale above the band and to the far left and right, where the gain amplifies the state. The right plots Monte Carlo estimates against the number of rollouts on a log axis from 1 to 1,000: a shaded band around the exact value (a dashed line at about minus 1.94), spanning roughly minus 4.2 to minus 0.7 at 1 rollout and narrowing steadily to a thin sliver at 1,000."
+fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(10, 3.6), gridspec_kw={"width_ratios": [1.15, 1]})
+im = landscape(ax1)
+fig.colorbar(im, ax=ax1, label=r"$-U(\theta)$ (lower is better)")
+theta_demo = np.array([-0.5, 0.5])
+ms = np.array([1, 2, 5, 10, 20, 50, 100, 200, 500, 1000])
+rng = np.random.default_rng(3)
+est = np.array([[sr.rollout_returns(theta_demo, m, rng).mean() for _ in range(400)] for m in ms])
+ax2.fill_between(ms, np.percentile(est, 5, axis=1), np.percentile(est, 95, axis=1), color=blue, alpha=0.25,
+                 label="middle 90% of estimates")
+ax2.plot(ms, est.mean(axis=1), "o-", color=blue, markersize=4, label="average estimate")
+ax2.axhline(sr.exact_value(theta_demo), color=style.INK, linestyle="--", linewidth=1, label="exact U")
+ax2.set(xscale="log", xlabel="Rollouts per evaluation, m", ylabel=r"Estimate of $U(\theta)$")
+ax2.legend(fontsize=8, loc="lower right")
+fig.tight_layout()
+plt.show()
+```
+
+## Formalism
+
+### Policy value and Monte Carlo evaluation
+
+For a policy $\pi$ and an initial state distribution $b$ (ADM §10.1):
+
+::: {.key-equation data-name="Value of a policy"}
+$$
+U(\pi) = \sum_s b(s)\, U^\pi(s) = \mathbb{E}_{\tau \sim p_\pi}\big[R(\tau)\big]
+$$ {#eq-policy-value}
+:::
+
+**In words.** A policy's value is its expected return: averaged over where you start, or equivalently over all trajectories the policy can produce.
+
+**Term by term.**
+
+- $U^\pi(s)$ is the value of following $\pi$ from state $s$ (Chapter 7).
+- $\tau$ is a trajectory (states, actions, rewards), $p_\pi(\tau)$ its probability under $\pi$ from $b$, and $R(\tau) = \sum_t \gamma^{t-1} r_t$ its discounted return.
+- For a parameterized policy, write $U(\theta) = U(\pi_\theta)$.
+
+::: {.key-equation data-name="Monte Carlo policy evaluation"}
+$$
+U(\theta) \approx \hat U(\theta) = \frac{1}{m} \sum_{i=1}^m R\big(\tau^{(i)}\big),
+\qquad
+\operatorname{Var}\big[\hat U(\theta)\big] = \frac{\operatorname{Var}\big[R(\tau)\big]}{m}
+$$ {#eq-mc-eval}
+:::
+
+**In words.** Run the policy $m$ times and average the returns. The average is unbiased, and its variance falls in proportion to $1/m$.
+
+**Term by term.** Each $\tau^{(i)}$ is an independent rollout of $\pi_\theta$ from a start drawn from $b$, simulated to a depth $d$. The standard error is $\sqrt{\operatorname{Var}[R]/m}$.
+
+**Why it holds.** The mean of independent draws has the same expectation as one draw. Variances of independent terms add, and scaling by $1/m$ divides the variance by $m^2$, giving $m \operatorname{Var}[R]/m^2$.
+
+### Local search (Hooke–Jeeves)
+
+From the current $\theta$, with step size $\alpha$ (ADM §10.2; R. Hooke and T. Jeeves, *Journal of the ACM*, 1961):
+
+::: {.key-equation data-name="Hooke–Jeeves step"}
+$$
+\theta \leftarrow \mathop{\mathrm{arg\,max}}_{\theta' \in \{\theta\} \cup \{\theta \pm \alpha e_i\}_{i=1}^n} U(\theta'),
+\qquad
+\alpha \leftarrow c\,\alpha \ \text{ if } \theta \text{ didn't change}
+$$ {#eq-hooke-jeeves}
+:::
+
+**In words.** Look at the $2n$ neighbors one step away along each axis. Move to the best if it beats the current point; otherwise shrink the step by a factor $c < 1$. Stop when $\alpha < \epsilon$.
+
+**Term by term.** $e_i$ is the unit vector along parameter $i$. Each iteration costs $2n$ evaluations. The search needs no gradients but only finds a **local** optimum, and with noisy $U$ it compares noisy numbers.
+
+### Genetic algorithm
+
+With a population $\theta^{(1)}, \ldots, \theta^{(m)}$ (ADM §10.3; this is the mutation-only form used by F. Such et al., "Deep Neuroevolution," 2017):
+
+::: {.key-equation data-name="Genetic algorithm generation"}
+$$
+\theta^{(i)}_{\text{new}} = \theta_{\text{elite}}^{(j_i)} + \sigma \epsilon^{(i)},
+\qquad j_i \sim \text{Uniform}\{1, \ldots, m_{\text{elite}}\},\ \ \epsilon^{(i)} \sim \mathcal{N}(0, I)
+$$ {#eq-ga}
+:::
+
+**In words.** Rank everyone, keep the $m_{\text{elite}}$ best, and make $m - 1$ children, each a random elite plus Gaussian noise. Carry the single best over unchanged.
+
+**Term by term.** $\sigma$ is the mutation size. Evaluations are independent, so they can run in parallel. Classical genetic algorithms also use **crossover**, mixing two parents' parameters.
+
+### Cross entropy method
+
+Search over a distribution $p(\theta \mid \psi)$, such as a Gaussian with $\psi = (\mu, \Sigma)$ (ADM §10.4; S. Mannor, R. Rubinstein and Y. Gat, *ICML*, 2003). The goal is:
+
+::: {.key-equation data-name="Search-distribution objective"}
+$$
+\psi^* = \mathop{\mathrm{arg\,max}}_\psi \ \mathbb{E}_{\theta \sim p(\cdot \mid \psi)}\big[U(\theta)\big]
+$$ {#eq-search-objective}
+:::
+
+**In words.** Find the distribution whose samples are good on average. Once it concentrates on one point, that point is the answer.
+
+The cross entropy method does this without gradients:
+
+::: {.key-equation data-name="Cross entropy update"}
+$$
+\mu \leftarrow \frac{1}{m_{\text{elite}}} \sum_{i \in \text{elite}} \theta^{(i)},
+\qquad
+\Sigma \leftarrow \frac{1}{m_{\text{elite}}} \sum_{i \in \text{elite}} \big(\theta^{(i)} - \mu\big)\big(\theta^{(i)} - \mu\big)^\top
+$$ {#eq-cem}
+:::
+
+**In words.** Sample $m$ parameter vectors, keep the best $m_{\text{elite}}$, and refit the Gaussian to them by maximum likelihood (Chapter 4).
+
+**Term by term.** The new $\mu$ is the elites' mean, and the new $\Sigma$ their spread. Keeping only the top fraction shrinks $\Sigma$ each round. If it shrinks before $\mu$ reaches the optimum, the search stalls: **premature convergence**. More samples, a larger elite fraction, or added noise slow the collapse.
+
+### Evolution strategies
+
+Instead of refitting, take a gradient step on @eq-search-objective. The gradient can be estimated from samples (ADM §10.5; D. Wierstra et al., "Natural Evolution Strategies," *JMLR*, 2014):
+
+::: {.key-equation .famous data-name="Search gradient (log-derivative trick)"}
+$$
+\nabla_\psi\, \mathbb{E}_{\theta \sim p(\cdot\mid\psi)}\big[U(\theta)\big]
+= \mathbb{E}_{\theta \sim p(\cdot\mid\psi)}\big[U(\theta)\, \nabla_\psi \log p(\theta \mid \psi)\big]
+\approx \sum_{i=1}^m w^{(i)}\, \nabla_\psi \log p\big(\theta^{(i)} \mid \psi\big)
+$$ {#eq-search-gradient}
+:::
+
+**In words.** To improve the distribution, push up the probability of samples that scored well and push down those that scored badly. Each sample's push is the direction that increases its own log-probability, weighted by how good it was.
+
+**Term by term.**
+
+- $\nabla_\psi \log p(\theta \mid \psi)$ is the **score** of a sample. For a Gaussian mean, it's $\Sigma^{-1}(\theta - \mu)$: toward the sample.
+- In the sampled version, $w^{(i)}$ replaces $U(\theta^{(i)})/m$ with a **rank-shaped** weight: only the order of the samples matters, so one huge outlier can't dominate.
+
+**Why it holds.** Write the expectation as $\int U(\theta)\, p(\theta \mid \psi)\, d\theta$ and move the gradient inside. Then use $\nabla p = p\, \nabla \log p$ (the **log-derivative trick**) to turn the integral back into an expectation you can estimate by sampling. The same trick powers the policy gradient of Chapter 11.
+
+A common weighting scheme (N. Hansen and A. Ostermeier, 1996), for the $i$-th best of $m$ samples:
+
+::: {.key-equation data-name="Rank-shaped weights"}
+$$
+w^{(i)} = \frac{\max\big(0,\ \log(\tfrac{m}{2} + 1) - \log i\big)}{\sum_{j=1}^m \max\big(0,\ \log(\tfrac{m}{2} + 1) - \log j\big)} - \frac{1}{m}
+$$ {#eq-rank-weights}
+:::
+
+**In words.** The better half of the samples get positive weights that fall off with rank, and everyone pays the same $1/m$, so the weights sum to zero.
+
+**Term by term.** Because the weights sum to zero, adding a constant to every score changes nothing. The gradient only compares samples with each other.
+
+**Natural gradient.** For a Gaussian with standard deviations $\sigma_j$, the raw gradient with respect to the mean is $\sum_i w^{(i)} \epsilon^{(i)} / \sigma$. It **grows** as $\sigma$ shrinks, so plain gradient steps blow up just as the search is converging. Rescaling each component by the inverse Fisher information (the *natural* gradient) gives steps of $\alpha\, \sigma \sum_i w^{(i)} \epsilon^{(i)}$ for the mean and $\tfrac{\alpha}{2}\sum_i w^{(i)} (\epsilon^{(i)2} - 1)$ for $\log \sigma$. These stay proportional to the current spread. The code on this page does this. Without it, the step sizes that work here made the search diverge.
+
+### Isotropic evolution strategies
+
+Fix the search distribution to $\mathcal{N}(\psi, \sigma^2 I)$ and learn only its mean (ADM §10.6; T. Salimans et al., "Evolution Strategies as a Scalable Alternative to Reinforcement Learning," 2017). With $\theta = \psi + \sigma\epsilon$:
+
+::: {.key-equation data-name="Isotropic evolution strategies"}
+$$
+\nabla_\psi\, \mathbb{E}\big[U(\theta)\big] = \frac{1}{\sigma}\, \mathbb{E}_{\epsilon \sim \mathcal{N}(0, I)}\big[U(\psi + \sigma \epsilon)\, \epsilon\big]
+\approx \frac{1}{\sigma} \sum_{i=1}^m w^{(i)} \epsilon^{(i)}
+$$ {#eq-isotropic-es}
+:::
+
+**In words.** Perturb the parameters in random directions, and move toward the directions that scored well.
+
+**Term by term.** For $\mathcal{N}(\psi, \sigma^2 I)$, $\nabla_\psi \log p = (\theta - \psi)/\sigma^2 = \epsilon/\sigma$, which gives the formula. With **mirrored sampling**, the $m$ perturbations come in pairs $\pm\epsilon$ (D. Brockhoff et al., 2010). For a locally linear $U$, each pair's contribution depends only on the slope, not on where along the line you sampled, so the estimate is much less noisy.
+
+## Worked example
+
+### Monte Carlo evaluation by hand
+
+Three rollouts of the regulator policy $\theta = (-0.5, 0.5)$:
+
+```{python}
+#| label: tbl-rollouts
+#| tbl-cap: "Three rollouts of the policy θ = (−0.5, 0.5), each 10 steps long. The returns are the discounted sums of −s²."
+rng = np.random.default_rng(11)
+three = sr.rollout_returns(theta_demo, 3, rng)
+rows = ["| Rollout | Discounted return |", "|---|---|"]
+rows += [f"| {i + 1} | {r:.3f} |" for i, r in enumerate(three)]
+rows.append(f"| **Average** | **{three.mean():.3f}** |")
+Markdown("\n".join(rows))
+```
+
+The exact value is `{python} f"{sr.exact_value(theta_demo):.3f}"`, so this 3-rollout estimate is off by `{python} f"{abs(three.mean() - sr.exact_value(theta_demo)):.3f}"`. The returns vary from rollout to rollout because both the environment and this policy are random.
+
+### One Hooke–Jeeves iteration by hand
+
+From $\theta = (0, 1)$ with $\alpha = 0.75$, using exact values:
+
+```{python}
+#| label: tbl-hooke-jeeves
+#| tbl-cap: "The four neighbors of θ = (0, 1) at step size 0.75, with their exact values. The best neighbor (bold) beats the current point, so the search moves there."
+center = np.array([0.0, 1.0])
+rows = ["| Point | $\\theta_1$ | $\\theta_2$ | $U(\\theta)$ |", "|---|---|---|---|",
+        f"| current | 0.00 | 1.00 | {sr.exact_value(center):.3f} |"]
+nbrs = []
+for i, sign in ((0, -1), (0, 1), (1, -1), (1, 1)):
+    t = center.copy()
+    t[i] += sign * 0.75
+    nbrs.append((t, sr.exact_value(t)))
+best_n = max(range(4), key=lambda k: nbrs[k][1])
+for k, (t, u) in enumerate(nbrs):
+    val = f"**{u:.3f}**" if k == best_n else f"{u:.3f}"
+    rows.append(f"| $\\theta {'-' if (k % 2 == 0) else '+'} 0.75\\, e_{1 if k < 2 else 2}$ | {t[0]:.2f} | {t[1]:.2f} | {val} |")
+Markdown("\n".join(rows))
+```
+
+Lowering the gain to $\theta_1 = -0.75$ helps most: the policy now pushes the state back toward 0. The next iteration starts from there.
+
+### One cross entropy update by hand (one parameter)
+
+Six samples of a single parameter and their scores: $\theta = 0.2, 1.4, -0.3, 0.9, 1.1, -1.0$ with $U = -3.2, -0.5, -4.1, -0.9, -0.2, -6.0$. Keep the $m_{\text{elite}} = 2$ best: $1.1$ (score $-0.2$) and $1.4$ (score $-0.5$). The refitted Gaussian has mean $1.25$ and variance $\tfrac{1}{2}\big((1.1 - 1.25)^2 + (1.4 - 1.25)^2\big) = 0.0225$, a standard deviation of $0.15$. The spread went from about $0.9$ to $0.15$ in one step. That's how fast a small elite set shrinks the search.
+
+## Interactive
+
+### Watch the cross entropy method (and when it freezes)
+
+Choose how many samples the cross entropy method draws per iteration (it always keeps the best 20%) and scrub through the iterations on the regulator. Gray dots are samples, orange ones the elites, and the blue ellipse covers two standard deviations of the search distribution. The white star is the optimum. With few samples, the ellipse often collapses to a point before reaching the star.
+
+```{python}
+#| include: false
+# CEM traces on the regulator (noisy evaluations) for the explorer: 4 sample sizes x 3 seeds.
+cem_traces = {}
+for m in (25, 50, 100, 200):
+    for seed in (0, 1, 2):
+        trace = []
+        cross_entropy(noisy_U(np.random.default_rng(seed)), [0, 3], 2 * np.eye(2), m, m // 5, 12,
+                      np.random.default_rng(1000 + seed), trace)
+        mean, cov = cross_entropy(noisy_U(np.random.default_rng(seed)), [0, 3], 2 * np.eye(2), m, m // 5, 12,
+                                  np.random.default_rng(1000 + seed))
+        steps = [{"mean": mu.round(3), "cov": c.round(5), "samples": s.round(2), "elite": e.round(2),
+                  "U": round(sr.exact_value(mu), 4)} for mu, c, s, e in trace]
+        steps.append({"mean": mean.round(3), "cov": cov.round(5), "samples": [], "elite": [],
+                      "U": round(sr.exact_value(mean), 4)})
+        cem_traces[f"{m}|{seed}"] = steps
+# A coarse copy of the landscape for the background: log10 of -U on a 36 x 41 grid.
+bg = [{"t1": float(a), "t2": float(b), "v": float(np.log10(-sr.exact_value([a, b])))}
+      for a in np.linspace(-2.5, 1.0, 36) for b in np.linspace(-0.5, 3.5, 41)]
+write_json({"traces": cem_traces, "background": bg, "ustar": U_STAR,
+            "style": {"blue": blue, "orange": orange, "ink": style.INK, "muted": style.MUTED,
+                      "surface": style.SURFACE}}, "data/ch10-cem.json")
+```
+
+```{ojs}
+cem = FileAttachment("data/ch10-cem.json").json()
+viewof cemM = Inputs.radio([25, 50, 100, 200], {label: "Samples per iteration", value: 25})
+viewof cemSeed = Inputs.radio([0, 1, 2], {label: "Random seed", value: 0})
+viewof cemK = Inputs.range([0, 12], {step: 1, value: 0, label: "Iteration"})
+```
+
+```{ojs}
+cemStep = {
+  const run = cem.traces[`${cemM}|${cemSeed}`];
+  const st = run[cemK];
+  // The 2-standard-deviation ellipse of the Gaussian, from the eigen-decomposition of its 2 x 2 covariance.
+  const [[a, b], [, d]] = st.cov;
+  const tr = (a + d) / 2, det = Math.sqrt(((a - d) / 2) ** 2 + b * b);
+  const l1 = tr + det, l2 = Math.max(tr - det, 0);
+  const ang = Math.atan2(l1 - a, b || 1e-12);
+  const pts = d3.range(0, 2 * Math.PI + 0.01, 0.05).map(t => {
+    const u = 2 * Math.sqrt(l1) * Math.cos(t), v = 2 * Math.sqrt(l2) * Math.sin(t);
+    return [st.mean[0] + u * Math.cos(ang) - v * Math.sin(ang), st.mean[1] + u * Math.sin(ang) + v * Math.cos(ang)];
+  });
+  return {st, pts, final: run[run.length - 1]};
+}
+```
+
+```{ojs}
+md`Iteration ${cemK}: mean θ = (${cemStep.st.mean[0].toFixed(2)}, ${cemStep.st.mean[1].toFixed(2)}), exact value **${cemStep.st.U.toFixed(3)}**. After all 12 iterations: **${cemStep.final.U.toFixed(3)}** (optimum ${cem.ustar.toFixed(3)}).`
+```
+
+```{ojs}
+//| label: fig-cem-explorer
+//| fig-cap: "The cross entropy method on the regulator. Background: the exact value (darker is better). Gray: samples; orange: elites; blue: the search distribution's 2-standard-deviation ellipse; white star: the optimum."
+//| fig-alt: "Interactive plot over theta 1 (across) and theta 2 (up), shaded by policy value. Gray and orange dots show the current samples and elites, a blue ellipse the search distribution, and a white star the optimum at (minus 1, 0). Controls choose the number of samples per iteration, the random seed and the iteration."
+Plot.plot({
+  width: 600, height: 420,
+  style: {background: cem.style.surface, color: cem.style.ink},
+  x: {domain: [-2.5, 1.0], label: "θ₁ (gain)"}, y: {domain: [-0.5, 3.5], label: "θ₂ (action noise)"},
+  color: {scheme: "blues", reverse: true, domain: [-0.9, 2], legend: true, label: "log₁₀(−U) (lower is better)"},
+  marks: [
+    Plot.rect(cem.background, {x1: d => d.t1 - 0.05, x2: d => d.t1 + 0.05, y1: d => d.t2 - 0.05, y2: d => d.t2 + 0.05, fill: "v"}),
+    Plot.dot(cemStep.st.samples, {x: d => d[0], y: d => d[1], r: 2.5, fill: cem.style.muted}),
+    Plot.dot(cemStep.st.elite, {x: d => d[0], y: d => d[1], r: 3.5, fill: cem.style.orange}),
+    Plot.line(cemStep.pts, {x: d => d[0], y: d => d[1], stroke: cem.style.blue, strokeWidth: 2}),
+    Plot.dot([[-1, 0]], {x: d => d[0], y: d => d[1], symbol: "star", r: 8, fill: "white", stroke: cem.style.ink})
+  ]
+})
+```
+
+### Search a mountain car policy by hand
+
+Set the two parameters of the rule "accelerate right if $v + \theta_1 x + \theta_2 > 0$" and watch ten cars (starting at rest between $x = -0.6$ and $-0.4$) try to escape. The map shows the average number of steps for every parameter pair. The white area is the plateau where no car escapes within 200 steps, and your policy is the orange dot. Try to find the narrow diagonal ridge of good policies, and notice how little changes as you move around on the plateau.
+
+```{python}
+#| include: false
+write_json({"th": MC_TH.round(4), "grid": MC_GRID.round(1), "cap": MC_CAP,
+            "starts": mc.STANDARD_STARTS,          # full precision: rounding changes some cars' step counts
+            "style": {"blue": blue, "orange": orange, "ink": style.INK, "muted": style.MUTED,
+                      "surface": style.SURFACE}}, "data/ch10-mountain.json")
+```
+
+```{ojs}
+mtn = FileAttachment("data/ch10-mountain.json").json()
+viewof th1 = Inputs.range([-0.1, 0.1], {step: 0.0025, value: 0, label: "θ₁ (position weight)"})
+viewof th2 = Inputs.range([-0.1, 0.1], {step: 0.0025, value: 0, label: "θ₂ (offset)"})
+```
+
+```{ojs}
+cars = {
+  const clamp = (z, lo, hi) => Math.min(hi, Math.max(lo, z));
+  // Mountain car dynamics (as in adm/problems/mountain_car.py) under the switching rule.
+  const paths = mtn.starts.map(([x0, v0]) => {
+    let x = x0, v = v0; const path = [[x, v]];
+    while (x < 0.6 && path.length <= mtn.cap) {
+      const a = v + th1 * x + th2 > 0 ? 1 : -1;
+      v = clamp(v + 0.001 * a - 0.0025 * Math.cos(3 * x), -0.07, 0.07);
+      x = clamp(x + v, -1.2, 0.6);
+      path.push([x, v]);
+    }
+    return path;
+  });
+  const steps = paths.map(p => p[p.length - 1][0] >= 0.6 ? p.length - 1 : mtn.cap + 1);
+  const cells = [];
+  mtn.th.forEach((a, i) => mtn.th.forEach((b, j) => cells.push({a, b, s: mtn.grid[i][j]})));
+  return {paths, steps, mean: d3.mean(steps), escaped: steps.filter(s => s <= mtn.cap).length, cells};
+}
+```
+
+```{ojs}
+md`**${cars.escaped} of 10** cars escape; average **${cars.mean.toFixed(1)} steps** (a car still in the valley counts as ${mtn.cap + 1}). Steps per car: ${cars.steps.join(", ")}.`
+```
+
+```{ojs}
+//| label: fig-mountain-explorer
+//| fig-cap: "Left: average steps to escape for every rule (white = no car escapes within 200 steps); the orange dot is the rule you chose. Right: the ten cars' paths in position and speed under that rule."
+//| fig-alt: "Two interactive panels. The left is a heat map over theta 1 and theta 2 from minus 0.1 to 0.1, mostly white (no escape), with a narrow diagonal band of blue where cars escape, darkest near the middle; an orange dot marks the chosen rule. The right shows ten orange paths in the position and speed plane, spiraling out to the goal at position 0.6 when the rule works, or circling near the valley floor when it doesn't. Sliders set theta 1 and theta 2."
+html`<div style="display:flex; flex-wrap:wrap; gap:8px">${
+  Plot.plot({
+    width: 320, height: 300, marginLeft: 50,
+    style: {background: mtn.style.surface, color: mtn.style.ink},
+    x: {label: "θ₁", domain: [-0.101, 0.101]}, y: {label: "θ₂", domain: [-0.101, 0.101]},
+    color: {scheme: "blues", reverse: true, domain: [110, 200], unknown: "white", label: "average steps"},
+    marks: [
+      Plot.rect(cars.cells, {x1: d => d.a - 0.00125, x2: d => d.a + 0.00125, y1: d => d.b - 0.00125,
+                             y2: d => d.b + 0.00125, fill: d => d.s > mtn.cap ? null : d.s}),
+      Plot.dot([[th1, th2]], {x: d => d[0], y: d => d[1], r: 6, fill: mtn.style.orange, stroke: "white"})
+    ]
+  })}${
+  Plot.plot({
+    width: 320, height: 300, marginLeft: 50,
+    style: {background: mtn.style.surface, color: mtn.style.ink},
+    x: {label: "position x", domain: [-1.25, 0.65]}, y: {label: "speed v", domain: [-0.07, 0.07]},
+    marks: [
+      Plot.ruleX([0.6], {stroke: mtn.style.blue, strokeDasharray: "4,3"}),
+      ...cars.paths.map(p => Plot.line(p, {x: d => d[0], y: d => d[1], stroke: mtn.style.orange, strokeOpacity: 0.6}))
+    ]
+  })}</div>`
+```
+
+## Algorithms & code
+
+### Monte Carlo evaluation of the regulator
+
+::: {.panel-tabset group="lang"}
+## Python
+```{python}
+#| output: asis
+show_source(sr.step, sr.gaussian_policy, sr.rollout_returns, sr.exact_value)
+```
+## Julia
+```{.julia .snippet}
+using ADM, LinearAlgebra, Random, Statistics
+
+# One rollout of the regulator policy θ, from a random start; returns the discounted return.
+function rollout(θ, rng; d = REGULATOR_HORIZON)
+    s = REGULATOR_START[1] + REGULATOR_START[2] * randn(rng)
+    ret = 0.0
+    for t in 1:d
+        s, r = regulator_step(s, regulator_policy(θ, s, rng), rng)
+        ret += REGULATOR_γ^(t - 1) * r
+    end
+    return ret
+end
+
+# Monte Carlo policy evaluation: the average of m rollouts.
+mc_value(θ, m, rng) = mean(rollout(θ, rng) for _ in 1:m)
+
+rng = MersenneTwister(0)
+@assert isapprox(mc_value([-0.5, 0.5], 100_000, rng), regulator_exact_value([-0.5, 0.5]); rtol = 0.02)
+U_star = regulator_exact_value([-1.0, 0.0])
+```
+:::
+
+### Local search and genetic algorithms
+
+::: {.panel-tabset group="lang"}
+## Python
+```{python}
+#| output: asis
+show_source(hooke_jeeves, genetic_search)
+```
+## Julia
+```{.julia .snippet}
+# Hooke–Jeeves: try ±α along each coordinate, move to the best improvement, else shrink α.
+function hooke_jeeves(U, θ, α; c = 0.5, ϵ = 0.01)
+    θ, u = copy(θ), U(θ)
+    while α > ϵ
+        best = (i = 0, sgn = 0, u = u)
+        for i in eachindex(θ), sgn in (-1, 1)
+            θ′ = copy(θ)
+            θ′[i] += sgn * α
+            u′ = U(θ′)
+            u′ > best.u && (best = (i = i, sgn = sgn, u = u′))
+        end
+        if best.i == 0
+            α *= c                                  # nothing helped: look closer
+        else
+            θ[best.i] += best.sgn * α
+            u = best.u
+        end
+    end
+    return θ
+end
+
+# Genetic algorithm: children are random elites plus noise; the best survives unchanged.
+function genetic_search(U, θs, σ, m_elite, k_max, rng)
+    m, n = length(θs), length(first(θs))
+    for _ in 1:k_max
+        order = sortperm([U(θ) for θ in θs], rev = true)   # best first
+        elite = θs[order[1:m_elite]]
+        θs = [[elite[rand(rng, 1:m_elite)] .+ σ .* randn(rng, n) for _ in 1:m-1]; [elite[1]]]
+    end
+    return last(θs)
+end
+```
+:::
+
+### Cross entropy and evolution strategies
+
+::: {.panel-tabset group="lang"}
+## Python
+```{python}
+#| output: asis
+show_source(cross_entropy, rank_weights, evolution_strategies, isotropic_evolution_strategies)
+```
+## Julia
+```{.julia .snippet}
+# Cross entropy: sample from N(μ, Σ), keep the elites, refit μ and Σ by maximum likelihood.
+function cross_entropy(U, μ, Σ, m, m_elite, k_max, rng)
+    for _ in 1:k_max
+        L = cholesky(Symmetric(Σ)).L                    # θ = μ + L z has covariance L Lᵀ = Σ
+        θs = [μ .+ L * randn(rng, length(μ)) for _ in 1:m]
+        elite = θs[sortperm([U(θ) for θ in θs], rev = true)[1:m_elite]]
+        μ = mean(elite)
+        Σ = sum((θ - μ) * (θ - μ)' for θ in elite) / m_elite + 1e-12I   # tiny jitter keeps it invertible
+    end
+    return μ, Σ
+end
+
+# Rank-shaped weights for m samples sorted best first; they sum to zero.
+function rank_weights(m)
+    w = [max(0, log(m / 2 + 1) - log(i)) for i in 1:m]
+    return w ./ sum(w) .- 1 / m
+end
+
+# Evolution strategies on N(μ, diag(σ²)) with ψ = (μ, log σ), using natural-gradient steps.
+function evolution_strategies(U, μ, logσ, m, α, k_max, rng)
+    w = rank_weights(m)
+    for _ in 1:k_max
+        σ = exp.(logσ)
+        ϵs = [randn(rng, length(μ)) for _ in 1:m]
+        order = sortperm([U(μ .+ σ .* ϵ) for ϵ in ϵs], rev = true)
+        μ = μ .+ α .* σ .* sum(w[k] .* ϵs[i] for (k, i) in enumerate(order))
+        logσ = logσ .+ (α / 2) .* sum(w[k] .* (ϵs[i] .^ 2 .- 1) for (k, i) in enumerate(order))
+    end
+    return μ, exp.(logσ)
+end
+
+# Isotropic evolution strategies with mirrored sampling: each ϵ is paired with -ϵ.
+function isotropic_es(U, μ, σ, m, α, k_max, rng)
+    w = rank_weights(2 * (m ÷ 2))
+    for _ in 1:k_max
+        ϵs = [randn(rng, length(μ)) for _ in 1:(m ÷ 2)]
+        ϵs = [ϵs; [-ϵ for ϵ in ϵs]]
+        order = sortperm([U(μ .+ σ .* ϵ) for ϵ in ϵs], rev = true)
+        μ = μ .+ α .* sum(w[k] .* ϵs[i] for (k, i) in enumerate(order)) ./ σ
+    end
+    return μ
+end
+```
+:::
+
+### The mountain car rule
+
+::: {.panel-tabset group="lang"}
+## Python
+```{python}
+#| output: asis
+show_source(mc.switching_rule)
+```
+## Julia
+```{.julia .snippet}
+# Accelerate right when v + θ₁ x + θ₂ > 0, else left.
+switching_rule(θ, s) = s[2] + θ[1] * s[1] + θ[2] > 0 ? 1 : -1
+
+# Average steps to escape from 10 starts at rest; a car not out after `cap` steps counts as cap + 1.
+function mean_steps(θ; cap = 200)
+    total = 0
+    for x0 in range(-0.6, -0.4, length = 10)
+        s, t = [x0, 0.0], 0
+        while !mountain_car_goal(s) && t <= cap
+            s = mountain_car_step(s, switching_rule(θ, s))
+            t += 1
+        end
+        total += t
+    end
+    return total / 10
+end
+```
+:::
+
+### Run them
+
+::: {.panel-tabset group="lang"}
+## Python
+```{python}
+#| echo: true
+rng = np.random.default_rng(0)
+U = lambda theta: sr.rollout_returns(np.asarray(theta), 30, rng).mean()   # noisy
+found = {
+    "Hooke-Jeeves": hooke_jeeves(U, [0.0, 1.0], 0.75, 0.75, 0.01),
+    "genetic": genetic_search(U, rng.normal([0, 3], 1.0, (25, 2)), 0.25, 5, 10, rng),
+    "cross entropy": cross_entropy(U, [0, 3], 2 * np.eye(2), 200, 40, 10, rng)[0],
+    "evolution strategies": evolution_strategies(U, [0, 3], np.log([1.0, 1.0]),
+                                                 10, 0.5, 50, rng)[0],
+    "isotropic ES": isotropic_evolution_strategies(U, [0, 3], 0.25, 10, 0.02, 50, rng),
+}
+```
+## Julia
+```{.julia .snippet}
+rng = MersenneTwister(1)
+U = θ -> regulator_exact_value(θ)                    # the exact objective, so results are repeatable
+near_optimal(θ) = regulator_exact_value(θ) > U_star - 0.01
+@assert near_optimal(hooke_jeeves(U, [0.0, 1.0], 0.75; c = 0.75, ϵ = 0.001))
+@assert near_optimal(genetic_search(U, [[0.0, 3.0] .+ randn(rng, 2) for _ in 1:25], 0.1, 5, 30, rng))
+@assert near_optimal(cross_entropy(U, [0.0, 3.0], 2.0 * Matrix(I, 2, 2), 200, 40, 15, rng)[1])
+@assert near_optimal(evolution_strategies(U, [0.0, 3.0], [0.0, 0.0], 10, 0.5, 60, rng)[1])
+@assert near_optimal(isotropic_es(U, [0.0, 3.0], 0.25, 10, 0.02, 60, rng))
+@assert mean_steps([0.0, 0.0]) ≈ 152.8                # "push with the motion"; two cars need just over 200 steps
+```
+:::
+
+```{python}
+print(f"{'method':22s} {'theta':>18s}  exact U   (optimum {U_STAR:.3f} at theta = (-1, 0))")
+for name, theta in found.items():
+    print(f"{name:22s} ({theta[0]:6.3f}, {theta[1]:6.3f})  {sr.exact_value(theta):8.3f}")
+```
+
+::: {.callout-note collapse="true" title="Reading the Julia code (for Python programmers)"}
+- **`for i in eachindex(θ), sgn in (-1, 1)`** is a nested loop in one line.
+- **`[a; b]`** concatenates vectors vertically, like `a + b` for Python lists. `[[1, 2]; [[3, 4]]]` appends one element.
+- **`cholesky(Symmetric(Σ)).L`** is the lower-triangular factor $L$ with $LL^\top = \Sigma$, like `np.linalg.cholesky`. Then `μ .+ L * randn(n)` samples from $\mathcal{N}(\mu, \Sigma)$.
+- **`1e-12I`** is a multiple of the identity matrix `I`, whose size adapts to the matrix it's added to.
+- **`m ÷ 2`** is integer division, like `m // 2`.
+- **`sortperm(v, rev = true)`** gives the indices that sort `v` in decreasing order, like `np.argsort(-v)`.
+:::
+
+### Results
+
+#### How each method searches
+
+```{python}
+#| include: false
+# One run of each method on the regulator with noisy evaluations, recorded for the figure.
+rng_fig = np.random.default_rng(5)
+U_fig = noisy_U(np.random.default_rng(6))
+hj_trace, ga_trace, cem_trace, es_trace = [], [], [], []
+hooke_jeeves(U_fig, [0.0, 1.0], 0.75, 0.75, 0.01, hj_trace)
+genetic_search(U_fig, rng_fig.normal([0, 3], 1.0, (25, 2)), 0.25, 5, 10, rng_fig, ga_trace)
+cross_entropy(U_fig, [0, 3], 2 * np.eye(2), 50, 10, 6, rng_fig, cem_trace)
+evolution_strategies(U_fig, [0, 3], np.log([1.0, 1.0]), 10, 0.5, 30, rng_fig, es_trace)
+```
+
+```{python}
+#| label: fig-search-paths
+#| fig-cap: "Four searches on the regulator (noisy evaluations, 30 rollouts each), over the exact value landscape. Hooke–Jeeves: the path of accepted steps. Genetic algorithm: the population in generations 1, 4 and 10 (elites in orange). Cross entropy (50 samples, 10 elite): the 2-standard-deviation ellipse at each iteration, shrinking as it moves. Evolution strategies: the mean's path, with the 2-standard-deviation box every 5 iterations."
+#| fig-alt: "Four heat maps of policy value over theta 1 and theta 2, each with a white star at the optimum (minus 1, 0). Top left: a zigzag path of black dots from (0, 1) toward the star. Top right: three clouds of points, a wide one near theta 2 equals 3, then tighter clouds closer to the star, with orange elites. Bottom left: a sequence of blue ellipses that start large around (0, 3) and shrink and move toward the star. Bottom right: a curving blue path from (0, 3) to near the star, with rectangles that shrink along the way."
+fig, axes = plt.subplots(2, 2, figsize=(10, 7.4), sharex=True, sharey=True)
+ax = axes[0, 0]
+landscape(ax)
+path = np.array([[0.0, 1.0]] + [t for t, _ in hj_trace])
+ax.plot(path[:, 0], path[:, 1], "o-", color=style.INK, markersize=3, linewidth=1)
+ax.set_title("Hooke–Jeeves", fontsize=10)
+ax = axes[0, 1]
+landscape(ax)
+for gen, col in ((0, style.MUTED), (3, purple), (9, style.INK)):
+    pop, elite_idx = ga_trace[gen]
+    ax.scatter(pop[:, 0], pop[:, 1], s=10, color=col, label=f"generation {gen + 1}")
+    ax.scatter(pop[elite_idx, 0], pop[elite_idx, 1], s=22, color=orange, edgecolors="white", linewidths=0.5)
+ax.legend(fontsize=7, loc="upper right")
+ax.set_title("Genetic algorithm", fontsize=10)
+ax = axes[1, 0]
+landscape(ax)
+for mu, cov, _, _ in cem_trace:
+    ellipse(ax, mu, cov, blue, linewidth=1.2)
+    ax.plot(*mu, "o", color=blue, markersize=3)
+ax.set_title("Cross entropy (50 samples)", fontsize=10)
+ax = axes[1, 1]
+landscape(ax)
+es_means = np.array([mu for mu, _, _ in es_trace])
+ax.plot(es_means[:, 0], es_means[:, 1], "-", color=blue, linewidth=1.5)
+for mu, sd, _ in es_trace[::5]:
+    ax.add_patch(plt.Rectangle(mu - 2 * sd, 4 * sd[0], 4 * sd[1], facecolor="none", edgecolor=blue, linewidth=0.8))
+ax.set_title("Evolution strategies", fontsize=10)
+for a in axes[0]:
+    a.set_xlabel("")
+for a in axes[:, 1]:
+    a.set_ylabel("")
+fig.tight_layout()
+plt.show()
+```
+
+#### Scorecard on the regulator
+
+@tbl-regulator scores each method over 20 runs with noisy evaluations (30 rollouts each), using the **exact** value of the final policy. It also shows the share of runs that end within 0.01 of the optimum, `{python} f"{U_STAR:.3f}"`, and the number of evaluations used.
+
+```{python}
+#| label: tbl-regulator
+#| tbl-cap: "Policy search on the simple regulator: exact value of the final policy over 20 runs (median and worst), share of runs within 0.01 of the optimum, and evaluations per run."
+rows = ["| Method | Median U | Worst U | Within 0.01 | Evaluations |", "|:---|---|---|---|---|"]
+for name, sc in reg_scores.items():
+    rows.append(f"| {name} | {sc['median']:.3f} | {sc['worst']:.3f} | {sc['close']:.0%} | {sc['evals']:.0f} |")
+Markdown("\n".join(rows))
+```
+
+#### Mirrored sampling
+
+```{python}
+#| include: false
+# Isotropic ES with and without mirrored sampling: exact value of the mean after each iteration, 20 seeds.
+mirror_curves = {}
+for mirrored in (True, False):
+    runs = []
+    for seed in range(SEEDS):
+        trace = []
+        isotropic_evolution_strategies(noisy_U(np.random.default_rng(seed)), [0, 3], 0.25, 10, 0.02, 50,
+                                       np.random.default_rng(1000 + seed), mirrored=mirrored, trace=trace)
+        runs.append([sr.exact_value(mu) for mu in trace])
+    mirror_curves[mirrored] = np.array(runs)
+```
+
+```{python}
+#| label: fig-mirrored
+#| fig-cap: "Isotropic evolution strategies on the regulator, 10 evaluations per iteration, with and without mirrored sampling: the exact value of the search mean after each iteration (median of 20 runs, shaded from the 10th to the 90th percentile). Mirroring makes progress steadier and ends closer to the optimum (dashed)."
+#| fig-alt: "Line chart with iterations 1 to 50 across and minus the exact policy value up the side on a log scale (lower is better). Both medians fall from about 200 toward the dashed optimum line near 0.16 and track each other for the first 25 iterations. After that the mirrored median (blue, narrow band) drops faster and reaches the optimum by about iteration 44; the unmirrored median (orange) arrives a few iterations later, and its band stays much wider."
+fig, ax = plt.subplots(figsize=(6.4, 3.6))
+iters = np.arange(1, 51)
+for mirrored, color, label in ((True, blue, "mirrored"), (False, orange, "not mirrored")):
+    runs = -mirror_curves[mirrored]
+    ax.plot(iters, np.median(runs, axis=0), color=color, label=label)
+    ax.fill_between(iters, np.percentile(runs, 10, axis=0), np.percentile(runs, 90, axis=0), color=color, alpha=0.2,
+                    linewidth=0)
+ax.axhline(-U_STAR, color=style.INK, linestyle="--", linewidth=1)
+ax.set(yscale="log", xlabel="Iteration", ylabel=r"$-U(\mathrm{mean})$ (lower is better)")
+ax.legend()
+plt.show()
+```
+
+#### Plateaus: mountain car
+
+```{python}
+#| label: fig-mountain-landscape
+#| fig-cap: "Mountain car under the switching rule: average steps to escape for each (θ₁, θ₂) (white: no car escapes within 200 steps). Black crosses: where Hooke–Jeeves ended from 10 random starts (hollow circles); most never leave the plateau. Orange dots: the best policy from 10 genetic-algorithm runs, all on the ridge."
+#| fig-alt: "Heat map over theta 1 and theta 2 from minus 0.1 to 0.1, white almost everywhere except a narrow diagonal band from upper left to lower right, shaded blue, where cars escape. Hollow circles mark random starting points scattered across the square; black crosses mark where local search stopped, mostly on the white plateau right next to their starts. Orange dots, clustered on the blue band, mark the genetic algorithm's best policies."
+fig, ax = plt.subplots(figsize=(6.4, 5.0))
+shown = np.where(MC_GRID > MC_CAP, np.nan, MC_GRID)
+im = ax.pcolormesh(MC_TH, MC_TH, shown.T, cmap=style.sequential_cmap().reversed(), vmin=110, vmax=200, shading="auto")
+fig.colorbar(im, ax=ax, label="Average steps to escape")
+for start, (end, _) in zip(hj_random_starts, hj_random_ends):
+    ax.plot(*start, "o", mfc="none", color=style.INK_SECONDARY, markersize=6)
+    ax.plot([start[0], end[0]], [start[1], end[1]], color=style.INK_SECONDARY, linewidth=0.8)
+    ax.plot(*end, "x", color=style.INK, markersize=7)
+for end, _ in ga_ends:
+    ax.plot(*end, "o", color=orange, markersize=6, markeredgecolor="white")
+ax.plot(0, 0, "s", color=style.INK, markersize=5)
+ax.annotate("push with\nthe motion", (0, 0), xytext=(0.02, 0.06), fontsize=8, color=style.INK_SECONDARY,
+            arrowprops={"arrowstyle": "-", "color": style.INK_SECONDARY})
+ax.set(xlabel=r"$\theta_1$ (position weight)", ylabel=r"$\theta_2$ (offset)", aspect="equal")
+plt.show()
+```
+
+The best rule on the grid needs `{python} f"{mc_best:.1f}"` steps on average from these ten starts. The value-function approach of Chapter 8, with 1,681 stored values on a 41 × 41 grid, needs `{python} f"{ch8_steps:.1f}"` from the same starts. A policy described by just two numbers comes within `{python} f"{mc_best - ch8_steps:.0f}"` steps of it.
+
+## Solved problems
+
+**Problem 1: how many rollouts?** A policy's single-rollout returns have a standard deviation of 0.5. How many rollouts give a Monte Carlo estimate with a standard error of 0.05? Of 0.01?
+
+::: {.callout-tip collapse="true" title="Solution"}
+The standard error is $0.5/\sqrt{m}$ (@eq-mc-eval). Setting $0.5/\sqrt{m} = 0.05$ gives $\sqrt{m} = 10$, so $m = 100$. For 0.01, $\sqrt{m} = 50$, so $m = 2{,}500$. Five times less noise costs 25 times the simulation.
+:::
+
+**Problem 2: Hooke–Jeeves on a parabola.** Maximize $U(\theta) = 3 - (\theta - 2)^2$ from $\theta = 0.5$, with $\alpha = 1$, $c = 0.5$ and noise-free evaluations. List the first four iterations.
+
+::: {.callout-tip collapse="true" title="Solution"}
+- $U(0.5) = 0.75$. Neighbors: $U(-0.5) = -3.25$, $U(1.5) = 2.75$. Move to $1.5$.
+- Neighbors of 1.5: $U(0.5) = 0.75$, $U(2.5) = 2.75$. The best, 2.75, doesn't beat the current 2.75, so halve the step: $\alpha = 0.5$.
+- Neighbors: $U(1) = 2$, $U(2) = 3$. Move to $2$.
+- Neighbors: $U(1.5) = U(2.5) = 2.75 < 3$. Halve the step to $\alpha = 0.25$.
+
+From there the step keeps halving at the optimum $\theta = 2$ until it falls below $\epsilon$.
+:::
+
+**Problem 3: the search gradient by hand.** Search over one parameter with $\theta \sim \mathcal{N}(\mu, 1)$ and $\mu = 0$. Three samples $\theta = 0.5, -1.0, 1.5$ score $U = 2, -1, 3$. Estimate $\nabla_\mu \mathbb{E}[U]$ with the plain average of $U(\theta)\,\nabla_\mu \log p$. Which way should $\mu$ move?
+
+::: {.callout-tip collapse="true" title="Solution"}
+For a unit-variance Gaussian, $\nabla_\mu \log p(\theta \mid \mu) = \theta - \mu = \theta$. The estimate is $\frac{1}{3}\big(2(0.5) + (-1)(-1.0) + 3(1.5)\big) = \frac{1}{3}(1 + 1 + 4.5) = 2.17$. It's positive, so $\mu$ should increase: the high scores came from positive $\theta$.
+:::
+
+**Problem 4: rank weights.** Compute the weights of @eq-rank-weights for $m = 4$. What do the two worst samples contribute?
+
+::: {.callout-tip collapse="true" title="Solution"}
+$\log(4/2 + 1) = \log 3 = 1.099$. The raw weights are $\max(0, 1.099 - \log i)$: $1.099$, $0.405$, $0$ and $0$ (since $\log 3 = 1.099 < \log 4$). They sum to $1.504$. Normalized: $0.730, 0.270, 0, 0$. Subtracting $1/4$ gives $w = (0.480, 0.020, -0.25, -0.25)$. The two worst samples each get weight $-0.25$: the gradient pushes the distribution *away* from them.
+:::
+
+**Problem 5: why mirroring helps.** Suppose $U$ is linear near $\psi$: $U(\psi + \sigma\epsilon) = U(\psi) + \sigma\, g^\top \epsilon$. Compare the plain-average isotropic ES estimate $\frac{1}{m\sigma}\sum_i U(\psi + \sigma\epsilon^{(i)})\,\epsilon^{(i)}$ with and without mirroring.
+
+::: {.callout-tip collapse="true" title="Solution"}
+Each term is $\frac{1}{\sigma}\big(U(\psi) + \sigma g^\top\epsilon\big)\epsilon = \frac{U(\psi)}{\sigma}\epsilon + (g^\top\epsilon)\,\epsilon$. The first part has mean zero but can be huge when $U(\psi)$ is large and $\sigma$ small: pure noise. With mirroring, the pair $\pm\epsilon$ contributes $\frac{U(\psi)}{\sigma}(\epsilon - \epsilon) + (g^\top\epsilon)\epsilon + (g^\top(-\epsilon))(-\epsilon) = 2(g^\top\epsilon)\,\epsilon$. The noisy part cancels exactly, leaving only terms whose average is $g$, the true gradient. (Rank weights also remove the $U(\psi)$ offset, since they sum to zero, but mirroring still reduces variance.)
+:::
+
+## Recap
+
+1. **Policy search optimizes the parameters $\theta$ of a policy directly, scoring each policy by Monte Carlo rollouts (@eq-policy-value, @eq-mc-eval).**
+   *Why it matters:* it needs no value function and no model equations, only a simulator. Simple policies can be excellent even when value functions are complicated.
+2. **Evaluations are noisy, and the noise shrinks only like $1/\sqrt{m}$.**
+   *Why it matters:* the evaluation budget is the main cost. Noisy comparisons mislead greedy methods such as Hooke–Jeeves (@eq-hooke-jeeves).
+3. **Populations and search distributions explore more broadly than a single point (@eq-ga, @eq-cem).**
+   *Why it matters:* they survive plateaus and local optima, like mountain car's white expanse, but the cross entropy method can still freeze if it has too few samples.
+4. **Evolution strategies follow the gradient of the expected score under a search distribution, estimated with the log-derivative trick (@eq-search-gradient).**
+   *Why it matters:* the same trick gives the policy gradient in Chapters 11–12. Rank shaping (@eq-rank-weights), natural-gradient steps and mirrored sampling (@eq-isotropic-es) make it reliable.
+5. **Averaging over a search distribution smooths a jagged objective.**
+   *Why it matters:* the objective really optimized is $\mathbb{E}_{\theta \sim p}[U(\theta)]$ (@eq-search-objective), which is smoother than $U$ itself. This is one reason black-box methods work on problems where gradients are useless.
+
+## Cheat sheet & connections
+
+| Name | Formula | Ref |
+|---|---|---|
+| Policy value | $U(\theta) = \mathbb{E}_\tau[R(\tau)]$ | @eq-policy-value |
+| Monte Carlo evaluation | $\hat U = \frac1m \sum_i R(\tau^{(i)})$, variance $\operatorname{Var}[R]/m$ | @eq-mc-eval |
+| Hooke–Jeeves | best of $\theta, \theta \pm \alpha e_i$; else $\alpha \leftarrow c\alpha$ | @eq-hooke-jeeves |
+| Genetic algorithm | child = random elite $+\ \sigma\epsilon$ | @eq-ga |
+| Search objective | $\max_\psi \mathbb{E}_{\theta \sim p(\cdot\mid\psi)}[U(\theta)]$ | @eq-search-objective |
+| Cross entropy | refit $\mu, \Sigma$ to the elites | @eq-cem |
+| ★ Search gradient | $\mathbb{E}[U(\theta)\nabla_\psi \log p(\theta \mid \psi)]$ | @eq-search-gradient |
+| Rank weights | $w^{(i)} \propto \max(0, \log(\frac m2 + 1) - \log i)$, minus $\frac1m$ | @eq-rank-weights |
+| Isotropic ES | $\frac1\sigma \sum_i w^{(i)} \epsilon^{(i)}$, with $\pm\epsilon$ pairs | @eq-isotropic-es |
+
+: Key equations from this page (★ = well-known by name). {#tbl-cheatsheet}
+
+**Common pitfalls**
+
+- **Comparing single noisy evaluations.** Use enough rollouts, or re-evaluate the incumbent, before trusting that a change helped.
+- **Starting local search on a plateau.** If every neighbor scores the same, local search just shrinks its step. Start from a sensible heuristic, or use a population.
+- **Too few samples for the cross entropy method.** The distribution can collapse before it arrives. Increase $m$ or the elite fraction, or add noise to the refitted covariance.
+- **Plain gradient steps on the spread.** Gradients with respect to $\sigma$ grow as $\sigma$ shrinks. Use a log parameterization and natural-gradient scaling.
+- **Parameters on very different scales.** Coordinate steps and isotropic noise assume comparable scales. Rescale the parameters first.
+
+**Connections**
+
+- [Ch 7 · Exact Solution Methods](ch07-exact-solution-methods.qmd): policy evaluation, here done by simulation.
+- [Ch 8 · Approximate Value Functions](ch08-approximate-value-functions.qmd): the value-based alternative on mountain car.
+- [Ch 5 · Structure Learning](../part1/ch05-structure-learning.qmd): local search over graphs uses the same ideas and pitfalls.
+- [Ch 11 · Policy Gradient Estimation](ch11-policy-gradient-estimation.qmd): the log-derivative trick applied to trajectories instead of parameters.
+- [Ch 12 · Policy Gradient Optimization](ch12-policy-gradient-optimization.qmd): natural gradients and trust regions for policies.
+- [Appendix F · Simple regulator and mountain car](../appendices/f-problems.qmd#simple-regulator): the problems used here.

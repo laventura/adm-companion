@@ -52,6 +52,23 @@ def sample_trajectories(theta, m: int, rng, d: int = HORIZON):
     return S, A, R
 
 
+def log_policy(theta, s, a):
+    """log N(a | theta_1 s, sd^2), sd = |theta_2| + 1e-5, elementwise."""
+    sd = abs(theta[1]) + 1e-5
+    z = (np.asarray(a) - theta[0] * np.asarray(s)) / sd
+    return -0.5 * z**2 - np.log(sd) - 0.5 * np.log(2 * np.pi)
+
+
+def policy_kl(theta, theta2, s):
+    """KL divergence from the policy theta to theta2 at states s:
+    KL(N(m1, v1) || N(m2, v2))
+      = log(sd2 / sd1) + (v1 + (m1 - m2)^2) / (2 v2) - 1/2."""
+    s = np.asarray(s, dtype=float)
+    sd1, sd2 = abs(theta[1]) + 1e-5, abs(theta2[1]) + 1e-5
+    dm = (theta[0] - theta2[0]) * s          # difference of the mean actions
+    return np.log(sd2 / sd1) + (sd1**2 + dm**2) / (2 * sd2**2) - 0.5
+
+
 def grad_log_policy(theta, s, a):
     """Gradient of log N(a | theta_1 s, sd^2) with sd = |theta_2| + 1e-5,
     for arrays s and a of the same shape. Returns shape s.shape + (2,):

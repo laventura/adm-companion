@@ -1,8 +1,882 @@
 ---
 title: "11 · Policy Gradient Estimation"
 subtitle: "Part II — Sequential Problems"
+jupyter: python3
+execute:
+  echo: false
 ---
 
 ::: {.callout-note appearance="minimal"}
-**In progress.** This page will cover ADM Ch. 11, *Policy Gradient Estimation*.
+**Executed in:** Python · **Book:** ADM Ch. 11 · **Lecture:** to be added
 :::
+<!-- TODO(video): link the official Stanford AA228 lecture on policy gradient estimation. -->
+
+```{python}
+#| include: false
+import numpy as np
+import matplotlib.pyplot as plt
+from IPython.display import Markdown
+from matplotlib.colors import LogNorm, TwoSlopeNorm
+
+from adm import style
+from adm.io import write_json
+from adm.page import show_source
+from adm.policy_gradient import (
+    baseline_gradient, discounted_returns, finite_difference_gradient,
+    likelihood_ratio_gradient, regression_gradient, reward_to_go_gradient,
+    rewards_to_go,
+)
+from adm.problems import simple_regulator as sr
+
+style.apply()
+blue, orange, green, yellow = style.CATEGORICAL[:4]
+purple = style.CATEGORICAL[6]
+GAMMA = sr.GAMMA
+
+# The running example: the regulator policy a ~ N(theta_1 s, theta_2^2) at theta = (-0.5, 0.5).
+THETA = np.array([-0.5, 0.5])
+TRUE = sr.exact_gradient(THETA)                    # the exact gradient, to score every estimator
+
+
+def traj_estimate(fn, theta, m, rng):
+    """Sample m trajectories and apply a likelihood-ratio-type estimator."""
+    S, A, R = sr.sample_trajectories(theta, m, rng)
+    return fn(sr.grad_log_policy(theta, S, A), R, GAMMA)
+
+
+def fd_estimate(theta, m, rng, shared, delta):
+    """Finite differences with m rollouts per evaluation of U; with shared=True every evaluation
+    reuses the same random numbers (common random numbers)."""
+    if shared:
+        seed = int(rng.integers(1 << 30))
+        U = lambda t: sr.rollout_returns(t, m, np.random.default_rng(seed)).mean()
+    else:
+        U = lambda t: sr.rollout_returns(t, m, rng).mean()
+    return finite_difference_gradient(U, theta, delta)
+
+
+def reg_estimate(theta, n_perturb, rng, delta=0.1):
+    """Regression gradient with one rollout per evaluation."""
+    U = lambda t: sr.rollout_returns(t, 1, rng).mean()
+    return regression_gradient(U, theta, delta, n_perturb, rng)
+
+
+# Every method at the same simulation budget (episodes per gradient estimate), 300 repetitions each.
+BUDGETS, REPS = (12, 30, 102, 300), 300
+METHODS = {
+    "Likelihood ratio": lambda B, rng: traj_estimate(likelihood_ratio_gradient, THETA, B, rng),
+    "Reward-to-go": lambda B, rng: traj_estimate(reward_to_go_gradient, THETA, B, rng),
+    "Baseline subtraction": lambda B, rng: traj_estimate(baseline_gradient, THETA, B, rng),
+    "Finite difference": lambda B, rng: fd_estimate(THETA, B // 3, rng, False, 0.1),
+    "Finite difference, shared noise": lambda B, rng: fd_estimate(THETA, B // 3, rng, True, 0.01),
+    "Regression": lambda B, rng: reg_estimate(THETA, B - 1, rng),
+}
+samples = {}
+for name, est in METHODS.items():
+    for B in BUDGETS:
+        samples[name, B] = np.array([est(B, np.random.default_rng(10_000 * B + i)) for i in range(REPS)])
+
+
+def rms(E):
+    return float(np.sqrt(((E - TRUE) ** 2).sum(axis=1).mean()))
+
+
+err = {key: rms(E) for key, E in samples.items()}
+e30 = {name: err[name, 30] for name in METHODS}
+
+# Spread of a 10-rollout estimate of U at THETA (for the finite-difference explanation).
+rng_sd = np.random.default_rng(99)
+u10_sd = float(np.std([sr.rollout_returns(THETA, 10, rng_sd).mean() for _ in range(4000)]))
+```
+
+## Big picture
+
+### Where this chapter fits
+
+[Chapter 10](ch10-policy-search.qmd) improved policies by trial and comparison: try parameters, keep the better ones. That ignores a valuable piece of information: the **direction** in which the expected return increases fastest, the gradient $\nabla U(\theta)$. With a good estimate of it, you can climb steadily instead of searching blindly. This chapter is about **estimating** that gradient from simulated trajectories. The difficulty is that every estimate is noisy, and much of the chapter is about taming that noise. [Chapter 12](ch12-policy-gradient-optimization.qmd) then uses these estimates to optimize policies, and [Chapter 13](ch13-actor-critic-methods.qmd) adds a learned value function to make them far less noisy. The same estimators underlie modern reinforcement learning algorithms such as REINFORCE, PPO and actor-critic methods.
+
+**The question:** how can you tell which way to change a policy's parameters, when all you can do is run the policy and watch the rewards?
+
+The short answer: **either wiggle the parameters and see how the return changes (finite differences), or, for a stochastic policy, use the fact that the policy's own probabilities tell you how to make good trajectories more likely (the likelihood ratio).** Then cut the noise by crediting each action only with the rewards that come after it, and by comparing rewards with a baseline.
+
+```{dot}
+//| label: fig-ch11-map
+//| fig-width: 5.3
+//| fig-height: 4.3
+//| fig-cap: "Map of this chapter. Two families estimate ∇U(θ): perturbation methods treat U as a black box; likelihood ratio methods use the policy's log-probabilities. Reward-to-go and baseline subtraction then reduce the likelihood ratio's variance without adding bias."
+//| fig-alt: "Flow diagram. The goal, gradient of U with respect to theta, splits into two branches. Perturbation methods: Finite difference (step each parameter), leading to Regression gradient (random perturbations, least squares). Likelihood ratio (make good trajectories more likely) leads to Reward-to-go (credit only later rewards), which leads to Baseline subtraction (compare with a typical return). A note on the finite difference box says shared random numbers."
+digraph ch11 {
+  rankdir=TB; bgcolor="#fcfcfb"; pad=0.25; nodesep=0.5; ranksep=0.35;
+  node [shape=box, style="rounded,filled", fillcolor="white", color="#c3c2b7", penwidth=1.2,
+        fontname="Helvetica", fontsize=13, fontcolor="#0b0b0b", margin="0.12,0.07"];
+  edge [color="#52514e", penwidth=1.2, arrowsize=0.7, fontname="Helvetica", fontsize=11, fontcolor="#52514e"];
+  goal [label=<<B>∇U(θ)</B><BR/><FONT POINT-SIZE="11">which way is uphill?</FONT>>, fillcolor="#cde2fb", color="#2a78d6"];
+  fd [label=<<B>Finite difference</B><BR/><FONT POINT-SIZE="11">step each parameter;<BR/>share random numbers</FONT>>];
+  rg [label=<<B>Regression gradient</B><BR/><FONT POINT-SIZE="11">random steps, least squares</FONT>>];
+  lr [label=<<B>Likelihood ratio</B><BR/><FONT POINT-SIZE="11">make good trajectories likelier</FONT>>];
+  rtg [label=<<B>Reward-to-go</B><BR/><FONT POINT-SIZE="11">credit only later rewards</FONT>>];
+  bl [label=<<B>Baseline subtraction</B><BR/><FONT POINT-SIZE="11">compare with a typical return</FONT>>];
+  goal -> fd [label="black box"]; fd -> rg;
+  goal -> lr [label="use π's probabilities"]; lr -> rtg [label="less noise"]; rtg -> bl [label="less noise"];
+}
+```
+
+### The key ideas at a glance
+
+1. **The gradient points uphill, but we can only estimate it.** $\nabla U(\theta)$ says how the expected return changes as each policy parameter changes. There's rarely a formula, so we estimate it from rollouts. Every estimator trades **bias** (systematically wrong) against **variance** (noisy from run to run).
+
+2. **Finite differences: nudge and compare.** Change one parameter by a small $\delta$, estimate $U$ again, and divide the change by $\delta$. It's simple and model-free, but noisy estimates of $U$ are divided by a small number, which blows the noise up. The fix is **common random numbers**: run both evaluations with the same random seeds, so the noise mostly cancels. The **regression gradient** instead fits a plane to the results of many random nudges.
+
+3. **The likelihood ratio: make good trajectories more likely.** For a *stochastic* policy, the gradient can be written as an average over trajectories of the return times $\nabla_\theta \log p_\theta(\tau)$, the direction that makes that particular trajectory more probable. The transition model cancels out of this term, leaving only the policy's own $\nabla \log \pi_\theta(a \mid s)$. You need no model and no parameter nudges.
+
+4. **Reward-to-go: an action can't affect the past.** The plain likelihood ratio credits every action with the whole trajectory's return, including rewards collected *before* the action was taken. Those terms average to zero but add noise. Crediting each action only with the rewards that follow it removes them, with no bias.
+
+5. **Baseline subtraction: better than what?** Subtracting a baseline from the reward-to-go, such as the typical return from that point, also leaves the average unchanged, because the policy's probabilities sum to one. It can reduce the variance a lot. The variance-minimizing constant baseline has a simple formula. The best state-dependent choice leads to the **advantage** $A(s, a) = Q(s, a) - U(s)$, which is the bridge to actor-critic methods.
+
+### Vocabulary
+
+| Term | Plain meaning |
+|:---|:---|
+| Policy gradient $\nabla U(\theta)$ | How the expected return changes with each policy parameter |
+| Bias, variance | Systematic error of an estimator, and its spread across repeated runs |
+| Finite difference | Estimate a derivative from $U(\theta + \delta e_i) - U(\theta)$ |
+| Common random numbers | Reuse the same random seeds when comparing two policies |
+| Regression gradient | Fit the gradient to the returns of many random perturbations |
+| Score $\nabla_\theta \log \pi_\theta(a \mid s)$ | The direction that makes action $a$ in state $s$ more likely |
+| Likelihood ratio (REINFORCE) | Gradient estimate: average of return × score of the trajectory |
+| Reward-to-go | Discounted reward from a step onward |
+| Baseline | A value subtracted from the reward-to-go to reduce variance |
+| Advantage $A(s, a)$ | How much better action $a$ is than the policy's average in $s$ |
+
+: Terms used on this page. {#tbl-vocab}
+
+### After this chapter you can
+
+- Estimate a policy gradient with finite differences and regression, and use common random numbers.
+- Derive the likelihood ratio policy gradient, and compute it for a Gaussian policy.
+- Explain why reward-to-go and baselines reduce variance without introducing bias.
+- Compute the variance-minimizing constant baseline, and connect baselines to the advantage function.
+- Measure an estimator's bias and variance, and choose an estimator for a problem.
+
+## Intuition
+
+::: {.callout-tip title="Analogy"}
+You're adjusting a thermostat schedule to cut your heating bill, and every month's bill is noisy because the weather varies.
+
+- **Finite differences:** change one setting for a month and compare bills. Unless the two months had the same weather, the comparison is mostly noise. Comparing on *matched* weather (common random numbers) fixes that.
+- **Likelihood ratio:** you already vary your settings slightly from day to day (the policy is stochastic). Look at the days that turned out cheap and ask which way your settings leaned on those days. Lean further that way.
+- **Reward-to-go:** judge each day's setting only by what happened *after* it, not by the heating costs of the days before.
+- **Baseline:** judge a day by whether it was cheaper than a typical day, not by its absolute cost.
+:::
+
+We use the **simple regulator** from Chapter 10 (keep a number $s$ near 0; reward $-s^2$) with the stochastic policy $a \sim \mathcal{N}(\theta_1 s, \theta_2^2)$. For this problem the **exact** gradient is available, so every estimator can be scored exactly. At $\theta = (-0.5, 0.5)$ the gradient $\nabla U$ is (`{python} f"{TRUE[0]:.2f}"`, `{python} f"{TRUE[1]:.2f}"`). The return improves by making the gain more negative (pushing $s$ back harder) and by making the policy less random.
+
+### Finite differences and shared noise
+
+Estimate $U$ at $\theta$ and at $\theta + \delta e_1$ from 10 rollouts each, and divide the difference by $\delta = 0.01$. Each estimate of $U$ has a standard deviation of about `{python} f"{u10_sd:.2f}"`, and the difference of two independent estimates about `{python} f"{np.sqrt(2) * u10_sd:.2f}"`. Dividing by 0.01 turns that into gradient noise of about `{python} f"{np.sqrt(2) * u10_sd / 0.01:.0f}"`, many times larger than the gradient itself. Now run both evaluations with the *same* random numbers, so the same start states and the same disturbances. The noise that's common to both cancels in the difference. At an equal budget of 30 simulated episodes, the error falls from `{python} f"{err['Finite difference', 30]:.1f}"` (with $\delta = 0.1$, the least-bad step without shared noise) to `{python} f"{e30['Finite difference, shared noise']:.1f}"` (@fig-fd-delta). See @eq-finite-difference.
+
+### Make good trajectories more likely
+
+A stochastic policy sometimes pushes a bit harder than average and sometimes a bit softer. Episodes that went well tell you which way to lean. The likelihood ratio gradient adds up, for each episode, the return times the direction that makes that episode's actions more likely. No parameter is ever nudged: the policy's own randomness does the exploring. See @eq-likelihood-ratio.
+
+### Don't credit the past
+
+In a 10-step episode, the plain likelihood ratio multiplies step 5's action by the reward from steps 1–4 as well, even though that action couldn't have affected them. On average those terms are exactly zero, but in any one episode they aren't, so they add pure noise. @fig-causality shows it on the regulator: the terms in which the reward comes before the action average to zero but are just as noisy as the rest. Dropping them (reward-to-go) cuts the error at 30 episodes from `{python} f"{e30['Likelihood ratio']:.1f}"` to `{python} f"{e30['Reward-to-go']:.1f}"`. See @eq-reward-to-go.
+
+### Better or worse than usual?
+
+Here every reward is negative. So every action is "blamed" in proportion to how negative the rest of its episode was, even if it was a good action. Subtracting a baseline, a typical reward-to-go, turns this into a comparison: was this episode better or worse than usual? That doesn't change the average gradient, and it cuts the error at 30 episodes to `{python} f"{e30['Baseline subtraction']:.1f}"`. See @eq-baseline and @fig-estimates.
+
+## Formalism
+
+### Finite differences
+
+For a unit vector $e_i$ along parameter $i$ and a small step $\delta > 0$ (ADM §11.1):
+
+::: {.key-equation data-name="Finite-difference gradient"}
+$$
+\nabla U(\theta) \approx \left[\frac{U(\theta + \delta e_1) - U(\theta)}{\delta},\ \ldots,\ \frac{U(\theta + \delta e_n) - U(\theta)}{\delta}\right]
+$$ {#eq-finite-difference}
+:::
+
+**In words.** Nudge one parameter at a time and measure the slope.
+
+**Term by term.**
+
+- Each $U$ is itself a Monte Carlo estimate (Chapter 10), so $n + 1$ evaluations with $m$ rollouts each cost $m(n+1)$ episodes.
+- A larger $\delta$ adds **bias** (the function curves between the two points).
+- A smaller $\delta$ multiplies the evaluation **noise** by $1/\delta$.
+- With **common random numbers**, both evaluations use the same random seeds (A. Ng and M. Jordan's PEGASUS, 2000). The difference then mostly reflects the parameter change, not luck.
+- The estimate depends on how the policy is parameterized: parameters on very different scales need different steps.
+
+### Regression gradient
+
+Perturb $\theta$ in $m$ random directions $\Delta\theta^{(i)}$ and record the changes $\Delta U_i = U(\theta + \Delta\theta^{(i)}) - U(\theta)$ (ADM §11.2):
+
+::: {.key-equation data-name="Regression gradient"}
+$$
+\nabla U(\theta) \approx \Delta\Theta^+ \Delta U,
+\qquad \Delta\Theta = \begin{bmatrix} (\Delta\theta^{(1)})^\top \\ \vdots \\ (\Delta\theta^{(m)})^\top \end{bmatrix}
+$$ {#eq-regression-gradient}
+:::
+
+**In words.** Fit a linear model $\Delta U \approx \Delta\theta^\top g$ to all the perturbations by least squares (Chapter 8), and take its slope $g$ as the gradient.
+
+**Term by term.** $\Delta\Theta^+$ is the pseudoinverse. Using more perturbations than parameters (a rule of thumb is twice as many) averages out noise. This is also known as simultaneous perturbation.
+
+### The likelihood ratio
+
+Write $U$ as an expectation over trajectories and move the gradient inside (ADM §11.3; P. Glynn, *Communications of the ACM*, 1990):
+
+::: {.key-equation .famous data-name="Likelihood ratio policy gradient"}
+$$
+\nabla U(\theta) = \mathbb{E}_\tau\big[\nabla_\theta \log p_\theta(\tau)\ R(\tau)\big],
+\qquad
+\nabla_\theta \log p_\theta(\tau) = \sum_{k=1}^{d} \nabla_\theta \log \pi_\theta\big(a^{(k)} \mid s^{(k)}\big)
+$$ {#eq-likelihood-ratio}
+:::
+
+**In words.** The gradient is the average, over trajectories, of the return times the direction that makes that trajectory more likely. That direction is the sum of the policy's score at each step.
+
+**Term by term.**
+
+- $R(\tau) = \sum_k \gamma^{k-1} r^{(k)}$ is the discounted return.
+- $\nabla_\theta \log \pi_\theta(a \mid s)$ is the policy's **score**. For $a \sim \mathcal{N}(\theta_1 s, \theta_2^2)$ it is $\big((a - \theta_1 s)s/\theta_2^2,\ ((a - \theta_1 s)^2 - \theta_2^2)/\theta_2^3\big)$.
+- Estimate the expectation by averaging over $m$ rollouts.
+
+**Why it holds.** $U(\theta) = \int p_\theta(\tau) R(\tau)\,d\tau$. Differentiate under the integral, and use $\nabla p = p \nabla \log p$ (the log-derivative trick of Chapter 10). That gives $\int p_\theta(\tau)\,\nabla \log p_\theta(\tau)\,R(\tau)\,d\tau$, an expectation. The trajectory's probability is $p(s^{(1)}) \prod_k T(s^{(k+1)} \mid s^{(k)}, a^{(k)})\,\pi_\theta(a^{(k)} \mid s^{(k)})$. Its logarithm is a sum in which only the $\pi_\theta$ terms depend on $\theta$, so the **transition model drops out**. For a *deterministic* policy there is no $\pi_\theta$ probability to differentiate. The gradient then has to flow through the transition model, which must be known.
+
+### Reward-to-go
+
+Expanding @eq-likelihood-ratio gives products of each step's score $f^{(k)}$ with each step's reward $r^{(\ell)}$. The terms with $\ell < k$, where the reward came before the action, have expectation zero. Removing them gives (ADM §11.4):
+
+::: {.key-equation data-name="Reward-to-go policy gradient"}
+$$
+\nabla U(\theta) = \mathbb{E}_\tau\left[\sum_{k=1}^{d} \nabla_\theta \log \pi_\theta\big(a^{(k)} \mid s^{(k)}\big)\ \gamma^{k-1}\, r_{\text{to-go}}^{(k)}\right],
+\qquad r_{\text{to-go}}^{(k)} = \sum_{\ell=k}^{d} \gamma^{\ell-k} r^{(\ell)}
+$$ {#eq-reward-to-go}
+:::
+
+**In words.** Credit each action only with the discounted rewards from its own step onward.
+
+**Term by term.**
+
+- $r_{\text{to-go}}^{(k)}$ is a one-sample estimate of the action value $Q_\theta(s^{(k)}, a^{(k)})$, and replacing it by $Q_\theta$ itself also gives the exact gradient.
+- $\gamma^{k-1}$ discounts the whole credit back to the start.
+
+**Why it holds.** For $\ell < k$, condition on the history up to step $k$. The reward $r^{(\ell)}$ is then fixed, and $\mathbb{E}_{a^{(k)}}[\nabla \log \pi_\theta(a^{(k)} \mid s^{(k)})] = \nabla \int \pi_\theta(a \mid s)\,da = \nabla 1 = 0$. So each such term averages to zero and can be dropped.
+
+### Baseline subtraction
+
+Any function of the state alone can be subtracted from the reward-to-go without bias (ADM §11.5). The combination with reward-to-go is the classic **REINFORCE** algorithm (R. Williams, *Machine Learning*, 1992):
+
+::: {.key-equation .famous data-name="Policy gradient with a baseline"}
+$$
+\nabla U(\theta) = \mathbb{E}_\tau\left[\sum_{k=1}^{d} \nabla_\theta \log \pi_\theta\big(a^{(k)} \mid s^{(k)}\big)\ \gamma^{k-1} \Big(r_{\text{to-go}}^{(k)} - r_{\text{base}}\big(s^{(k)}\big)\Big)\right]
+$$ {#eq-baseline}
+:::
+
+**In words.** Judge each action by how much better its future rewards were than a typical level, not by their raw size.
+
+**Term by term.**
+
+- $r_{\text{base}}(s)$ can depend on the state but not on the action.
+- Its expected contribution is $\mathbb{E}[\nabla \log \pi_\theta \cdot \gamma^{k-1} r_{\text{base}}(s^{(k)})]$. This is zero for the same reason as before: the score averages to zero over actions.
+
+For a constant baseline per parameter $i$, the variance is smallest when (ADM §11.5):
+
+::: {.key-equation data-name="Variance-minimizing baseline"}
+$$
+r_{\text{base}, i} = \frac{\mathbb{E}\big[\ell_i^2\, r_{\text{to-go}}\big]}{\mathbb{E}\big[\ell_i^2\big]},
+\qquad \ell_i = \gamma^{k-1} \frac{\partial}{\partial \theta_i} \log \pi_\theta\big(a^{(k)} \mid s^{(k)}\big)
+$$ {#eq-optimal-baseline}
+:::
+
+**In words.** The best constant baseline is an average of the reward-to-go, weighted by how strongly each step's score counts.
+
+**Term by term.** The expectations are over all steps of all trajectories. In practice they're estimated from the same rollouts, which adds a small bias that fades as $m$ grows.
+
+**Why it holds.** The variance of the $i$-th component is $\mathbb{E}[(\ell_i (r_{\text{to-go}} - b))^2] - (\text{gradient}_i)^2$, and the second term doesn't depend on $b$. Setting the derivative of the first term to zero, $-2\,\mathbb{E}[\ell_i^2 r_{\text{to-go}}] + 2b\,\mathbb{E}[\ell_i^2] = 0$, gives the formula.
+
+Using the state's value $U_\theta(s)$ as the baseline turns $Q_\theta(s, a) - U_\theta(s)$ into the **advantage**:
+
+::: {.key-equation data-name="Advantage form of the policy gradient"}
+$$
+\nabla U(\theta) = \mathbb{E}_\tau\left[\sum_{k=1}^{d} \nabla_\theta \log \pi_\theta\big(a^{(k)} \mid s^{(k)}\big)\ \gamma^{k-1} A_\theta\big(s^{(k)}, a^{(k)}\big)\right],
+\qquad A_\theta(s, a) = Q_\theta(s, a) - U_\theta(s)
+$$ {#eq-advantage}
+:::
+
+**In words.** Push up actions that were better than the policy's average in their state, and push down those that were worse.
+
+**Term by term.** The advantage is usually unknown. Chapter 13's actor-critic methods learn it alongside the policy.
+
+## Worked example
+
+### Finite differences by hand
+
+With the exact value of the regulator, at $\theta = (-0.5, 0.5)$ and $\delta = 0.1$:
+
+```{python}
+#| label: tbl-fd
+#| tbl-cap: "Forward differences with the exact U and δ = 0.1, compared with the exact gradient. Even without noise, the step introduces bias because U curves."
+u0 = sr.exact_value(THETA)
+rows = ["| Parameter | $U(\\theta + 0.1\\, e_i)$ | $U(\\theta)$ | Difference / 0.1 | Exact $\\partial U / \\partial \\theta_i$ |",
+        "|---|---|---|---|---|"]
+for i in range(2):
+    ui = sr.exact_value(THETA + 0.1 * np.eye(2)[i])
+    rows.append(f"| $\\theta_{i + 1}$ | {ui:.4f} | {u0:.4f} | {(ui - u0) / 0.1:.2f} | {TRUE[i]:.2f} |")
+Markdown("\n".join(rows))
+```
+
+### The likelihood ratio by hand (one step)
+
+A one-step problem: the action $a \sim \mathcal{N}(\mu, \sigma^2)$ with $(\mu, \sigma) = (0, 1)$, and the reward is $2a$. The true gradient is $(\partial/\partial\mu, \partial/\partial\sigma)\ \mathbb{E}[2a] = (2, 0)$. The scores are $(a - \mu)/\sigma^2 = a$ and $((a - \mu)^2 - \sigma^2)/\sigma^3 = a^2 - 1$. Three samples:
+
+| $a$ | reward $2a$ | score for $\mu$ | score for $\sigma$ | reward × score for $\mu$ | reward × score for $\sigma$ |
+|---|---|---|---|---|---|
+| 0.8 | 1.6 | 0.8 | −0.36 | 1.28 | −0.58 |
+| −0.4 | −0.8 | −0.4 | −0.84 | 0.32 | 0.67 |
+| 1.5 | 3.0 | 1.5 | 1.25 | 4.50 | 3.75 |
+| | | | **average** | **2.03** | **1.28** |
+
+: The likelihood ratio gradient from three samples. The μ component is close to 2; the σ component (true value 0) is still far off with only three samples. {#tbl-lr-hand}
+
+### Reward-to-go by hand
+
+A 3-step episode with $\gamma = 0.9$, scores $f^{(1)}, f^{(2)}, f^{(3)} = 1, -1, 2$ (one parameter) and rewards $r = (-1, -2, -1)$:
+
+- The return is $R = -1 - 0.9 \times 2 - 0.81 \times 1 = -3.61$. The plain likelihood ratio term is $(1 - 1 + 2) \times (-3.61) = -7.22$.
+- The rewards-to-go are $r_{\text{to-go}}^{(3)} = -1$, $r_{\text{to-go}}^{(2)} = -2 + 0.9(-1) = -2.9$ and $r_{\text{to-go}}^{(1)} = -1 + 0.9(-2.9) = -3.61$.
+- The reward-to-go term is $1 \times 1 \times (-3.61) + (-1) \times 0.9 \times (-2.9) + 2 \times 0.81 \times (-1) = -3.61 + 2.61 - 1.62 = -2.62$.
+
+The two terms differ by $-4.60$. That's exactly the "past reward" terms: $(-1) \times (-1) = 1$ for step 2's score against the first reward, and $2 \times (-1 + 0.9 \times (-2)) = -5.6$ for step 3's score against the first two rewards. Averaged over many episodes such terms vanish, but in one episode they're large.
+
+## Interactive
+
+### Estimator lab
+
+Choose an estimator and a simulation budget (episodes per gradient estimate). Each dot is one gradient estimate, from 300 repetitions. The star is the exact gradient. Notice which estimators are wide (high variance), which are off-center (biased), and how the cloud shrinks with the budget.
+
+```{python}
+#| include: false
+write_json({"methods": list(METHODS), "budgets": BUDGETS, "true": TRUE.round(4),
+            "samples": {f"{name}|{B}": E.round(3) for (name, B), E in samples.items()},
+            "style": {"blue": blue, "orange": orange, "ink": style.INK, "muted": style.MUTED,
+                      "surface": style.SURFACE}}, "data/ch11-estimates.json")
+```
+
+```{ojs}
+lab = FileAttachment("data/ch11-estimates.json").json()
+viewof est = Inputs.radio(lab.methods, {label: "Estimator", value: "Likelihood ratio"})
+viewof budget = Inputs.radio(lab.budgets, {label: "Episodes per estimate", value: 30})
+```
+
+```{ojs}
+labStats = {
+  const pts = lab.samples[`${est}|${budget}`];
+  const mean = [d3.mean(pts, p => p[0]), d3.mean(pts, p => p[1])];
+  const sd = [d3.deviation(pts, p => p[0]), d3.deviation(pts, p => p[1])];
+  const rms = Math.sqrt(d3.mean(pts, p => (p[0] - lab.true[0]) ** 2 + (p[1] - lab.true[1]) ** 2));
+  return {pts, mean, sd, rms};
+}
+```
+
+```{ojs}
+md`Average estimate (${labStats.mean.map(v => v.toFixed(2)).join(", ")}) vs exact (${lab.true.map(v => v.toFixed(2)).join(", ")}); spread (sd) ${labStats.sd.map(v => v.toFixed(2)).join(", ")}; RMS error **${labStats.rms.toFixed(2)}**.`
+```
+
+```{ojs}
+//| label: fig-lab
+//| fig-cap: "Three hundred gradient estimates (dots) from the chosen estimator and budget, around the exact gradient (star). The axes are fixed so estimators can be compared."
+//| fig-alt: "Interactive scatter plot of gradient estimates, with the derivative with respect to theta 1 across and theta 2 up, both from minus 30 to 20, and a star at the exact gradient near (minus 2, minus 7). Radio buttons choose the estimator and the number of episodes; clouds are wide for the likelihood ratio and plain finite differences and tight for baseline subtraction and shared-noise finite differences."
+Plot.plot({
+  width: 520, height: 420,
+  style: {background: lab.style.surface, color: lab.style.ink},
+  x: {domain: [-30, 20], label: "∂U/∂θ₁ estimate", grid: true}, y: {domain: [-30, 20], label: "∂U/∂θ₂ estimate", grid: true},
+  marks: [
+    Plot.dot(labStats.pts, {x: d => d[0], y: d => d[1], r: 2, fill: lab.style.blue, fillOpacity: 0.35, clip: true}),
+    Plot.dot([lab.true], {x: d => d[0], y: d => d[1], symbol: "star", r: 9, fill: "white", stroke: lab.style.ink})
+  ]
+})
+```
+
+### Gradient ascent with a noisy gradient
+
+Climb the regulator's value with the gradient estimator of your choice, computed live in your browser from fresh random rollouts. Each step moves the parameters by at most the step size, in the estimated uphill direction. Press **Run again** for new random numbers. It starts with baseline subtraction; switch to the plain likelihood ratio with 5 episodes per step to see a noisy gradient wander. A smaller budget per step is cheaper but noisier.
+
+```{python}
+#| include: false
+# Exact value on a grid, for the background of the live explorer: log10(-U).
+bg = [{"t1": round(float(a), 3), "t2": round(float(b), 3), "v": float(np.log10(-sr.exact_value([a, b])))}
+      for a in np.linspace(-2.0, 0.5, 26) for b in np.linspace(-0.2, 1.3, 16)]
+write_json({"background": bg, "ustar": sr.exact_value([-1.0, 0.0]),
+            "style": {"blue": blue, "orange": orange, "ink": style.INK, "muted": style.MUTED,
+                      "surface": style.SURFACE}}, "data/ch11-ascent.json")
+```
+
+```{ojs}
+asc = FileAttachment("data/ch11-ascent.json").json()
+viewof method = Inputs.radio(["likelihood ratio", "reward-to-go", "baseline"], {label: "Estimator", value: "baseline"})
+viewof m = Inputs.select([2, 5, 10, 30], {label: "Episodes per step", value: 5})
+viewof alpha = Inputs.range([0.02, 0.3], {step: 0.01, value: 0.1, label: "Step size"})
+viewof again = Inputs.button("Run again")
+```
+
+```{ojs}
+climb = {
+  again;                                             // re-run when the button is pressed
+  const normal = d3.randomNormal(0, 1), g = 0.9, d = 10;
+  // Exact value, for scoring (same recursion as adm/problems/simple_regulator.py).
+  const exact = th => { const gain = 1 + th[0], v = (Math.abs(th[1]) + 1e-5) ** 2 + 0.01;
+    let ms = 0.1, u = 0; for (let t = 0; t < d; t++) { u -= g ** t * ms; ms = gain * gain * ms + v; } return u; };
+  // One gradient estimate from m fresh episodes.
+  const estimate = th => {
+    const sd = Math.abs(th[1]) + 1e-5, eps = [];
+    for (let i = 0; i < m; i++) {
+      let s = 0.3 + 0.1 * normal(); const sc = [], r = [];
+      for (let k = 0; k < d; k++) {
+        const a = th[0] * s + sd * normal(), z = a - th[0] * s;
+        sc.push([z * s / sd ** 2, (z * z - sd * sd) / sd ** 3 * Math.sign(th[1])]);   // score of this action
+        r.push(-s * s); s = s + a + 0.1 * normal();
+      }
+      const rtg = new Array(d); let run = 0;
+      for (let k = d - 1; k >= 0; k--) { run = r[k] + g * run; rtg[k] = run; }          // reward-to-go
+      eps.push({sc, r, rtg});
+    }
+    const grad = [0, 0];
+    if (method === "likelihood ratio") {
+      for (const e of eps) { const R = e.rtg[0];
+        for (const s of e.sc) { grad[0] += s[0] * R / m; grad[1] += s[1] * R / m; } }
+    } else {
+      // Optional variance-minimizing baseline (eq-optimal-baseline), per parameter.
+      const base = [0, 1].map(i => { let num = 0, den = 0;
+        for (const e of eps) e.sc.forEach((s, k) => { const l = g ** k * s[i]; num += l * l * e.rtg[k]; den += l * l; });
+        return method === "baseline" && den > 0 ? num / den : 0; });
+      for (const e of eps) e.sc.forEach((s, k) => { for (const i of [0, 1]) grad[i] += g ** k * s[i] * (e.rtg[k] - base[i]) / m; });
+    }
+    return grad;
+  };
+  let th = [0.0, 1.0]; const path = [{t1: th[0], t2: th[1], u: exact(th), it: 0}];
+  for (let it = 1; it <= 40; it++) {
+    const gr = estimate(th), n = Math.hypot(gr[0], gr[1]), sc = n > 1 ? 1 / n : 1;   // clip to length 1
+    th = [th[0] + alpha * sc * gr[0], th[1] + alpha * sc * gr[1]];
+    path.push({t1: th[0], t2: th[1], u: exact(th), it});
+  }
+  return path;
+}
+```
+
+```{ojs}
+md`After 40 steps (${40 * m} episodes): θ = (${climb[40].t1.toFixed(2)}, ${climb[40].t2.toFixed(2)}), exact value **${climb[40].u.toFixed(3)}** (optimum ${asc.ustar.toFixed(3)}).`
+```
+
+```{ojs}
+//| label: fig-ascent-explorer
+//| fig-cap: "Left: the path of gradient ascent over the regulator's value landscape (darker is better; star: optimum). Right: the exact value after each step."
+//| fig-alt: "Two interactive panels. Left: a heat map over theta 1 from minus 2 to 0.5 and theta 2 from minus 0.2 to 1.3 with an orange path starting at (0, 1) and heading toward a white star at (minus 1, 0), wandering more for noisier estimators. Right: a line of the exact value against the step number, rising from about minus 25 toward the optimum. Controls choose the estimator, the episodes per step, the step size, and a button reruns with new random numbers."
+html`<div style="display:flex; flex-wrap:wrap; gap:8px">${
+  Plot.plot({
+    width: 330, height: 280, marginLeft: 45,
+    style: {background: asc.style.surface, color: asc.style.ink},
+    x: {domain: [-2.05, 0.55], label: "θ₁"}, y: {domain: [-0.25, 1.35], label: "θ₂"},
+    color: {scheme: "blues", reverse: true, domain: [-0.9, 1.5]},
+    marks: [
+      Plot.rect(asc.background, {x1: d => d.t1 - 0.05, x2: d => d.t1 + 0.05, y1: d => d.t2 - 0.05, y2: d => d.t2 + 0.05, fill: "v"}),
+      Plot.line(climb, {x: "t1", y: "t2", stroke: asc.style.orange, strokeWidth: 2}),
+      Plot.dot([climb[0]], {x: "t1", y: "t2", fill: asc.style.ink, r: 4}),
+      Plot.dot([[-1, 0]], {x: d => d[0], y: d => d[1], symbol: "star", r: 8, fill: "white", stroke: asc.style.ink})
+    ]
+  })}${
+  Plot.plot({
+    width: 330, height: 280, marginLeft: 50,
+    style: {background: asc.style.surface, color: asc.style.ink},
+    x: {label: "step"}, y: {type: "symlog", label: "exact U", grid: true},
+    marks: [
+      Plot.ruleY([asc.ustar], {stroke: asc.style.ink, strokeDasharray: "4,3"}),
+      Plot.line(climb, {x: "it", y: "u", stroke: asc.style.orange, strokeWidth: 2})
+    ]
+  })}</div>`
+```
+
+## Algorithms & code
+
+### Simulating the regulator
+
+::: {.panel-tabset group="lang"}
+## Python
+```{python}
+#| output: asis
+show_source(sr.sample_trajectories, sr.grad_log_policy, sr.exact_gradient)
+```
+## Julia
+```{.julia .snippet}
+using ADM, LinearAlgebra, Random, Statistics
+
+# m episodes of d steps: states, actions and rewards as m × d matrices.
+function sample_trajectories(θ, m, rng; d = REGULATOR_HORIZON)
+    S, A, R = zeros(m, d), zeros(m, d), zeros(m, d)
+    for i in 1:m
+        s = REGULATOR_START[1] + REGULATOR_START[2] * randn(rng)
+        for k in 1:d
+            a = regulator_policy(θ, s, rng)
+            S[i, k], A[i, k] = s, a
+            s, R[i, k] = regulator_step(s, a, rng)
+        end
+    end
+    return S, A, R
+end
+
+# Score of the Gaussian policy: ∇θ log N(a | θ₁ s, sd²) with sd = |θ₂| + 1e-5.
+function grad_log_policy(θ, s, a)
+    sd, z = abs(θ[2]) + 1e-5, a - θ[1] * s
+    return [z * s / sd^2, (z^2 - sd^2) / sd^3 * sign(θ[2])]
+end
+
+θ = [-0.5, 0.5]
+∇U = regulator_exact_gradient(θ)
+```
+:::
+
+### Finite differences and regression
+
+::: {.panel-tabset group="lang"}
+## Python
+```{python}
+#| output: asis
+show_source(finite_difference_gradient, regression_gradient)
+```
+## Julia
+```{.julia .snippet}
+# Forward differences, one parameter at a time.
+function finite_difference_gradient(U, θ, δ)
+    u0 = U(θ)
+    return [(U(θ .+ δ .* (1:length(θ) .== i)) - u0) / δ for i in eachindex(θ)]
+end
+
+# Random perturbations of length δ; least-squares fit of the changes in U.
+function regression_gradient(U, θ, δ, m, rng)
+    ΔΘ = reduce(vcat, (δ .* normalize(randn(rng, length(θ)))' for _ in 1:m))   # m × n
+    u0 = U(θ)
+    ΔU = [U(θ .+ ΔΘ[i, :]) - u0 for i in 1:m]
+    return pinv(ΔΘ) * ΔU
+end
+
+# Monte Carlo U with 10 rollouts; `shared` reuses one seed so both evaluations see the same noise.
+function U_estimate(θ, rng; m = 10)
+    total = 0.0
+    for _ in 1:m
+        s, ret = REGULATOR_START[1] + REGULATOR_START[2] * randn(rng), 0.0
+        for t in 1:REGULATOR_HORIZON
+            s, r = regulator_step(s, regulator_policy(θ, s, rng), rng)
+            ret += REGULATOR_γ^(t - 1) * r
+        end
+        total += ret
+    end
+    return total / m
+end
+fd(seed; shared) = finite_difference_gradient(
+    shared ? (t -> U_estimate(t, MersenneTwister(seed))) : (t -> U_estimate(t, MersenneTwister(rand(UInt32)))),
+    θ, 0.01)
+spread(v) = std(first.(v)) + std(last.(v))                # sum of the two components' spreads
+fresh = [fd(s; shared = false) for s in 1:200]
+common = [fd(s; shared = true) for s in 1:200]
+@assert spread(common) < spread(fresh) / 10              # shared random numbers tame the noise
+```
+:::
+
+### Likelihood ratio, reward-to-go and baseline
+
+::: {.panel-tabset group="lang"}
+## Python
+```{python}
+#| output: asis
+show_source(discounted_returns, rewards_to_go, likelihood_ratio_gradient, reward_to_go_gradient, baseline_gradient)
+```
+## Julia
+```{.julia .snippet}
+# g[i, k] is the score (a vector) of step k of trajectory i; R[i, k] its reward.
+scores(θ, S, A) = [grad_log_policy(θ, S[i, k], A[i, k]) for i in axes(S, 1), k in axes(S, 2)]
+discounts(d, γ) = γ .^ (0:d-1)
+
+function rewards_to_go(R, γ)
+    rtg, running = zero(R), zeros(size(R, 1))
+    for k in size(R, 2):-1:1                          # sweep backward in time
+        running = R[:, k] .+ γ .* running
+        rtg[:, k] = running
+    end
+    return rtg
+end
+
+likelihood_ratio(g, R, γ) = mean(sum(g[i, :]) * (R[i, :] ⋅ discounts(size(R, 2), γ)) for i in axes(R, 1))
+
+function reward_to_go(g, R, γ)
+    w = discounts(size(R, 2), γ)' .* rewards_to_go(R, γ)
+    return mean(sum(g[i, k] * w[i, k] for k in axes(R, 2)) for i in axes(R, 1))
+end
+
+function with_baseline(g, R, γ)
+    disc, rtg = discounts(size(R, 2), γ), rewards_to_go(R, γ)
+    ℓ = [disc[k] .* g[i, k] for i in axes(R, 1), k in axes(R, 2)]
+    base = sum(ℓ[j] .^ 2 .* rtg[j] for j in eachindex(ℓ)) ./ sum(ℓ[j] .^ 2 for j in eachindex(ℓ))
+    return mean(sum(ℓ[i, k] .* (rtg[i, k] .- base) for k in axes(R, 2)) for i in axes(R, 1))
+end
+```
+:::
+
+### Run them
+
+::: {.panel-tabset group="lang"}
+## Python
+```{python}
+#| echo: true
+rng = np.random.default_rng(1)
+S, A, R = sr.sample_trajectories(THETA, 100, rng)       # 100 episodes
+g = sr.grad_log_policy(THETA, S, A)                      # scores, (100, 10, 2)
+estimates = {"likelihood ratio": likelihood_ratio_gradient(g, R, GAMMA),
+             "reward-to-go": reward_to_go_gradient(g, R, GAMMA),
+             "baseline": baseline_gradient(g, R, GAMMA)}
+```
+## Julia
+```{.julia .snippet}
+rng = MersenneTwister(1)
+reps = [begin
+            S, A, R = sample_trajectories(θ, 10, rng)
+            g = scores(θ, S, A)
+            (likelihood_ratio(g, R, REGULATOR_γ), reward_to_go(g, R, REGULATOR_γ), with_baseline(g, R, REGULATOR_γ))
+        end for _ in 1:300]
+method_spread(j) = spread([r[j] for r in reps])
+@assert method_spread(3) < method_spread(2) < method_spread(1)   # baseline < reward-to-go < likelihood ratio
+S, A, R = sample_trajectories(θ, 100_000, rng)
+@assert isapprox(reward_to_go(scores(θ, S, A), R, REGULATOR_γ), ∇U; atol = 0.3)
+```
+:::
+
+```{python}
+print(f"exact gradient      ({TRUE[0]:6.2f}, {TRUE[1]:6.2f})")
+for name, e in estimates.items():
+    print(f"{name:19s} ({e[0]:6.2f}, {e[1]:6.2f})")
+```
+
+::: {.callout-note collapse="true" title="Reading the Julia code (for Python programmers)"}
+- **`[f(i, k) for i in axes(S, 1), k in axes(S, 2)]`** builds a matrix, one entry per `(i, k)`, like a nested list comprehension.
+- **`(1:length(θ) .== i)`** is a vector that is 1 at position `i` and 0 elsewhere, the unit vector $e_i$.
+- **`R[i, :] ⋅ w`** is a dot product (`\cdot` then Tab), like `R[i] @ w`.
+- **`begin ... end`** groups several statements into one expression, used here inside a comprehension.
+- **`zero(R)`** makes an array of zeros shaped like `R`, like `np.zeros_like(R)`.
+:::
+
+### Results
+
+#### Finite differences: the step size, and shared noise
+
+```{python}
+#| include: false
+# Finite-difference error against the step size, with and without shared random numbers (10 rollouts per U).
+DELTAS = np.array([0.001, 0.003, 0.01, 0.03, 0.1, 0.3])
+fd_curves = {}
+for shared in (False, True):
+    fd_curves[shared] = [rms(np.array([fd_estimate(THETA, 10, np.random.default_rng(500 + i), shared, dl)
+                                       for i in range(REPS)])) for dl in DELTAS]
+exact_fd = [np.linalg.norm([(sr.exact_value(THETA + dl * e) - sr.exact_value(THETA)) / dl for e in np.eye(2)] - TRUE)
+            for dl in DELTAS]
+```
+
+```{python}
+#| label: fig-fd-delta
+#| fig-cap: "Finite-difference gradient error against the step δ (10 rollouts per evaluation of U, 300 repetitions). With fresh random numbers for each evaluation (orange), the noise is divided by δ and explodes for small steps. With shared random numbers (blue), the error is small until δ is large enough for curvature to bias the estimate. The dashed line is that bias alone (exact U, no noise)."
+#| fig-alt: "Log-log line chart with step size from 0.001 to 0.3 across and root-mean-square gradient error up the side. The fresh-noise curve falls steeply from about 700 at the smallest step to about 8 at 0.1 and 5 at 0.3. The shared-noise curve stays near 1 to 2 across small steps and rises slightly at the largest step. A dashed line for the bias of exact finite differences rises from near 0.01 at the smallest step to about 3 at 0.3."
+fig, ax = plt.subplots(figsize=(6.4, 3.6))
+ax.loglog(DELTAS, fd_curves[False], "o-", color=orange, label="fresh random numbers")
+ax.loglog(DELTAS, fd_curves[True], "o-", color=blue, label="shared random numbers")
+ax.loglog(DELTAS, exact_fd, "--", color=style.INK_SECONDARY, label="bias only (exact U)")
+ax.set(xlabel=r"step $\delta$", ylabel="RMS error of the gradient")
+ax.legend(fontsize=8)
+plt.show()
+```
+
+#### Why reward-to-go works
+
+```{python}
+#| include: false
+# Each term f_k * gamma^(l-1) r_l of the plain likelihood ratio (theta_1 component), over 200,000 episodes.
+S_big, A_big, R_big = sr.sample_trajectories(THETA, 200_000, np.random.default_rng(0))
+F = sr.grad_log_policy(THETA, S_big, A_big)[:, :, 0]
+terms = F[:, :, None] * ((GAMMA ** np.arange(10)) * R_big)[:, None, :]     # (episode, action k, reward l)
+term_mean, term_sd = terms.mean(axis=0), terms.std(axis=0)
+past_mean_max = float(np.abs(np.tril(term_mean)).max())                    # reward at or before the action
+# The same, measured in standard errors (sd / sqrt(number of episodes)) of each term's average.
+past_z_max = float(np.max(np.tril(np.abs(term_mean) / (term_sd / np.sqrt(len(F))))))
+```
+
+```{python}
+#| label: fig-causality
+#| fig-cap: "The plain likelihood ratio's terms for θ₁: step k's score times the discounted reward at step ℓ, over 200,000 episodes. Left: average. Right: standard deviation. Terms on or below the diagonal (the reward came no later than the action) average to zero but are as noisy as the rest; reward-to-go drops those below the diagonal. The diagonal averages to zero too, because the regulator's reward −s² is earned before the action takes effect."
+#| fig-alt: "Two 10 by 10 heat maps with the step of the action (rows) against the step of the reward (columns). Left, averages: zero on and below the diagonal, negative just above the diagonal (about minus 0.2) and fading toward zero farther right. Right, standard deviations: between about 0.1 and 1.2 everywhere, including below the diagonal, largest near the diagonal."
+fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(10, 4.0))
+im1 = ax1.imshow(term_mean, cmap=style.diverging_cmap(), norm=TwoSlopeNorm(0, -0.3, 0.3))
+im2 = ax2.imshow(term_sd, cmap=style.sequential_cmap())
+for ax, im, title in ((ax1, im1, "average"), (ax2, im2, "standard deviation")):
+    ax.set(xlabel=r"step $\ell$ of the reward", ylabel=r"step $k$ of the action", title=title,
+           xticks=range(10), xticklabels=range(1, 11), yticks=range(10), yticklabels=range(1, 11))
+    ax.plot([-0.5, 9.5], [-0.5, 9.5], color=style.INK, linewidth=0.8)
+    ax.grid(False)                         # grid lines would cut through the cells
+    fig.colorbar(im, ax=ax, shrink=0.8)
+fig.tight_layout()
+plt.show()
+```
+
+The largest average of a term on or below the diagonal is `{python} f"{past_mean_max:.4f}"`. That's `{python} f"{past_z_max:.1f}"` standard errors from zero, about the largest you'd expect by chance among 55 terms that are truly zero. Their standard deviations, meanwhile, are as large as those of the terms that matter.
+
+#### All estimators at equal cost
+
+```{python}
+#| label: fig-estimates
+#| fig-cap: "Three hundred gradient estimates at a budget of 30 episodes each, for six estimators, around the exact gradient (star). Plain finite differences use δ = 0.1 (smaller steps are far noisier without shared random numbers); with shared random numbers, δ = 0.01."
+#| fig-alt: "Six small scatter plots in two rows, each with the same axes and a star at the exact gradient near (minus 2, minus 7). Likelihood ratio: a wide cloud. Reward-to-go: somewhat narrower. Baseline subtraction: a compact cloud around the star. Finite difference: a wide cloud, slightly off-center. Finite difference with shared noise: a very tight cloud near the star. Regression: a wide cloud."
+fig, axes = plt.subplots(2, 3, figsize=(10, 6.4), sharex=True, sharey=True)
+for ax, name in zip(axes.flat, METHODS):
+    E = samples[name, 30]
+    ax.scatter(E[:, 0], E[:, 1], s=5, color=blue, alpha=0.35)
+    ax.plot(*TRUE, "*", color="white", markersize=14, markeredgecolor=style.INK)
+    ax.set_title(f"{name}\nRMS error {err[name, 30]:.1f}", fontsize=9)
+    ax.set(xlim=(-30, 20), ylim=(-30, 20))
+for ax in axes[1]:
+    ax.set_xlabel(r"$\partial U/\partial\theta_1$")
+for ax in axes[:, 0]:
+    ax.set_ylabel(r"$\partial U/\partial\theta_2$")
+fig.tight_layout()
+plt.show()
+```
+
+```{python}
+#| label: fig-error-budget
+#| fig-cap: "RMS error of each estimator against the simulation budget (episodes per gradient estimate), log-log. The lines fall with slopes near −1/2 (error ∝ 1/√budget), so a 25-fold budget buys a 5-fold smaller error. The ordering never changes: variance reduction is worth a fixed multiple of the budget. Plain finite differences would eventually level off at the bias of their step δ = 0.1 (about 0.8), but that's below this range."
+#| fig-alt: "Log-log line chart with episodes per estimate of 12, 30, 102 and 300 across and RMS gradient error up the side. Six roughly parallel falling lines, from top to bottom: plain finite difference (about 13 down to 3), regression and likelihood ratio (about 10 down to 1.8, nearly overlapping), reward-to-go (7 down to 1.2), baseline subtraction (3.4 down to 0.7), and finite difference with shared noise lowest (2.6 down to 0.55)."
+fig, ax = plt.subplots(figsize=(6.4, 3.8))
+colors = dict(zip(METHODS, (orange, yellow, blue, style.MUTED, green, purple)))
+for name in METHODS:
+    ax.loglog(BUDGETS, [err[name, B] for B in BUDGETS], "o-", color=colors[name], label=name)
+ax.set(xlabel="Episodes per gradient estimate", ylabel="RMS error")
+ax.set_xticks(BUDGETS, [str(B) for B in BUDGETS])
+ax.minorticks_off()
+ax.legend(fontsize=7, loc="lower left")
+plt.show()
+```
+
+#### Does lower variance help learning?
+
+```{python}
+#| include: false
+# Gradient ascent from theta = (0, 1): 10 episodes per step, step 0.2, gradient clipped to length 1; 20 seeds.
+def ascend(estimator, seed, iters=30, alpha=0.2, m=10):
+    rng = np.random.default_rng(seed)
+    th, values = np.array([0.0, 1.0]), [sr.exact_value([0.0, 1.0])]
+    for _ in range(iters):
+        grad = estimator(th, m, rng)
+        norm = np.linalg.norm(grad)
+        th = th + alpha * (grad / norm if norm > 1 else grad)
+        values.append(sr.exact_value(th))
+    return values
+
+
+LEARNERS = {
+    "Likelihood ratio": lambda th, m, rng: traj_estimate(likelihood_ratio_gradient, th, m, rng),
+    "Reward-to-go": lambda th, m, rng: traj_estimate(reward_to_go_gradient, th, m, rng),
+    "Baseline subtraction": lambda th, m, rng: traj_estimate(baseline_gradient, th, m, rng),
+    "Finite difference, shared noise": lambda th, m, rng: fd_estimate(th, max(m // 3, 1), rng, True, 0.01),
+}
+curves = {name: np.array([ascend(est, s) for s in range(20)]) for name, est in LEARNERS.items()}
+at10 = {name: float(np.median(c[:, 10])) for name, c in curves.items()}
+```
+
+```{python}
+#| label: fig-learning
+#| fig-cap: "Gradient ascent on the regulator from θ = (0, 1), using each estimator with 10 episodes per step (step size 0.2, gradient clipped to length 1): the exact value after each step, median of 20 runs. Lower-variance estimators climb faster and settle closer to the optimum (dashed)."
+#| fig-alt: "Line chart with steps 0 to 30 across and minus the exact value on a log scale up the side, starting near 25 for all four curves. Baseline subtraction and shared-noise finite differences drop fastest, below 1 within about 5 steps; reward-to-go is a few steps slower; the plain likelihood ratio is slowest, reaching about 0.6 only at step 10, and still near 0.25 at step 30, while the other three hover close to the optimum near 0.16."
+fig, ax = plt.subplots(figsize=(6.4, 3.6))
+for name, c in curves.items():
+    ax.plot(np.arange(c.shape[1]), -np.median(c, axis=0), color=colors[name], label=name)
+ax.axhline(-sr.exact_value([-1.0, 0.0]), color=style.INK, linestyle="--", linewidth=1)
+ax.set(yscale="log", xlabel="Gradient step", ylabel=r"$-U(\theta)$ (lower is better)")
+ax.legend(fontsize=8)
+plt.show()
+```
+
+After 10 steps (100 episodes), the median value is `{python} f"{at10['Likelihood ratio']:.2f}"` with the plain likelihood ratio, `{python} f"{at10['Reward-to-go']:.2f}"` with reward-to-go and `{python} f"{at10['Baseline subtraction']:.2f}"` with the baseline. The optimum is `{python} f"{sr.exact_value([-1.0, 0.0]):.3f}"`.
+
+## Solved problems
+
+**Problem 1: the cost of finite differences.** A policy has 6 parameters, and each evaluation of $U$ uses 20 rollouts. How many rollouts does one forward-difference gradient cost? What does a likelihood ratio estimate with the same total cost use?
+
+::: {.callout-tip collapse="true" title="Solution"}
+One evaluation at $\theta$ and one per parameter: $7 \times 20 = 140$ rollouts. The likelihood ratio uses all 140 trajectories at the current $\theta$ for a single estimate, and its cost doesn't grow with the number of parameters. That's why likelihood ratio methods dominate for policies with many parameters, such as neural networks.
+:::
+
+**Problem 2: parameters on different scales.** A policy's gain is stored as $\theta_1$ in units of 1, and its noise level as $\theta_2$ in hundredths ($\sigma = \theta_2 / 100$). With $\partial U/\partial \sigma = -7$, what is $\partial U / \partial \theta_2$? Why does one finite-difference step $\delta$ suit one parameter but not the other?
+
+::: {.callout-tip collapse="true" title="Solution"}
+By the chain rule, $\partial U/\partial\theta_2 = (\partial U/\partial\sigma)(d\sigma/d\theta_2) = -7 / 100 = -0.07$. A step $\delta = 0.01$ in $\theta_1$ is a small change, but in $\theta_2$ it changes $\sigma$ by only $0.0001$. The change in $U$ is then far smaller than the evaluation noise, so that component of the estimate is pure noise. Rescale parameters to comparable units, or use per-parameter steps.
+:::
+
+**Problem 3: a baseline doesn't bias.** A policy picks action 1 with probability $p = \sigma(\theta)$ (the logistic function) and action 0 otherwise. Show that $\mathbb{E}_a[\nabla_\theta \log \pi_\theta(a) \cdot b] = 0$ for any constant $b$.
+
+::: {.callout-tip collapse="true" title="Solution"}
+For the logistic function, $\frac{d}{d\theta}\log p = 1 - p$ and $\frac{d}{d\theta}\log(1-p) = -p$. Then $\mathbb{E}[\nabla \log \pi \cdot b] = b\,\big(p(1-p) + (1-p)(-p)\big) = 0$. In general, $\sum_a \pi(a)\nabla\log\pi(a) = \sum_a \nabla\pi(a) = \nabla \sum_a \pi(a) = \nabla 1 = 0$.
+:::
+
+**Problem 4: the diagonal terms.** In @fig-causality, the diagonal terms (step $k$'s score times step $k$'s reward) also average to zero for the regulator. Why? Would that hold if the reward were $-s^2 - a^2$?
+
+::: {.callout-tip collapse="true" title="Solution"}
+The regulator's reward at step $k$ is $-s_k^2$, which is fixed before action $a_k$ is chosen. Conditioning on $s_k$, $\mathbb{E}_{a_k}[\nabla\log\pi(a_k \mid s_k)] \cdot r_k = 0 \cdot r_k$. With an action cost $-a_k^2$, the reward at step $k$ depends on $a_k$, so the diagonal terms carry signal and must be kept. That's why the reward-to-go includes the current step's reward.
+:::
+
+**Problem 5: which estimator?** You tune a robot controller with 3 parameters on a physical robot, where you can't replay the same random disturbances. Then you tune a 10,000-parameter neural network policy in a simulator. Which estimators suit each case?
+
+::: {.callout-tip collapse="true" title="Solution"}
+- **The robot:** there are few parameters, so perturbation methods are affordable, but common random numbers are unavailable. Use finite differences or the regression gradient with enough repetitions, or a likelihood ratio method with a baseline if the policy can be made stochastic. The likelihood ratio needs no model of the robot.
+- **The network:** finite differences would need 10,001 evaluations per gradient, which is hopeless. Use the likelihood ratio with reward-to-go and a baseline, whose cost doesn't grow with the number of parameters. In a simulator you could also fix the random seeds, which helps any method.
+:::
+
+## Recap
+
+1. **Policy gradient methods estimate $\nabla U(\theta)$ from rollouts, and every estimate trades bias against variance.**
+   *Why it matters:* the gradient tells an optimizer which way to move (Chapter 12), but a noisy gradient wastes steps or misleads.
+2. **Finite differences nudge parameters and compare (@eq-finite-difference); common random numbers make them accurate.**
+   *Why it matters:* they need nothing but a simulator, but their cost grows with the number of parameters, and without shared noise, small steps drown in noise.
+3. **The likelihood ratio uses the policy's own randomness: return times score (@eq-likelihood-ratio).**
+   *Why it matters:* it needs no model and costs the same however many parameters there are. It's the basis of REINFORCE and all modern policy gradient methods.
+4. **Reward-to-go and baselines remove noise without adding bias (@eq-reward-to-go, @eq-baseline, @eq-optimal-baseline).**
+   *Why it matters:* here they cut the error at 30 episodes from `{python} f"{e30['Likelihood ratio']:.1f}"` to `{python} f"{e30['Baseline subtraction']:.1f}"`, and they make learning faster and steadier.
+5. **The best baselines lead to the advantage function (@eq-advantage).**
+   *Why it matters:* learning $A(s, a)$ alongside the policy is exactly what actor-critic methods do (Chapter 13).
+
+## Cheat sheet & connections
+
+| Name | Formula | Ref |
+|---|---|---|
+| Finite difference | $\big(U(\theta + \delta e_i) - U(\theta)\big)/\delta$ | @eq-finite-difference |
+| Regression gradient | $\Delta\Theta^+ \Delta U$ | @eq-regression-gradient |
+| ★ Likelihood ratio | $\mathbb{E}_\tau[\nabla\log p_\theta(\tau) R(\tau)]$, $\nabla\log p_\theta(\tau) = \sum_k \nabla\log\pi_\theta(a^{(k)} \mid s^{(k)})$ | @eq-likelihood-ratio |
+| Reward-to-go | $\mathbb{E}\big[\sum_k \nabla\log\pi_\theta\, \gamma^{k-1} r_{\text{to-go}}^{(k)}\big]$ | @eq-reward-to-go |
+| ★ Baseline (REINFORCE) | $\mathbb{E}\big[\sum_k \nabla\log\pi_\theta\, \gamma^{k-1} (r_{\text{to-go}}^{(k)} - r_{\text{base}}(s^{(k)}))\big]$ | @eq-baseline |
+| Best constant baseline | $\mathbb{E}[\ell_i^2 r_{\text{to-go}}] / \mathbb{E}[\ell_i^2]$ | @eq-optimal-baseline |
+| Advantage form | $\mathbb{E}\big[\sum_k \nabla\log\pi_\theta\, \gamma^{k-1} A_\theta(s^{(k)}, a^{(k)})\big]$ | @eq-advantage |
+
+: Key equations from this page (★ = well-known by name). {#tbl-cheatsheet}
+
+**Common pitfalls**
+
+- **Tiny finite-difference steps with fresh noise.** The noise is divided by $\delta$. Share random numbers, or use a larger step and accept some bias.
+- **Crediting actions with past rewards.** Always use reward-to-go. It's free variance reduction.
+- **A baseline that depends on the action.** That biases the gradient. The baseline may depend on the state, not the action.
+- **Deterministic policies with the likelihood ratio.** There's no action probability to differentiate. Add exploration noise, or use a model.
+- **Mismatched parameter scales.** Gradient components can differ by orders of magnitude. Rescale the parameters, or use natural gradients (Chapter 12).
+
+**Connections**
+
+- [Ch 10 · Policy Search](ch10-policy-search.qmd): the same log-derivative trick, applied to a search distribution instead of trajectories.
+- [Ch 12 · Policy Gradient Optimization](ch12-policy-gradient-optimization.qmd): gradient ascent, natural gradients and trust regions using these estimates.
+- [Ch 13 · Actor-Critic Methods](ch13-actor-critic-methods.qmd): learn the advantage as a baseline.
+- [Ch 3 · Inference](../part1/ch03-inference.qmd): likelihood weighting uses the same kind of ratio of probabilities.
+- [Appendix F · Simple regulator](../appendices/f-problems.qmd#simple-regulator): the problem used here.

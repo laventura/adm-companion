@@ -81,6 +81,14 @@ This site uses the book's notation. Symbols are added here as chapters are writt
 | $m_{\text{elite}}$ | Number of elite samples kept each iteration | Ch 10 |
 | $p(\theta \mid \psi)$ | Search distribution over policy parameters, with parameters $\psi$ | Ch 10 |
 | $w^{(i)}$ | Rank-shaped weight of the $i$-th best sample | Ch 10 |
+| $\nabla U(\theta)$ | Policy gradient: how the expected return changes with each parameter | Ch 11 |
+| $\delta$, $e_i$ | Finite-difference step, and the unit vector along parameter $i$ | Ch 11 |
+| $\Delta\Theta$, $\Delta U$ | Matrix of parameter perturbations (one per row) and the resulting changes in $U$ | Ch 11 |
+| $\pi_\theta(a \mid s)$ | Probability (or density) that the policy takes action $a$ in state $s$ | Ch 11 |
+| $\nabla_\theta \log \pi_\theta(a \mid s)$ | Score of an action: the direction that makes it more likely | Ch 11 |
+| $r_{\text{to-go}}^{(k)}$ | Reward-to-go: discounted reward from step $k$ on | Ch 11 |
+| $r_{\text{base}}(s)$ | Baseline subtracted from the reward-to-go | Ch 11 |
+| $A(s, a)$ | Advantage: $Q(s, a) - U(s)$ | Ch 11 |
 | $o$ | An observation | Ch 19 |
 | $O(o \mid a, s')$ | Observation model: probability of observing $o$ after taking $a$ and landing in $s'$ | Ch 19 |
 | $b(s)$ | Belief: probability that the current state is $s$, given the history | Ch 19 |

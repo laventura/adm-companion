@@ -8,8 +8,8 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from adm.problems import (collision_avoidance, crying_baby, fork, mountain_car, park, simple_games,
-                          simple_regulator, trail)
+from adm.problems import (collision_avoidance, crying_baby, fork, markov_games, mountain_car, park,
+                          simple_games, simple_regulator, trail)
 from adm.problems.coffee import COFFEE
 from adm.problems.commute import (
     COMMUTE, COMMUTE_DECISION, COMMUTE_TIMES_COV, COMMUTE_TIMES_MEAN, COMMUTE_UTILITY,
@@ -49,6 +49,8 @@ print(JSON.json(Dict(
     end,
     "games" => Dict(g.name => rowmajor(g.R) for g in (prisoners_dilemma(), rock_paper_scissors(),
                                                         travelers_dilemma(), intersection())),
+    "markov_games" => Dict(g.name => Dict("T" => rowmajor(g.T), "R" => rowmajor(g.R))
+                           for g in (predator_prey(), lake())),
     "crying_baby" => let p = crying_baby()
         Dict("T" => rowmajor(p.T), "R" => rowmajor(p.R), "O" => rowmajor(p.O), "gamma" => p.γ)
     end,
@@ -166,6 +168,13 @@ def test_crying_baby_matches(julia_problems):
 def test_simple_games_match(julia_problems, make):
     game = make()
     assert np.allclose(julia_problems["games"][game.name], game.R.ravel())
+
+
+@pytest.mark.parametrize("make", [markov_games.predator_prey, markov_games.lake])
+def test_markov_games_match(julia_problems, make):
+    game = make()
+    theirs = julia_problems["markov_games"][game.name]
+    assert np.allclose(theirs["T"], game.T.ravel()) and np.allclose(theirs["R"], game.R.ravel())
 
 
 def test_fork_matches(julia_problems):

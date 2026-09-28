@@ -111,3 +111,42 @@ end
     @test Set(root) == Set([1, 3])
     @test 0.27 < grid[findfirst(==(1), root)][2] < 0.29
 end
+
+@testset "offline belief state planning (Ch 21)" begin
+    p = crying_baby()
+    Γ_opt = value_iteration_pomdp(p, 200)[1][end][2]      # 200 steps: within 1e-7 of infinite
+    grid = [[1 - x, x] for x in 0:0.01:1]
+    opt(b) = utility(Γ_opt, b)
+    q, f = qmdp(p; k_max = 300), fast_informed_bound(p; k_max = 300)
+    @test all(utility(q, b) >= utility(f, b) - 1e-9 >= opt(b) - 2e-9 for b in grid)   # QMDP ≥ FIB ≥ U*
+    @test all(utility(blind_lowerbound(p; k_max = 300), b) <= opt(b) + 1e-9 for b in grid)
+    @test all(baws_lowerbound(p) ⋅ b <= opt(b) for b in grid)
+    B = [[1 - x, x] for x in 0:0.25:1]
+    Γp = pbvi(p, B; k_max = 100)
+    @test all(-0.01 < utility(Γp, b) - opt(b) <= 1e-9 for b in grid)                 # a tight lower bound
+    Γr = perseus(p, B, MersenneTwister(1); k_max = 100)
+    @test all(utility(Γr, b) <= opt(b) + 1e-9 for b in grid)
+    V = sawtooth_iteration(p, Dict(e => utility(f, e) for e in ([1.0, 0.0], [0.0, 1.0])),
+                           [[1 - x, x] for x in 0:0.2:1]; k_max = 10)
+    @test all(sawtooth(V, b) >= opt(b) - 1e-9 for b in grid)
+    _, U = triangulated_iteration(p, 10; k_max = 150)
+    @test all(0 <= U(b) - opt(b) < 0.2 for b in grid)
+    _, _, gaps = sawtooth_heuristic_search(p, [1.0, 0.0])
+    @test gaps[end] < 0.01 && gaps[end] < gaps[1] / 1000
+    # Freudenthal interpolation reconstructs the belief from grid vertices.
+    for b in ([0.2, 0.3, 0.5], [0.05, 0.9, 0.05], [1 / 3, 1 / 3, 1 / 3])
+        verts, λ = freudenthal(b, 4)
+        @test sum(λ) ≈ 1 && all(λ .>= -1e-12) && sum(l .* v for (v, l) in zip(verts, λ)) ≈ b
+        @test all(all(isinteger(round(4x; digits = 9)) for x in v) for (v, l) in zip(verts, λ) if l > 1e-12)
+    end
+    # The fork: upper-bound policies wait forever; point-based planning asks.
+    fk = fork()
+    b0 = [0.5, 0.5]
+    for Γ in (qmdp(fk; k_max = 300), fast_informed_bound(fk; k_max = 300))
+        @test greedy_belief(fk, b -> utility(Γ, b), b0).a == 1          # wait, and b0 never changes
+    end
+    Γf = pbvi(fk, [[1 - x, x] for x in range(0, 1, length = 21)]; k_max = 300)
+    @test greedy_belief(fk, b -> utility(Γf, b), b0).a == 2              # ask
+    _, Uf = triangulated_iteration(fk, 20; k_max = 400)
+    @test 0 <= Uf(b0) - utility(Γf, b0) < 1e-4                          # the bounds pinch
+end

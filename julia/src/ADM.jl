@@ -22,6 +22,8 @@ include("problems/discrete_pomdp.jl")
 include("problems/crying_baby.jl")
 include("pomdp/conditional_plans.jl")
 include("pomdp/value_iteration.jl")
+include("problems/fork.jl")
+include("pomdp/offline.jl")
 
 export write_json, show_source
 export predict_discrete, correct_discrete, update_discrete
@@ -43,6 +45,9 @@ export DiscretePOMDP, crying_baby
 export ConditionalPlan, evaluate_plan, alphavector, combine_alpha, observation_probability
 export lookahead_belief, greedy_belief, utility
 export find_maximal_belief, simplex_max, find_dominating, prune, expand, value_iteration_pomdp
+export fork, qmdp, fast_informed_bound, baws_lowerbound, blind_lowerbound, belief_backup, pbvi, perseus
+export sawtooth, sawtooth_iteration, randstep, exploratory_belief_expansion, sawtooth_heuristic_search
+export freudenthal, triangulated_iteration
 
 """
     write_json(obj, path) -> path

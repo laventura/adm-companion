@@ -8,7 +8,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from adm.problems import collision_avoidance, mountain_car, simple_regulator
+from adm.problems import collision_avoidance, mountain_car, simple_regulator, trail
 from adm.problems.coffee import COFFEE
 from adm.problems.commute import (
     COMMUTE, COMMUTE_DECISION, COMMUTE_TIMES_COV, COMMUTE_TIMES_MEAN, COMMUTE_UTILITY,
@@ -39,6 +39,9 @@ print(JSON.json(Dict(
     end,
     "regulator_exact" => [regulator_exact_value(θ) for θ in ([0.0, 1.0], [-0.5, 0.3], [-1.0, 0.0])],
     "regulator_gradient" => [regulator_exact_gradient(θ) for θ in ([0.0, 1.0], [-0.5, 0.3], [-1.0, 0.2])],
+    "trail" => let p = trail()
+        Dict("T" => rowmajor(p.T), "R" => rowmajor(p.R), "gamma" => p.γ)
+    end,
     "collision" => let m = CAModel(), (pol, U) = ca_optimal_policy(m), simple = ca_simple_policy(m)
         starts(W) = maximum(W[1, (-200:200) .+ 501, (-10:10) .+ 31])
         robust = ca_optimal_policy(m; models = [m, CAModel(compliance = 0.8)])[2]
@@ -121,3 +124,9 @@ def test_collision_avoidance_matches(julia_problems):
     assert np.allclose(theirs["values"], ours, rtol=1e-12)
     for k, t in enumerate((10, 30)):
         assert np.array_equal(np.array(theirs["policy"][k]) - 1, policy[t][0].ravel())
+
+
+def test_trail_matches(julia_problems):
+    theirs, ours = julia_problems["trail"], trail.trail()
+    assert np.allclose(theirs["T"], ours.T.ravel()) and np.allclose(theirs["R"], ours.R.ravel())
+    assert theirs["gamma"] == ours.gamma

@@ -16,6 +16,7 @@ include("problems/coffee.jl")
 include("problems/mountain_car.jl")
 include("problems/simple_regulator.jl")
 include("problems/collision_avoidance.jl")
+include("problems/trail.jl")
 
 export write_json, show_source
 export predict_discrete, correct_discrete, update_discrete
@@ -31,6 +32,7 @@ export REGULATOR_NOISE_SD, REGULATOR_START, REGULATOR_γ, REGULATOR_HORIZON
 export CAModel, CA_ADVISORIES, CA_T_START, CA_H_START, CA_HDOT_START, CA_COLLISION_H
 export ca_optimal_policy, ca_simple_policy, ca_evaluate, ca_start_average, ca_simulate
 export ca_most_likely_failure, ca_index
+export trail
 
 """
     write_json(obj, path) -> path

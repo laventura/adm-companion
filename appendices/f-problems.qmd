@@ -499,7 +499,7 @@ mdp = trail()                                      # 1-based: positions 1..6; ac
 ```
 :::
 
-**Where it's used.** [Ch 16](../part3/ch16-model-based-methods.qmd): ε-greedy exploration on a maximum likelihood model rarely learns to climb; R-MAX (with a well-chosen threshold) and posterior sampling do.
+**Where it's used.** [Ch 16](../part3/ch16-model-based-methods.qmd): ε-greedy exploration on a maximum likelihood model rarely learns to climb; R-MAX (with a well-chosen threshold) and posterior sampling do. [Ch 17](../part3/ch17-model-free-methods.qmd): Q-learning with ε-greedy exploration gets stuck too; optimistic initial values and potential-based shaping fix it, while a naive "+5 per step up" bonus makes walking back down optimal.
 
 ### Other problems on this site
 
@@ -509,6 +509,7 @@ mdp = trail()                                      # 1-based: positions 1..6; ac
 | Delivery drone | MDP, 2 states | [Ch 7](../part2/ch07-exact-solution-methods.qmd) | on the page |
 | Factory machine | MDP, 2 states (solved problem) | [Ch 7](../part2/ch07-exact-solution-methods.qmd) | on the page |
 | Headline test | Bernoulli bandit, 3 arms (click rates 0.35, 0.50, 0.55) | [Ch 15](../part3/ch15-exploration-and-exploitation.qmd) | on the page; strategies in `adm/bandits.py` |
+| Towpath | MDP, 4×8 grid beside a canal (a cliff walk) | [Ch 17](../part3/ch17-model-free-methods.qmd) | on the page |
 | Tram loop | Discrete filter, 12 states | [Ch 19](../part4/ch19-beliefs.qmd) | on the page |
 | Kayak | Linear-Gaussian, 1D | [Ch 19](../part4/ch19-beliefs.qmd) | on the page |
 | Drifting buoy | Linear-Gaussian, 4D | [Ch 19](../part4/ch19-beliefs.qmd) | on the page |

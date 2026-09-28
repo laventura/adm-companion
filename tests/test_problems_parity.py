@@ -8,7 +8,8 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from adm.problems import collision_avoidance, crying_baby, fork, mountain_car, park, simple_regulator, trail
+from adm.problems import (collision_avoidance, crying_baby, fork, mountain_car, park, simple_games,
+                          simple_regulator, trail)
 from adm.problems.coffee import COFFEE
 from adm.problems.commute import (
     COMMUTE, COMMUTE_DECISION, COMMUTE_TIMES_COV, COMMUTE_TIMES_MEAN, COMMUTE_UTILITY,
@@ -46,6 +47,8 @@ print(JSON.json(Dict(
     "fork" => let p = fork()
         Dict("T" => rowmajor(p.T), "R" => rowmajor(p.R), "O" => rowmajor(p.O))
     end,
+    "games" => Dict(g.name => rowmajor(g.R) for g in (prisoners_dilemma(), rock_paper_scissors(),
+                                                        travelers_dilemma(), intersection())),
     "crying_baby" => let p = crying_baby()
         Dict("T" => rowmajor(p.T), "R" => rowmajor(p.R), "O" => rowmajor(p.O), "gamma" => p.γ)
     end,
@@ -156,6 +159,13 @@ def test_crying_baby_matches(julia_problems):
     for key, arr in (("T", ours.T), ("R", ours.R), ("O", ours.O)):
         assert np.allclose(theirs[key], arr.ravel()), key
     assert theirs["gamma"] == ours.gamma
+
+
+@pytest.mark.parametrize("make", [simple_games.prisoners_dilemma, simple_games.rock_paper_scissors,
+                                  simple_games.travelers_dilemma, simple_games.intersection])
+def test_simple_games_match(julia_problems, make):
+    game = make()
+    assert np.allclose(julia_problems["games"][game.name], game.R.ravel())
 
 
 def test_fork_matches(julia_problems):

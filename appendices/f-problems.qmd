@@ -339,7 +339,7 @@ b = update_discrete([0.8, 0.2], p.T, p.O, 3, 1)       # ignore, then hear crying
 ```
 :::
 
-**Where it's used.** [Ch 20](../part4/ch20-exact-belief-state-planning.qmd): conditional plans, alpha vectors, pruning and exact value iteration. The long-horizon policy ignores the baby until $P(\text{hungry})$ reaches about 0.28, then feeds; with the problem as defined here, singing is never optimal.
+**Where it's used.** [Ch 20](../part4/ch20-exact-belief-state-planning.qmd): conditional plans, alpha vectors, pruning and exact value iteration. The long-horizon policy ignores the baby until $P(\text{hungry})$ reaches about 0.28, then feeds; with the problem as defined here, singing is never optimal. [Ch 21](../part4/ch21-offline-belief-state-planning.qmd): every offline bound is compared with the exact value. [Ch 22](../part4/ch22-online-belief-state-planning.qmd): forward search, branch and bound, sparse sampling, determinized search, Monte Carlo tree search and gap heuristic search, all scored against the exact solution.
 
 ## Problems made for this site
 
@@ -598,7 +598,7 @@ p = fork()                                # 1-based: actions 1 wait, 2 ask, 3 go
 ```
 :::
 
-**Where it's used.** [Ch 21](../part4/ch21-offline-belief-state-planning.qmd): QMDP and the fast informed bound both wait forever; point-based value iteration asks until fairly sure, and its lower bound meets a triangulated upper bound at about 27.11.
+**Where it's used.** [Ch 21](../part4/ch21-offline-belief-state-planning.qmd): QMDP and the fast informed bound both wait forever; point-based value iteration asks until fairly sure, and its lower bound meets a triangulated upper bound at about 27.11. [Ch 22](../part4/ch22-online-belief-state-planning.qmd): a one-step lookahead on QMDP waits forever, but a two-step forward search on the same values asks, and acts exactly like the point-based policy; Monte Carlo tree search learns to ask when its exploration constant matches the reward scale.
 
 ### Other problems on this site
 

@@ -71,7 +71,8 @@ This page collects every problem used on the site, implemented in both Python (`
 | F.8 Machine Replacement | POMDP | added when first used |
 | F.9 Catch | POMDP | added when first used |
 | F.10–F.12 Prisoner's Dilemma, Rock-Paper-Scissors, Traveler's Dilemma | Simple games | ✅ [below](#simple-games) |
-| F.13–F.15 Predator-Prey Hex World, Multicaregiver Crying Baby, Collaborative Predator-Prey | Multiagent | added with Part V |
+| F.13 Predator-Prey Hex World | Markov game | ✅ [below](#predator-prey) |
+| F.14–F.15 Multicaregiver Crying Baby, Collaborative Predator-Prey | Multiagent | added with Part V |
 
 : Appendix F problems on this site. {#tbl-problems}
 
@@ -371,6 +372,37 @@ g = travelers_dilemma()                  # R[i, a1, a2]; action 1 = $2
 
 **Where it's used.** [Ch 24](../part5/ch24-multiagent-reasoning.qmd): defecting is a dominant strategy in the prisoner's dilemma; rock-paper-scissors has only a mixed Nash equilibrium, and iterated best response cycles in it; in the traveler's dilemma best responses unravel to \$2, while a hierarchical softmax model predicts claims near \$90.
 
+## Predator-prey hex world {#predator-prey}
+
+**The story.** A predator chases a prey across a small map of hexagonal tiles. Both move at once, as in Hex World: in the chosen direction with probability 0.7, or veering to a neighboring direction with probability 0.15 each; a move off the map stays put. When they share a tile, the prey is caught and reappears on a random tile. The predator pays 1 per move and gains 1 per capture; the prey loses 100 when caught. The map is the 12-tile one of the book's figure F.16, transcribed as three rows (row 1: columns 0–2; row 2: columns 0, 2, 4, 5; row 3: columns 0–4, odd rows shifted right). The predator starts at (1, 2) and the prey at (3, 2).
+
+| Part | Definition |
+|---|---|
+| Agents | predator (agent 1), prey (agent 2) |
+| States | (predator's tile, prey's tile): 144 pairs |
+| Actions | six hex directions each: E, NE, NW, W, SW, SE |
+| Rewards | predator −1 per step, +1 on capture; prey −100 on capture |
+| Discount | 0.9 |
+
+: The predator-prey hex world. {#tbl-predator-prey}
+
+::: {.panel-tabset group="lang"}
+## Python
+```{python}
+#| echo: true
+from adm.problems.markov_games import predator_prey
+game = predator_prey()                     # T[s, a1, a2, s2], R[i, s, a1, a2]; s = pred * 12 + prey
+```
+## Julia
+```{.julia .snippet}
+using ADM
+g = predator_prey()                        # 1-based; s = (pred - 1) * 12 + prey
+@assert size(g.T) == (144, 6, 6, 144) && all(sum(g.T; dims = 4) .≈ 1)
+```
+:::
+
+**Where it's used.** [Ch 25](../part5/ch25-sequential-problems.qmd): a predator's best response to a random prey and the prey's reply; iterated best response cycles without settling; fictitious play's exploitability falls from about 67 after 1,000 steps to about 19 after 50,000.
+
 ## Problems made for this site
 
 The chapters also use small original problems, built to make one idea easy to see. The ones reused across pages get a full entry here, in both languages; the rest are listed in @tbl-originals.
@@ -657,6 +689,37 @@ g = intersection()                        # 1-based: 1 = go, 2 = stop
 :::
 
 **Where it's used.** [Ch 24](../part5/ch24-multiagent-reasoning.qmd): three Nash equilibria (the mixed one, going with probability 2/7, is worth −5/7 to each); the traffic light as a correlated equilibrium; fictitious play from identical starting counts moves in lockstep, matching the mixed equilibrium's frequencies while earning −3.57 per round.
+
+### The lake {#the-lake}
+
+**The story.** Two fishing boats share a lake whose fish stock is low, medium or high. Each day, each boat fishes lightly or heavily. Heavy fishing catches more today but depletes the stock, and a depleted lake pays both boats less for years: a sequential tragedy of the commons. It has exactly two deterministic stationary Nash equilibria: both fish lightly unless the stock is high (which is also what a single owner of both boats would do), or both always fish heavily.
+
+| Part | Definition |
+|---|---|
+| States | stock low, medium, high |
+| Actions | light, heavy (each boat) |
+| Catch (per boat) | light 1, 2, 3; heavy 2, 3.5, 5 (at low, medium, high) |
+| Transitions | no heavy boat: up w.p. 0.7, else same; one: up 0.2, same 0.5, down 0.3; two: down 0.7, same 0.3 |
+| Discount | 0.9 |
+
+: The lake. {#tbl-lake}
+
+::: {.panel-tabset group="lang"}
+## Python
+```{python}
+#| echo: true
+from adm.problems.markov_games import lake
+game = lake()                               # 0 = low / light
+```
+## Julia
+```{.julia .snippet}
+using ADM
+g = lake()                                  # 1-based: 1 = low / light
+@assert g.R[1, 3, 2, 1] == 5.0 && g.T[3, 2, 2, 2] == 0.7
+```
+:::
+
+**Where it's used.** [Ch 25](../part5/ch25-sequential-problems.qmd): policy evaluation, best responses, both equilibria and a third, mixed one found by nonlinear programming; fictitious play reaches either equilibrium; Nash Q-learning needs steady exploration.
 
 ### Other problems on this site
 

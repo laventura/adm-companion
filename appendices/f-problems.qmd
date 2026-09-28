@@ -73,7 +73,7 @@ This page collects every problem used on the site, implemented in both Python (`
 | F.10–F.12 Prisoner's Dilemma, Rock-Paper-Scissors, Traveler's Dilemma | Simple games | ✅ [below](#simple-games) |
 | F.13 Predator-Prey Hex World | Markov game | ✅ [below](#predator-prey) |
 | F.14 Multicaregiver Crying Baby | POMG | ✅ [below](#multicaregiver) |
-| F.15 Collaborative Predator-Prey | Dec-POMDP | added with Part V |
+| F.15 Collaborative Predator-Prey | Dec-POMDP | not used: Ch 27 uses [the lost hiker](#the-lost-hiker), small enough for exact answers |
 
 : Appendix F problems on this site. {#tbl-problems}
 
@@ -753,6 +753,38 @@ g = lake()                                  # 1-based: 1 = low / light
 :::
 
 **Where it's used.** [Ch 25](../part5/ch25-sequential-problems.qmd): policy evaluation, best responses, both equilibria and a third, mixed one found by nonlinear programming; fictitious play reaches either equilibrium; Nash Q-learning needs steady exploration.
+
+### The lost hiker {#the-lost-hiker}
+
+**The story.** A hiker is lost in the left or right valley. Two rescuers at separate lookouts can each listen for a radio report (cost 1; right 80% of the time, and private to that rescuer), search the left valley or search the right one. Carrying the hiker out takes both: both searching the right valley earns 20, one alone earns 5, and each wrong search costs 10. Any search ends the episode, and a new hiker is lost in a random valley. The team shares one reward: a Dec-POMDP. The structure is similar to the decentralized tiger problem of the Dec-POMDP literature, with this site's own story and numbers.
+
+| Part | Definition |
+|---|---|
+| States | hiker in the left or right valley |
+| Actions (each) | listen, search left, search right |
+| Observations (each) | "left" or "right": after both listen, right w.p. 0.8, independently; otherwise 50–50 |
+| Shared reward | both in the right valley +20; one +5; each wrong search −10; each listener −1 |
+| Transitions | listening keeps the valley; any search draws a new one at random |
+| Discount | 0.9 |
+
+: The lost hiker. {#tbl-lost-hiker}
+
+::: {.panel-tabset group="lang"}
+## Python
+```{python}
+#| echo: true
+from adm.problems.lost_hiker import lost_hiker
+game = lost_hiker()                         # a POMG with identical reward rows; 0 = listen / left
+```
+## Julia
+```{.julia .snippet}
+using ADM
+g = lost_hiker()                            # 1-based: 1 = listen / left
+@assert g.R[1, 1, 2, 2] == 20.0 && g.R[1, 1, 1, 1] == -2.0 && g.R == g.R[[2, 1], :, :, :]
+```
+:::
+
+**Where it's used.** [Ch 27](../part5/ch27-collaborative-agents.qmd): the exact team optimum (7.36 over two or three steps) against the value with pooled reports; iterated best response and memory-bounded search stopping short; a 3-node controller worth 38.74 that nonlinear programming from random starts misses.
 
 ### Other problems on this site
 

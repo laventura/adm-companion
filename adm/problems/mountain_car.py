@@ -48,6 +48,17 @@ def rollout(policy, s0, max_steps: int = 1000) -> np.ndarray:
     return np.array(path)
 
 
+def switching_rule(theta, s) -> np.ndarray:
+    """A two-parameter policy: accelerate right when
+    v + theta_1 x + theta_2 > 0, otherwise left. theta = (0, 0) is the
+    rule 'push in the direction you're already moving'."""
+    s = np.asarray(s, dtype=float)
+    return np.where(s[..., 1] + theta[0] * s[..., 0] + theta[1] > 0, 1, -1)
+
+
+STANDARD_STARTS = np.array([(x, 0.0) for x in np.linspace(-0.6, -0.4, 10)])
+
+
 def steps_to_goal(policy, starts, max_steps: int = 1000) -> np.ndarray:
     """Steps each start state needs to reach the goal under a vectorized
     policy(states) -> actions; max_steps + 1 means it never got there."""

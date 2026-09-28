@@ -89,6 +89,12 @@ This site uses the book's notation. Symbols are added here as chapters are writt
 | $r_{\text{to-go}}^{(k)}$ | Reward-to-go: discounted reward from step $k$ on | Ch 11 |
 | $r_{\text{base}}(s)$ | Baseline subtracted from the reward-to-go | Ch 11 |
 | $A(s, a)$ | Advantage: $Q(s, a) - U(s)$ | Ch 11 |
+| $F_\theta$ | Fisher information matrix of the policy's trajectory distribution | Ch 12 |
+| $D_{\text{KL}}(p \,\Vert\, q)$ | Kullback–Leibler divergence from $p$ to $q$ | Ch 12 |
+| $\epsilon$ | Trust-region size (KL or step budget); PPO's clipping range | Ch 12 |
+| $f(\theta, \theta')$, $g(\theta, \theta')$ | TRPO's surrogate objective and surrogate KL constraint | Ch 12 |
+| $b_{\gamma,\theta}(s)$ | Discounted state-visitation distribution of $\pi_\theta$ | Ch 12 |
+| $w = \pi_{\theta'}(a \mid s) / \pi_\theta(a \mid s)$ | Probability ratio (importance weight) | Ch 12 |
 | $o$ | An observation | Ch 19 |
 | $O(o \mid a, s')$ | Observation model: probability of observing $o$ after taking $a$ and landing in $s'$ | Ch 19 |
 | $b(s)$ | Belief: probability that the current state is $s$, given the history | Ch 19 |

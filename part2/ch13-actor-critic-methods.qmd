@@ -1,8 +1,834 @@
 ---
 title: "13 · Actor-Critic Methods"
 subtitle: "Part II — Sequential Problems"
+jupyter: python3
+execute:
+  echo: false
 ---
 
 ::: {.callout-note appearance="minimal"}
-**In progress.** This page will cover ADM Ch. 13, *Actor-Critic Methods*.
+**Executed in:** Python · **Book:** ADM Ch. 13 · **Lecture:** to be added
 :::
+<!-- TODO(video): link the official Stanford AA228 lecture on actor-critic methods. -->
+
+```{python}
+#| include: false
+import numpy as np
+import matplotlib.pyplot as plt
+from IPython.display import Markdown
+
+from adm import style
+from adm.actor_critic import (
+    GuidedTreeSearch, actor_critic_step, actor_gradient, critic_gradient,
+    deterministic_policy_gradients, generalized_advantages, root_targets,
+    softmax, td_residuals, tree_search_actor_critic_step,
+)
+from adm.io import write_json
+from adm.mdp import policy_iteration
+from adm.page import show_source
+from adm.policy_gradient import baseline_gradient, rewards_to_go
+from adm.policy_optimization import scale_gradient
+from adm.problems import simple_regulator as sr
+from adm.problems.hex_world import STANDARD_REWARDS, STANDARD_TILES, hex_world
+
+style.apply()
+blue, orange, green, yellow = style.CATEGORICAL[:4]
+pink, purple = style.CATEGORICAL[4], style.CATEGORICAL[6]
+G = sr.GAMMA
+U_STAR = sr.exact_value([-1.0, 0.0])
+THETA = np.array([-0.5, 0.5])
+TRUE = sr.exact_gradient(THETA)
+
+
+def features(S):
+    """The critic's features for the regulator: U_phi(s) = phi_1 + phi_2 s^2."""
+    return np.stack([np.ones_like(S), S**2], axis=-1)
+
+
+# A good critic: the least-squares fit of the features to rewards-to-go from 20,000 rollouts at THETA.
+S_fit, A_fit, R_fit = sr.sample_trajectories(THETA, 20_000, np.random.default_rng(0))
+PHI_FIT = np.linalg.lstsq(features(S_fit).reshape(-1, 2), rewards_to_go(R_fit, G).reshape(-1), rcond=None)[0]
+
+# Bias and variance of the policy gradient against lambda, for critics from "none" (phi = 0) to the fit.
+LAMBDAS = (0.0, 0.25, 0.5, 0.75, 0.9, 1.0)
+QUALITY = (0.0, 0.5, 1.0)                     # the critic is QUALITY x PHI_FIT
+REPS = 300
+gae_samples, gae_stats = {}, {}
+for q in QUALITY:
+    for lam in LAMBDAS:
+        E = []
+        for i in range(REPS):
+            S, A, R = sr.sample_trajectories(THETA, 10, np.random.default_rng(1000 + i))
+            adv = generalized_advantages(td_residuals(features(S) @ (q * PHI_FIT), R, G), G, lam)
+            E.append(actor_gradient(sr.grad_log_policy(THETA, S[:, :-1], A[:, :-1]), adv, G))
+        E = np.array(E)
+        gae_samples[q, lam] = E
+        gae_stats[q, lam] = dict(bias=float(np.linalg.norm(E.mean(axis=0) - TRUE)),
+                                 sd=float(np.sqrt(E.var(axis=0).sum())),
+                                 rms=float(np.sqrt(((E - TRUE) ** 2).sum(axis=1).mean())))
+best_lam = {q: min(LAMBDAS, key=lambda l: gae_stats[q, l]["rms"]) for q in QUALITY}
+```
+
+## Big picture
+
+### Where this chapter fits
+
+Chapters 10–12 improved a policy directly, and Chapter 11 showed that the noise in the gradient comes mostly from judging actions by noisy returns. The fix hinted at there was a baseline, and the best baseline is the **value function**, which is exactly what Chapters 7–9 computed. **Actor-critic** methods bring the two families together. The **actor** is a parameterized policy, improved by policy gradients. The **critic** is a parameterized value function, learned at the same time, that tells the actor how much better or worse than expected each action turned out. This is the design behind most modern deep reinforcement learning (A2C, PPO with a value head, DDPG, SAC) and behind AlphaGo Zero, which trained a policy and a value network from Monte Carlo tree search. The model-free versions of these ideas return in [Chapter 17](../part3/ch17-model-free-methods.qmd).
+
+**The question:** how can a learned value function make policy gradients less noisy, and what does it cost?
+
+The short answer: **use the critic to estimate each action's advantage from a few observed rewards plus the critic's opinion of where you ended up.** Leaning on the critic cuts variance but adds bias whenever the critic is wrong. **Generalized advantage estimation** chooses a point on that trade-off with one number, $\lambda$. For continuous actions, the critic's slope with respect to the action points the way to a better action, and that gives the **deterministic policy gradient**. A search procedure can also play the critic's teacher: **Monte Carlo tree search** produces better action choices and values than the current networks, and the networks learn to imitate it.
+
+```{dot}
+//| label: fig-ch13-map
+//| fig-width: 6.8
+//| fig-height: 3.4
+//| fig-cap: "Map of this chapter. An actor (policy) and a critic (value function) learn together; the variants differ in what the critic estimates and how it's trained."
+//| fig-alt: "Diagram. Two blue boxes side by side, Actor (policy, parameters theta) and Critic (value function, parameters phi). An arrow from Critic to Actor says advantages; an arrow from Actor to Critic says data to learn from. Below, three variants: Actor-critic with temporal difference residuals, which leads to Generalized advantage estimation (lambda trades bias for variance); Deterministic policy gradient (critic Q of s and a; follow its slope in a); and Tree search actor-critic (MCTS as the teacher; AlphaGo Zero)."
+digraph ch13 {
+  rankdir=TB; bgcolor="#fcfcfb"; pad=0.25; nodesep=0.4; ranksep=0.45;
+  node [shape=box, style="rounded,filled", fillcolor="white", color="#c3c2b7", penwidth=1.2,
+        fontname="Helvetica", fontsize=13, fontcolor="#0b0b0b", margin="0.12,0.07"];
+  edge [color="#52514e", penwidth=1.2, arrowsize=0.7, fontname="Helvetica", fontsize=11, fontcolor="#52514e"];
+  actor [label=<<B>Actor</B><BR/><FONT POINT-SIZE="11">policy π<FONT POINT-SIZE="9">θ</FONT></FONT>>, fillcolor="#cde2fb", color="#2a78d6"];
+  critic [label=<<B>Critic</B><BR/><FONT POINT-SIZE="11">value U<FONT POINT-SIZE="9">φ</FONT>&nbsp;or&nbsp;Q<FONT POINT-SIZE="9">φ</FONT></FONT>>, fillcolor="#cde2fb", color="#2a78d6"];
+  td [label=<<B>Actor-critic</B><BR/><FONT POINT-SIZE="11">TD residual advantages</FONT>>];
+  gae [label=<<B>Generalized advantage<BR/>estimation</B><BR/><FONT POINT-SIZE="11">λ: bias vs. variance</FONT>>];
+  dpg [label=<<B>Deterministic policy<BR/>gradient</B><BR/><FONT POINT-SIZE="11">follow Q's slope in a</FONT>>];
+  mcts [label=<<B>Tree search<BR/>actor-critic</B><BR/><FONT POINT-SIZE="11">MCTS as teacher</FONT>>];
+  critic -> actor [label="advantages"]; actor -> critic [label="data"];
+  { rank=same; actor; critic; }
+  actor -> td [style=invis]; critic -> dpg [style=invis]; critic -> mcts [style=invis];
+  td -> gae [label="blend k-step"];
+  { rank=same; td; dpg; mcts; }
+}
+```
+
+### The key ideas at a glance
+
+1. **Two learners.** The **actor** $\pi_\theta$ is improved by policy gradients, as in Chapter 11. The **critic** $U_\phi$ is fitted by regression, as in Chapter 8, to the returns the actor actually earns. Each needs the other: the actor needs the critic's advantages, and the critic needs the actor's data.
+
+2. **Advantages from one step.** The **temporal difference (TD) residual** $\delta = r + \gamma U_\phi(s') - U_\phi(s)$ compares what happened in one step, plus the critic's view of the next state, with the critic's view of the current state. It estimates the advantage $A(s, a)$ with far less noise than a whole trajectory's return. But if the critic is wrong, it is biased.
+
+3. **Generalized advantage estimation (GAE).** Look ahead $k$ steps of real rewards before trusting the critic, and average over all $k$ with weights $\lambda^{k-1}$. $\lambda = 0$ is the TD residual (low variance, biased by the critic). $\lambda = 1$ is the Monte Carlo return minus the critic's value (no critic bias, high variance). The best $\lambda$ depends on how good the critic is.
+
+4. **Deterministic policy gradient.** For a deterministic policy with continuous actions, learn an action-value critic $Q_\phi(s, a)$ and move the policy's action in the direction that raises $Q_\phi$, the slope $\partial Q/\partial a$. Exploration must be added separately, for example with noise on the actions.
+
+5. **Tree search as the teacher.** Run Monte Carlo tree search (Chapter 9), guided by the current policy (which actions to try) and critic (how good a new leaf is). The search's visit counts are a better policy than the actor, and its action values a better value than the critic. Train both to match the search. This is the AlphaGo Zero idea.
+
+### Vocabulary
+
+| Term | Plain meaning |
+|:---|:---|
+| Actor $\pi_\theta$ | The policy being improved |
+| Critic $U_\phi(s)$, $Q_\phi(s, a)$ | A learned value function that judges the actor's actions |
+| TD residual $\delta$ | $r + \gamma U(s') - U(s)$: one step of reality versus the critic's expectation |
+| $k$-step advantage $\hat A^{(k)}$ | $k$ real rewards, then the critic's value, minus the critic's value now |
+| Generalized advantage estimation (GAE) | An exponentially weighted average of $k$-step advantages, with weight $\lambda$ |
+| Deterministic policy gradient (DPG) | Follow the critic's slope in the action through the policy's Jacobian |
+| Exploration noise $\sigma$ | Random noise added to a deterministic policy's actions |
+| Guided tree search | MCTS using the policy as a prior and the critic to value leaves |
+| $\pi_{\text{MCTS}}$, $U_{\text{MCTS}}$ | Policy and value read off a finished search: visit shares, best action value |
+
+: Terms used on this page. {#tbl-vocab}
+
+### After this chapter you can
+
+- Compute TD residuals and generalized advantages from a trajectory and a critic.
+- Explain the bias–variance trade-off controlled by $\lambda$, and how critic quality moves the best $\lambda$.
+- Write the actor and critic updates, and diagnose an unstable critic.
+- Derive the deterministic policy gradient for a given policy and critic.
+- Describe how tree search can train a policy and a value function, as in AlphaGo Zero.
+
+## Intuition
+
+::: {.callout-tip title="Analogy"}
+A student (the actor) and a tutor (the critic) are learning together. After each practice problem, the tutor predicted how well the student would do, and the student then did better or worse.
+
+- **Better than predicted:** "whatever you did there, do more of it." That surprise is the advantage.
+- **The tutor improves too,** by comparing predictions with actual scores.
+- **A tutor who is still learning gives biased feedback.** So early on, the student should wait for the final result (Monte Carlo). Later, the tutor's quick verdict after each step (the TD residual) is both faster and steadier.
+- **$\lambda$ sets how long the student waits** before trusting the tutor.
+:::
+
+We use the **simple regulator** again: keep $s$ near 0, with the stochastic policy $a \sim \mathcal{N}(\theta_1 s, \theta_2^2)$. The critic is $U_\phi(s) = \phi_1 + \phi_2 s^2$: a constant plus a bowl, the natural shape for "how far from 0 are you". At $\theta = (-0.5, 0.5)$, a least-squares fit to many rollouts gives $\phi \approx$ (`{python} f"{PHI_FIT[0]:.2f}"`, `{python} f"{PHI_FIT[1]:.2f}"`).
+
+### One step of reality, then trust the critic
+
+A trajectory's return is noisy because it adds up ten random steps. The TD residual adds up only one, the reward just received, and asks the critic about the rest. With the fitted critic and 10 rollouts, the gradient estimate built from TD residuals ($\lambda = 0$) has a spread of `{python} f"{gae_stats[1.0, 0.0]['sd']:.1f}"`, against `{python} f"{gae_stats[1.0, 1.0]['sd']:.1f}"` using the full returns ($\lambda = 1$). See @eq-td-residual.
+
+### When the critic is wrong
+
+A critic that knows nothing ($\phi = 0$, "every state is worth 0") makes the TD residual just the immediate reward. That's badly biased: the gradient estimate misses the truth by `{python} f"{gae_stats[0.0, 0.0]['bias']:.1f}"` on average, even with infinite data. With $\lambda = 1$ the critic cancels out almost entirely, and the bias drops to `{python} f"{gae_stats[0.0, 1.0]['bias']:.2f}"`, at the price of more noise. With this poor critic, the best compromise is $\lambda =$ `{python} best_lam[0.0]`. With the fitted critic, it's $\lambda =$ `{python} best_lam[1.0]` (@fig-gae-tradeoff). See @eq-gae.
+
+### Nudge the action uphill
+
+A deterministic policy picks one action per state, so there's no probability to push up or down. Instead, ask the critic: at this state, would a slightly larger action be better? If $Q_\phi(s, a)$ increases with $a$, move the policy so it outputs a larger action there. See @eq-dpg.
+
+### Learn from a better player
+
+Tree search, guided by the current policy and critic, plays better than either one alone. It explores and looks ahead. So use it as a teacher: make the policy imitate the search's choices and the critic match the search's values. The next search starts from a better policy and critic and plays better still. On Hex World, starting from a uniformly random policy, this loop learns the optimal action on most tiles within a few dozen rounds (@fig-tree-search). See @eq-tree-targets.
+
+## Formalism
+
+### Actor-critic
+
+The actor follows the advantage form of the policy gradient (Chapter 11), with the advantage estimated from the critic by the **TD residual** (ADM §13.1):
+
+::: {.key-equation .famous data-name="Temporal difference residual"}
+$$
+\delta_k = r_k + \gamma\, U_\phi(s_{k+1}) - U_\phi(s_k),
+\qquad
+\nabla U(\theta) \approx \mathbb{E}_\tau\left[\sum_{k} \nabla_\theta \log \pi_\theta(a_k \mid s_k)\, \gamma^{k-1} \delta_k\right]
+$$ {#eq-td-residual}
+:::
+
+**In words.** Judge each action by one step of what actually happened (the reward, plus the critic's value of where you landed), compared with what the critic expected beforehand.
+
+**Term by term.**
+
+- If $U_\phi$ equals the true value $U^{\pi_\theta}$, then $\mathbb{E}[\delta_k \mid s_k, a_k] = Q(s_k, a_k) - U(s_k) = A(s_k, a_k)$ exactly.
+- Otherwise $\delta_k$ is a biased estimate of the advantage, with much less variance than the return, because it involves only one random reward.
+
+The critic is trained to predict returns:
+
+::: {.key-equation data-name="Critic loss and its gradient"}
+$$
+\ell(\phi) = \tfrac12\, \mathbb{E}_s\Big[\big(U_\phi(s) - U^{\pi_\theta}(s)\big)^2\Big],
+\qquad
+\nabla \ell(\phi) \approx \mathbb{E}_\tau\left[\sum_k \big(U_\phi(s_k) - r_{\text{to-go}}^{(k)}\big)\, \nabla_\phi U_\phi(s_k)\right]
+$$ {#eq-critic}
+:::
+
+**In words.** Pull the critic's predictions toward the rewards-to-go that were actually observed.
+
+**Term by term.** The unknown $U^{\pi_\theta}(s_k)$ is replaced by its sample, the reward-to-go. For a linear critic, $\nabla_\phi U_\phi(s)$ is the feature vector. The actor steps along its gradient and the critic against its own. Because each chases the other, step sizes matter. A common trick is to update the policy more often than the critic.
+
+### Generalized advantage estimation
+
+Between one step and the whole trajectory lie $k$-step estimates (ADM §13.2; J. Schulman et al., *ICLR*, 2016):
+
+::: {.key-equation data-name="k-step advantage"}
+$$
+\hat A^{(k)}(s, a) = \sum_{\ell=1}^{k} \gamma^{\ell-1} r_\ell + \gamma^k U_\phi(s_{k+1}) - U_\phi(s)
+= \sum_{\ell=1}^{k} \gamma^{\ell-1} \delta_\ell
+$$ {#eq-k-step}
+:::
+
+**In words.** Use $k$ real rewards, then the critic's opinion of where you are after $k$ steps.
+
+**Term by term.** The two forms are equal because the critic's intermediate values cancel in the sum (it telescopes). Larger $k$ means less reliance on the critic (less bias) and more random rewards (more variance).
+
+::: {.key-equation .famous data-name="Generalized advantage estimate"}
+$$
+\hat A^{\text{GAE}}(s, a) = (1 - \lambda)\big(\hat A^{(1)} + \lambda \hat A^{(2)} + \lambda^2 \hat A^{(3)} + \cdots\big)
+= \sum_{k=1}^{\infty} (\gamma\lambda)^{k-1}\, \delta_k
+$$ {#eq-gae}
+:::
+
+**In words.** Average all the $k$-step estimates, with geometrically decreasing weights. That turns out to equal a discounted sum of TD residuals with discount $\gamma\lambda$.
+
+**Term by term.**
+
+- $\lambda = 0$ gives $\delta_1$, the TD residual.
+- $\lambda = 1$ gives $\sum_k \gamma^{k-1} r_k - U_\phi(s)$: the Monte Carlo return with the critic as a baseline.
+- With a finite horizon, the sum stops at the last step. It's computed with a backward sweep, $\hat A_k = \delta_k + \gamma\lambda \hat A_{k+1}$.
+
+**Why it holds.** Substitute @eq-k-step into the weighted average. The residual $\delta_k$ appears in every $\hat A^{(j)}$ with $j \ge k$, with total weight $(1-\lambda)\gamma^{k-1}(\lambda^{k-1} + \lambda^k + \cdots) = (\gamma\lambda)^{k-1}$.
+
+### Deterministic policy gradient
+
+For a deterministic policy $a = \pi_\theta(s)$ with continuous actions and a critic $Q_\phi(s, a)$ (ADM §13.3; D. Silver et al., *ICML*, 2014):
+
+::: {.key-equation .famous data-name="Deterministic policy gradient"}
+$$
+\nabla U(\theta) = \mathbb{E}_{s}\Big[\nabla_\theta \pi_\theta(s)\ \nabla_a Q_\phi(s, a)\big|_{a = \pi_\theta(s)}\Big]
+$$ {#eq-dpg}
+:::
+
+**In words.** At each visited state, find which way to change the action to raise $Q$, and change the parameters so the policy's action moves that way.
+
+**Term by term.**
+
+- $\nabla_\theta \pi_\theta(s)$ is the policy's **Jacobian**: how each parameter moves each action component.
+- $\nabla_a Q_\phi$ is the critic's slope in the action.
+- The critic is trained on the squared TD residual $\tfrac12\big(r + \gamma Q_\phi(s', \pi_\theta(s')) - Q_\phi(s, a)\big)^2$.
+- Data comes from the policy plus exploration noise $\mathcal{N}(0, \sigma^2)$, since a deterministic policy never tries anything else. Replay buffers and target networks (Chapter 17) stabilize it in practice.
+
+**Why it holds.** $U(\theta) = \mathbb{E}_s[Q(s, \pi_\theta(s))]$ with the state distribution held fixed. Differentiating through the action by the chain rule gives the product of the Jacobian and the action gradient.
+
+### Actor-critic with Monte Carlo tree search
+
+Guide the tree search with the current policy as a **prior** and the critic as the leaf evaluation (ADM §13.4; D. Silver et al., *Nature*, 2017). Inside the tree, choose
+
+::: {.key-equation data-name="Prior-guided exploration (PUCT)"}
+$$
+a = \mathop{\mathrm{arg\,max}}_a\ Q(s, a) + c\, \pi_\theta(a \mid s)\, \frac{\sqrt{N(s)}}{1 + N(s, a)}
+$$ {#eq-puct}
+:::
+
+**In words.** Like UCB1 (Chapter 9), but the exploration bonus is shared out in proportion to the policy's own preferences, so promising actions are tried first.
+
+**Term by term.** $N(s, a)$ and $Q(s, a)$ are the search's visit counts and value estimates, and $N(s) = \sum_a N(s, a)$. There's no logarithm, and the 1 in the denominator follows AlphaGo Zero. After the search, the targets are:
+
+::: {.key-equation data-name="Tree search training targets"}
+$$
+\pi_{\text{MCTS}}(a \mid s) \propto N(s, a)^\eta,
+\qquad U_{\text{MCTS}}(s) = \max_a Q(s, a),
+\qquad \ell(\theta) = -\sum_a \pi_{\text{MCTS}}(a \mid s) \log \pi_\theta(a \mid s)
+$$ {#eq-tree-targets}
+:::
+
+**In words.** The policy should imitate how often the search chose each action (cross entropy), and the critic should match the search's best value.
+
+**Term by term.**
+
+- $\eta$ sharpens ($\eta > 1$) or flattens the visit distribution.
+- For a softmax policy with one logit per action, $\nabla_{\text{logits}}\,\ell = \pi_\theta - \pi_{\text{MCTS}}$, so each step moves the policy's probabilities toward the search's.
+- On this page, only the search's **root** is trained, the state it spent all its simulations on, as AlphaGo Zero does. The book trains on every state the search visited. Here those deeper, rarely visited states gave noisy targets that stalled learning.
+
+## Worked example
+
+### TD residuals and GAE by hand
+
+A 4-step episode with $\gamma = 0.9$. The critic's values at the visited states are $U = (-2, -1.5, -1, -0.5)$, and the rewards are $r = (-0.5, -0.3, -0.4, -0.2)$. The TD residuals exist for the first three steps:
+
+| step $k$ | $r_k$ | $U(s_k)$ | $U(s_{k+1})$ | $\delta_k = r_k + 0.9\,U(s_{k+1}) - U(s_k)$ |
+|---|---|---|---|---|
+| 1 | −0.5 | −2 | −1.5 | $-0.5 - 1.35 + 2 = 0.15$ |
+| 2 | −0.3 | −1.5 | −1 | $-0.3 - 0.9 + 1.5 = 0.30$ |
+| 3 | −0.4 | −1 | −0.5 | $-0.4 - 0.45 + 1 = 0.15$ |
+
+: TD residuals for the example episode. {#tbl-td}
+
+With $\lambda = 0.5$, so $\gamma\lambda = 0.45$, the backward sweep gives:
+
+- $\hat A_3 = 0.15$;
+- $\hat A_2 = 0.30 + 0.45 \times 0.15 = 0.3675$;
+- $\hat A_1 = 0.15 + 0.45 \times 0.3675 = 0.3154$.
+
+With $\lambda = 0$, the advantages are just the $\delta$s. All are positive: each step went slightly better than the critic predicted.
+
+### The deterministic policy gradient by hand
+
+Policy $a = \theta s$ with critic $Q_\phi(s, a) = \phi_1 + \phi_2 s^2 + \phi_3 (s + a)^2$. Then $\nabla_\theta \pi = s$ and $\partial Q/\partial a = 2\phi_3(s + a)$. At $\theta = 0$ with $\phi_3 = -1$, a state $s = 0.5$ contributes $0.5 \times 2(-1)(0.5 + 0) = -0.5$: make $\theta$ more negative, so the policy pushes back against $s$. A state $s = -0.2$ contributes $(-0.2) \times 2(-1)(-0.2) = -0.08$, the same direction. The critic says the next state $s + a$ should be near 0, and the policy learns to cancel $s$.
+
+## Interactive
+
+### Choose λ for your critic
+
+Pick the critic's quality (from knowing nothing, $\phi = 0$, to the least-squares fit) and $\lambda$. Each dot is one gradient estimate from 10 rollouts, 300 in all. The star is the exact gradient. A poor critic with small $\lambda$ gives tight but off-center clouds (bias); $\lambda = 1$ gives centered but wide ones (variance).
+
+```{python}
+#| include: false
+write_json({"lambdas": LAMBDAS, "quality": QUALITY, "true": TRUE.round(4),
+            "samples": {f"{q}|{lam}": E.round(3) for (q, lam), E in gae_samples.items()},
+            "stats": {f"{q}|{lam}": {k: round(v, 3) for k, v in s.items()} for (q, lam), s in gae_stats.items()},
+            "style": {"blue": blue, "orange": orange, "ink": style.INK, "muted": style.MUTED,
+                      "surface": style.SURFACE}}, "data/ch13-gae.json")
+```
+
+```{ojs}
+gaeData = FileAttachment("data/ch13-gae.json").json()
+viewof quality = Inputs.radio(new Map([["knows nothing (φ = 0)", 0], ["halfway", 0.5], ["fitted", 1]]),
+  {label: "Critic", value: 0})
+viewof lam = Inputs.radio(gaeData.lambdas, {label: "λ", value: 0})
+```
+
+```{ojs}
+gaeNow = {
+  const key = `${quality === 1 ? "1.0" : quality === 0.5 ? "0.5" : "0.0"}|${lam === 0 ? "0.0" : lam === 1 ? "1.0" : lam}`;
+  return {pts: gaeData.samples[key], st: gaeData.stats[key]};
+}
+md`Bias **${gaeNow.st.bias.toFixed(2)}**, spread (sd) **${gaeNow.st.sd.toFixed(2)}**, RMS error **${gaeNow.st.rms.toFixed(2)}**.`
+```
+
+```{ojs}
+//| label: fig-gae-explorer
+//| fig-cap: "Three hundred policy gradient estimates (dots) with generalized advantages, for the chosen critic and λ, around the exact gradient (star)."
+//| fig-alt: "Interactive scatter plot of gradient estimates, derivative with respect to theta 1 across and theta 2 up, with a star at the exact gradient near (minus 2, minus 7). Radio buttons choose the critic's quality and lambda; with a poor critic and small lambda the cloud is tight but far from the star; with lambda 1 it is centered but wide."
+Plot.plot({
+  width: 520, height: 400,
+  style: {background: gaeData.style.surface, color: gaeData.style.ink},
+  x: {domain: [-20, 12], label: "∂U/∂θ₁ estimate", grid: true}, y: {domain: [-28, 8], label: "∂U/∂θ₂ estimate", grid: true},
+  marks: [
+    Plot.dot(gaeNow.pts, {x: d => d[0], y: d => d[1], r: 2, fill: gaeData.style.blue, fillOpacity: 0.35, clip: true}),
+    Plot.dot([gaeData.true], {x: d => d[0], y: d => d[1], symbol: "star", r: 9, fill: "white", stroke: gaeData.style.ink})
+  ]
+})
+```
+
+### Watch tree search teach the actor and critic
+
+Scrub through the rounds of tree-search actor-critic on Hex World. In each round, a 100-simulation search runs from every tile, guided by the current policy and critic, and each tile's policy and value move toward the search's. Tiles are colored by the critic's value. Arrows show each tile's most likely action: black if it's the optimal action, orange if not.
+
+```{python}
+#| include: false
+# Tree-search actor-critic on Hex World from a uniform policy and a zero critic.
+mdp = hex_world()
+T, R, gamma = mdp.T, mdp.R, mdp.gamma
+n_states = len(T)
+pi_star, U_opt, _ = policy_iteration(T, R, gamma, np.zeros(n_states, int))
+DECISIONS = [i for i, t in enumerate(STANDARD_TILES) if t not in STANDARD_REWARDS]
+ROUNDS = 30
+
+
+def policy_value(probs):
+    """Exact value of a stochastic policy (one row of action probabilities per state)."""
+    T_pi = np.einsum("sa,sat->st", probs, T)
+    return np.linalg.solve(np.eye(n_states) - gamma * T_pi, (probs * R).sum(axis=1))
+
+
+rng_ts = np.random.default_rng(0)
+logits, values = np.zeros((n_states, 6)), np.zeros(n_states)
+ts_history = [(logits.copy(), values.copy())]
+for _ in range(ROUNDS):
+    logits, values = tree_search_actor_critic_step(mdp, logits, values, DECISIONS, 100, 10, 5.0, 1.0, 0.5, rng_ts)
+    ts_history.append((logits.copy(), values.copy()))
+ts_curve = np.array([(policy_value(softmax(lg))[DECISIONS].mean(),
+                      policy_value(np.eye(6)[lg.argmax(axis=1)])[DECISIONS].mean(),
+                      np.mean(lg.argmax(axis=1)[DECISIONS] == pi_star[DECISIONS]),
+                      np.abs(vl[DECISIONS] - U_opt[DECISIONS]).mean()) for lg, vl in ts_history])
+uniform_value = float(policy_value(np.full((n_states, 6), 1 / 6))[DECISIONS].mean())
+optimal_value = float(U_opt[DECISIONS].mean())
+write_json({"tiles": STANDARD_TILES, "rewards": {f"{r},{c}": v for (r, c), v in STANDARD_REWARDS.items()},
+            "actions": mdp.actions, "optimal": pi_star[:-1].tolist(),
+            "rounds": [{"best": lg[:-1].argmax(axis=1).tolist(), "values": vl[:-1].round(2).tolist()}
+                       for lg, vl in ts_history],
+            "curve": ts_curve.round(3), "style": {"blue": blue, "orange": orange, "ink": style.INK,
+                                                   "surface": style.SURFACE}}, "data/ch13-tree.json")
+```
+
+```{ojs}
+treeData = FileAttachment("data/ch13-tree.json").json()
+viewof round = Inputs.range([0, treeData.rounds.length - 1], {step: 1, value: 0, label: "Round"})
+```
+
+```{ojs}
+md`Round ${round}: the optimal action on **${Math.round(treeData.curve[round][2] * 21)} of 21** tiles; the critic is off by **${treeData.curve[round][3].toFixed(2)}** on average; the policy's average value is **${treeData.curve[round][0].toFixed(2)}**.`
+```
+
+```{ojs}
+//| label: fig-tree-explorer
+//| fig-cap: "Tree-search actor-critic on Hex World: tiles colored by the critic's value (blue positive, red negative), arrows for the policy's most likely action (black: optimal; orange: not yet)."
+//| fig-alt: "Interactive hexagonal map of 24 tiles in three rows, with reward tiles labeled plus 5, minus 10 and plus 10. Each other tile is shaded by the learned value and carries an arrow for the policy's favorite action. At round 0 all tiles are white and arrows point east; as the round slider increases, tiles near the plus 10 turn blue and arrows turn black as they match the optimal policy."
+{
+  // Hex World drawn as plain SVG: tile (row r, col c) is centered at (c + r%2 / 2, r √3/2) in tile units.
+  const angle = {E: 0, NE: 60, NW: 120, W: 180, SW: 240, SE: 300};
+  const rd = treeData.rounds[round], S = 54, pad = 0.75;
+  const color = d3.scaleDiverging([-10, 0, 10], d3.interpolateRdBu);
+  const px = x => (x + pad) * S, py = y => (y + pad) * S;
+  const hexPath = (x, y) => d3.range(6).map(k => {
+    const t = (k * 60 + 30) * Math.PI / 180;                 // pointy-top hexagon
+    return `${px(x) + 0.56 * S * Math.cos(t)},${py(y) + 0.56 * S * Math.sin(t)}`;
+  }).join(" ");
+  const tiles = treeData.tiles.map(([r, c], i) => {
+    const x = c + 0.5 * (r % 2), y = r * Math.sqrt(3) / 2;
+    const reward = treeData.rewards[`${r},${c}`];
+    const a = angle[treeData.actions[rd.best[i]]] * Math.PI / 180;   // screen y points down, hence -sin
+    return {x, y, reward, v: rd.values[i], dx: 0.28 * Math.cos(a), dy: -0.28 * Math.sin(a),
+            ok: rd.best[i] === treeData.optimal[i]};
+  });
+  // Attribute values are quoted: unquoted values containing spaces (point lists, rgb() colors) break.
+  return svg`<svg width="${11 * S}" height="${3.4 * S}" style="background:${treeData.style.surface}">
+    <defs>${["ink", "orange"].map(k => svg`<marker id="head-${k}" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto">
+      <path d="M0,0 L10,5 L0,10 z" fill="${treeData.style[k]}"/></marker>`)}</defs>
+    ${tiles.map(d => svg`<polygon points="${hexPath(d.x, d.y)}" stroke="#c3c2b7"
+        fill="${d.reward !== undefined ? "#f0efec" : color(d.v)}"/>`)}
+    ${tiles.filter(d => d.reward !== undefined).map(d => svg`<text x="${px(d.x)}" y="${py(d.y) + 4}" text-anchor="middle"
+        font-size="12" font-family="Helvetica" fill="#0b0b0b">${(d.reward > 0 ? "+" : "") + d.reward}</text>`)}
+    ${tiles.filter(d => d.reward === undefined).map(d => svg`<line x1="${px(d.x - d.dx)}" y1="${py(d.y - d.dy)}"
+        x2="${px(d.x + d.dx)}" y2="${py(d.y + d.dy)}" stroke="${d.ok ? treeData.style.ink : treeData.style.orange}"
+        stroke-width="2.5" marker-end="url(#head-${d.ok ? "ink" : "orange"})"/>`)}
+  </svg>`;
+}
+```
+
+## Algorithms & code
+
+### Advantages from the critic
+
+::: {.panel-tabset group="lang"}
+## Python
+```{python}
+#| output: asis
+show_source(td_residuals, generalized_advantages, actor_gradient, critic_gradient, actor_critic_step)
+```
+## Julia
+```{.julia .snippet}
+using ADM, LinearAlgebra, Random, Statistics
+
+γ = REGULATOR_γ
+# δ_k = r_k + γ U(s_{k+1}) - U(s_k) for steps 1..d-1; `values` holds U at every visited state.
+td_residuals(values, R) = R[:, 1:end-1] .+ γ .* values[:, 2:end] .- values[:, 1:end-1]
+
+# GAE by a backward sweep: A_k = δ_k + γλ A_{k+1}.
+function generalized_advantages(δ, λ)
+    A, running = zero(δ), zeros(size(δ, 1))
+    for k in size(δ, 2):-1:1
+        running = δ[:, k] .+ γ * λ .* running
+        A[:, k] = running
+    end
+    return A
+end
+
+# The worked example: U = (-2, -1.5, -1, -0.5), r = (-0.5, -0.3, -0.4, -0.2).
+δ = td_residuals([-2.0 -1.5 -1.0 -0.5], [-0.5 -0.3 -0.4 -0.2])
+@assert δ ≈ [0.15 0.30 0.15]
+@assert generalized_advantages(δ, 0.5) ≈ [0.15 + 0.45 * 0.3675 0.3675 0.15]
+```
+:::
+
+### Deterministic policy gradient
+
+::: {.panel-tabset group="lang"}
+## Python
+```{python}
+#| output: asis
+show_source(deterministic_policy_gradients)
+```
+## Julia
+```{.julia .snippet}
+# Regulator: policy a = θ s, critic Q(s, a) = φ₁ + φ₂ s² + φ₃ (s + a)².
+q_features(s, a) = [1.0, s^2, (s + a)^2]
+dq_da(φ, s, a) = 2φ[3] * (s + a)
+
+# Actor: Σ_k γ^(k-1) s_k ∂Q/∂a(s_k, θ s_k). Critic: TD residual times the gradient of the residual.
+function dpg_gradients(θ, φ, S, A, R)
+    m, d = size(S)
+    actor = sum(γ^(k - 1) * S[i, k] * dq_da(φ, S[i, k], θ * S[i, k]) for i in 1:m, k in 1:d) / m
+    critic = zeros(3)
+    for i in 1:m, k in 1:d-1
+        f, f′ = q_features(S[i, k], A[i, k]), q_features(S[i, k+1], θ * S[i, k+1])
+        δ = R[i, k] + γ * (f′ ⋅ φ) - f ⋅ φ
+        critic .+= δ .* (γ .* f′ .- f) ./ m
+    end
+    return actor, critic
+end
+
+function sample(θ, σ, m, rng)                         # the gain policy plus N(0, σ²) exploration
+    S, A, R = zeros(m, 10), zeros(m, 10), zeros(m, 10)
+    for i in 1:m
+        s = REGULATOR_START[1] + REGULATOR_START[2] * randn(rng)
+        for k in 1:10
+            a = θ * s + σ * randn(rng)
+            S[i, k], A[i, k] = s, a
+            s, R[i, k] = regulator_step(s, a, rng)
+        end
+    end
+    return S, A, R
+end
+
+rng, θ, φ = MersenneTwister(4), 0.0, [0.0, -1.0, -1.0]
+for _ in 1:50
+    S, A, R = sample(θ, 0.5, 5, rng)
+    ga, gc = dpg_gradients(θ, φ, S, A, R)
+    global θ += 0.05 * ga / max(1, abs(ga))           # capped actor step
+    global φ -= 0.05 .* gc
+end
+@assert isapprox(θ, -1.0; atol = 0.15)
+```
+:::
+
+### Tree search as the teacher
+
+::: {.panel-tabset group="lang"}
+## Python
+```{python}
+#| output: asis
+show_source(softmax, GuidedTreeSearch, root_targets, tree_search_actor_critic_step)
+```
+## Julia
+```{.julia .snippet}
+softmax(x) = (z = exp.(x .- maximum(x)); z ./ sum(z))
+
+hw = hex_world()
+nS, nA = size(hw.R)
+sample_next(s, a, rng) = findfirst(cumsum(hw.T[s, a, :]) .>= rand(rng))
+
+# One search from s0: PUCT with prior π(·|s) and leaf values U; returns the root's N and Q.
+function guided_search(s0, logits, U, m, d, c, rng)
+    N, Q = Dict{Int, Vector{Float64}}(), Dict{Int, Vector{Float64}}()
+    function simulate(s, depth)
+        depth <= 0 && return U[s]
+        if !haskey(N, s)                               # new leaf: the critic values it
+            N[s], Q[s] = zeros(nA), zeros(nA)
+            return U[s]
+        end
+        prior = softmax(logits[s, :])
+        a = argmax(Q[s] .+ c .* prior .* sqrt(sum(N[s])) ./ (1 .+ N[s]))
+        q = hw.R[s, a] + hw.γ * simulate(sample_next(s, a, rng), depth - 1)
+        N[s][a] += 1
+        Q[s][a] += (q - Q[s][a]) / N[s][a]
+        return q
+    end
+    for _ in 1:m
+        simulate(s0, d)
+    end
+    return N[s0], Q[s0]
+end
+
+# Rounds of: search from every decision tile, then move its logits and value toward the search.
+decisions = [i for (i, t) in enumerate(ADM.HEX_STANDARD_TILES) if !haskey(ADM.HEX_STANDARD_REWARDS, t)]
+rng = MersenneTwister(0)
+logits, U = zeros(nS, nA), zeros(nS)
+for _ in 1:30, s in decisions
+    Ns, Qs = guided_search(s, logits, U, 100, 10, 5.0, rng)
+    logits[s, :] .-= 1.0 .* (softmax(logits[s, :]) .- Ns ./ sum(Ns))   # cross-entropy gradient
+    U[s] -= 0.5 * (U[s] - maximum(Qs[Ns .> 0]))
+end
+# Compare with the optimal policy (value iteration).
+function optimal_policy()
+    V = zeros(nS)
+    for _ in 1:500
+        V = [maximum(hw.R[s, a] + hw.γ * (hw.T[s, a, :] ⋅ V) for a in 1:nA) for s in 1:nS]
+    end
+    return [argmax([hw.R[s, a] + hw.γ * (hw.T[s, a, :] ⋅ V) for a in 1:nA]) for s in 1:nS]
+end
+@assert mean(argmax(logits[s, :]) == optimal_policy()[s] for s in decisions) >= 0.75
+```
+:::
+
+::: {.callout-note collapse="true" title="Reading the Julia code (for Python programmers)"}
+- **`global θ += ...`** is needed inside a top-level loop to update a variable defined outside it. Julia's scoping rule differs from Python's here.
+- **`function simulate(...)` inside `guided_search`** is a closure: it sees and changes `N` and `Q`, like a nested `def` with `nonlocal`.
+- **`R[:, 1:end-1]`** is all rows, every column but the last, like `R[:, :-1]`.
+- **`for _ in 1:30, s in decisions`** is a nested loop in one line.
+- **`Ns ./ sum(Ns)`** normalizes the visit counts elementwise (the `.` means "for each element").
+:::
+
+### Run them
+
+```{python}
+#| echo: true
+rng = np.random.default_rng(3)
+theta, phi = np.array([0.0, 1.0]), np.zeros(2)
+for _ in range(60):                               # 60 actor-critic updates, lambda = 0.5
+    S, A, R = sr.sample_trajectories(theta, 10, rng)
+    theta, phi = actor_critic_step(theta, phi, S, A, R, G, sr.grad_log_policy,
+                                   features, lam=0.5, alpha_theta=0.1, alpha_phi=0.002)
+```
+
+```{python}
+print(f"actor theta = ({theta[0]:.3f}, {theta[1]:.3f}), exact value {sr.exact_value(theta):.3f} "
+      f"(optimum {U_STAR:.3f}); critic phi = ({phi[0]:.2f}, {phi[1]:.2f})")
+```
+
+### Results
+
+#### The bias–variance trade-off of λ
+
+```{python}
+#| label: fig-gae-tradeoff
+#| fig-cap: "Bias (left) and spread (right) of the policy gradient estimate with generalized advantages, against λ, for three critics: none (φ = 0), halfway, and the least-squares fit. 300 estimates from 10 rollouts each, scored against the exact gradient. A poor critic makes small λ badly biased; larger λ trades that bias for spread."
+#| fig-alt: "Two line charts with lambda from 0 to 1 across. Left, bias: the no-critic line starts near 7.3 at lambda 0 and falls steadily to about 0.8 at lambda 1; the halfway line starts near 4.1 and falls to about 0.5; the fitted-critic line stays below 1 throughout. Right, spread: all three lines rise with lambda, from about 1.2 (no critic), 1.8 (halfway) and 2.9 (fitted) at lambda 0 to about 6.1, 5.5 and 4.9 at lambda 1, crossing near lambda 0.75."
+fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(10, 3.4))
+for q, color, label in zip(QUALITY, (orange, yellow, blue), ("no critic (φ = 0)", "halfway", "fitted critic")):
+    ax1.plot(LAMBDAS, [gae_stats[q, l]["bias"] for l in LAMBDAS], "o-", color=color, label=label)
+    ax2.plot(LAMBDAS, [gae_stats[q, l]["sd"] for l in LAMBDAS], "o-", color=color, label=label)
+ax1.set(xlabel=r"$\lambda$", ylabel="bias (distance from the exact gradient)")
+ax2.set(xlabel=r"$\lambda$", ylabel="spread (standard deviation)")
+ax1.legend(fontsize=8)
+fig.tight_layout()
+plt.show()
+```
+
+The error that matters combines both, the root-mean-square error. It is smallest at $\lambda =$ `{python} best_lam[0.0]` without a critic, `{python} best_lam[0.5]` with the halfway critic, and `{python} best_lam[1.0]` with the fitted one.
+
+#### Learning actor and critic together
+
+```{python}
+#| include: false
+# Actor-critic on the regulator from theta = (0, 1), phi = 0: 60 updates, 10 rollouts each, 20 seeds.
+def learn(lam, seed, alpha_phi, iters=60, critic=True):
+    rng = np.random.default_rng(seed)
+    th, ph, vals = np.array([0.0, 1.0]), np.zeros(2), [sr.exact_value([0.0, 1.0])]
+    for _ in range(iters):
+        S, A, R = sr.sample_trajectories(th, 10, rng)
+        with np.errstate(all="ignore"):
+            if critic:
+                th, ph = actor_critic_step(th, ph, S, A, R, G, sr.grad_log_policy, features, lam, 0.1, alpha_phi)
+            else:                                  # Chapter 11's estimator with a constant baseline
+                th = th + 0.1 * scale_gradient(baseline_gradient(sr.grad_log_policy(th, S, A), R, G), 1.0)
+        vals.append(sr.exact_value(th) if np.all(np.isfinite(th)) else -np.inf)
+    return np.array(vals), ph
+
+
+AC_LAMBDAS = (0.0, 0.5, 0.9, 1.0)
+ac_runs = {lam: [learn(lam, s, 0.002) for s in range(20)] for lam in AC_LAMBDAS}
+no_critic = [learn(0, s, 0, critic=False) for s in range(20)]
+ac_close = {lam: float(np.mean([v[-1] > U_STAR - 0.05 for v, _ in runs])) for lam, runs in ac_runs.items()}
+no_critic_close = float(np.mean([v[-1] > U_STAR - 0.05 for v, _ in no_critic]))
+fast_critic = [learn(0.5, s, 0.02) for s in range(20)]
+fast_critic_bad = float(np.mean([v[-1] < U_STAR - 1 for v, _ in fast_critic]))
+```
+
+```{python}
+#| label: fig-ac-learning
+#| fig-cap: "Actor-critic on the regulator from θ = (0, 1) with a critic starting at zero: the exact value after each update (median of 20 runs), for several λ, and for Chapter 11's estimator with a constant baseline and no critic. Early on the critic knows little, so λ = 0 (trusting it fully) climbs slowest. The other settings, with or without a critic, are close: on this 10-step problem the critic has little variance to remove."
+#| fig-alt: "Line chart with updates 0 to 60 across and minus the exact value on a log scale up the side, all curves starting at about 25. The lambda 0 curve first rises to about 40, then falls, reaching below 1 only around update 14. The lambda 0.5, 0.9 and 1 curves and the dashed no-critic curve fall together, below 1 by about update 10. From about update 15 on, all hover close to the dotted optimum near 0.16."
+fig, ax = plt.subplots(figsize=(6.4, 3.6))
+for lam, color in zip(AC_LAMBDAS, (orange, yellow, green, blue)):
+    curves = np.array([v for v, _ in ac_runs[lam]])
+    ax.plot(-np.median(curves, axis=0), color=color, label=rf"critic, $\lambda$ = {lam}")
+ax.plot(-np.median(np.array([v for v, _ in no_critic]), axis=0), color=style.MUTED, linestyle="--",
+        label="no critic (constant baseline)")
+ax.axhline(-U_STAR, color=style.INK, linestyle=":", linewidth=1)
+ax.set(yscale="log", xlabel="Update", ylabel=r"$-U(\theta)$ (lower is better)")
+ax.legend(fontsize=8)
+plt.show()
+```
+
+After 60 updates, the share of runs within 0.05 of the optimum is `{python} ", ".join(f"{ac_close[l]:.0%} for λ = {l}" for l in AC_LAMBDAS)`, and `{python} f"{no_critic_close:.0%}"` without a critic. With only 10 steps per episode, returns aren't very noisy, so the critic's advantage is small here. It grows with the horizon, because the variance of a return adds up over every step. The critic's step size matters as much as $\lambda$. With a critic step of 0.02 instead of 0.002, `{python} f"{fast_critic_bad:.0%}"` of runs end more than 1 below the optimum. Early states are large (the initial policy lets $s$ grow), so the squared-state feature makes the critic's gradient huge, and the critic's values blow up and drag the actor with them.
+
+#### Exploration in the deterministic policy gradient
+
+```{python}
+#| include: false
+# DPG on the regulator: policy a = theta s, critic Q = phi1 + phi2 s^2 + phi3 (s + a)^2, 5 rollouts per update.
+policy = lambda th, S: th[0] * S
+dpolicy = lambda th, S: S[..., None]
+q_features = lambda S, A: np.stack([np.ones_like(S), S**2, (S + A) ** 2], axis=-1)
+dq_da = lambda ph, S, A: 2 * ph[2] * (S + A)
+SIGMAS = (0.05, 0.2, 0.5, 1.0)
+
+
+def dpg_run(sigma, seed, iters=50):
+    rng = np.random.default_rng(seed)
+    th, ph, gains = np.array([0.0]), np.array([0.0, -1.0, -1.0]), [0.0]
+    for _ in range(iters):
+        S, A, R = sr.sample_trajectories(np.array([th[0], sigma]), 5, rng)
+        with np.errstate(all="ignore"):
+            ga, gc = deterministic_policy_gradients(th, ph, S, A, R, G, policy, dpolicy, q_features, dq_da)
+            th = th + 0.05 * scale_gradient(ga, 1.0)
+            ph = ph - 0.05 * gc
+        gains.append(th[0])
+    return np.array(gains), ph
+
+
+dpg = {sg: [dpg_run(sg, s) for s in range(20)] for sg in SIGMAS}
+dpg_final = {sg: float(np.median([g[-1] for g, _ in runs])) for sg, runs in dpg.items()}
+dpg_blowup = {sg: float(np.mean([not np.all(np.abs(ph) < 1e3) for _, ph in runs])) for sg, runs in dpg.items()}
+```
+
+```{python}
+#| label: fig-dpg
+#| fig-cap: "Deterministic policy gradient on the regulator: the policy's gain θ after each update (median of 20 runs; the optimum is −1), for four levels of exploration noise σ."
+#| fig-alt: "Line chart with updates 0 to 50 across and the gain from 0 down to minus 1 up the side, with a dotted line at minus 1. Sigma 0.05 descends slowly to about minus 0.7; sigma 0.2 to about minus 0.9; sigma 0.5 reaches minus 1 by about update 25; sigma 1.0 stalls near minus 0.3."
+fig, ax = plt.subplots(figsize=(6.4, 3.4))
+for sg, color in zip(SIGMAS, (yellow, green, blue, orange)):
+    ax.plot(np.median(np.array([g for g, _ in dpg[sg]]), axis=0), color=color, label=rf"$\sigma$ = {sg}")
+ax.axhline(-1, color=style.INK, linestyle=":", linewidth=1)
+ax.set(xlabel="Update", ylabel=r"gain $\theta$")
+ax.legend(fontsize=8)
+plt.show()
+```
+
+The median gain after 50 updates is `{python} ", ".join(f"{dpg_final[s]:.2f} with σ = {s}" for s in SIGMAS)`.
+
+- **Too little noise** teaches the critic little about how $Q$ depends on the action, so progress is slow.
+- **Too much noise** pushes the state far from 0, where the quadratic critic's TD updates become huge. The critic's parameters blew up in `{python} f"{dpg_blowup[1.0]:.0%}"` of the runs with $\sigma = 1$, and the actor followed its wrong slopes.
+
+#### Tree search as a teacher
+
+```{python}
+#| label: fig-tree-search
+#| fig-cap: "Tree-search actor-critic on Hex World, from a uniform random policy and a zero critic (100 simulations per search, one search per tile per round). Left: average value over the 21 decision tiles of the learned stochastic policy and of its greedy version, against the optimum (dotted) and the uniform random policy (dashed). Middle: share of tiles where the policy's favorite action is optimal. Right: the critic's average error against the optimal values."
+#| fig-alt: "Three line charts with rounds 0 to 30 across. Left: the stochastic policy's value starts at about minus 3.5, the uniform random level, and rises steadily to about 4.3; the greedy version starts at about minus 5.7 (with all logits equal, every tile's favorite is the first action, east), jumps to about 3.2 after one round and reaches about 4.5, on the dotted optimum line. Middle: the share of optimal actions rises from about 0.33 to 0.8 within three rounds and to 0.95 by round 25. Right: the critic's average error falls from about 4.5 to about 0.3 by round 8 and about 0.2 by round 30."
+fig, (ax1, ax2, ax3) = plt.subplots(1, 3, figsize=(11, 3.2))
+rounds = np.arange(ROUNDS + 1)
+ax1.plot(rounds, ts_curve[:, 0], color=blue, label="learned policy")
+ax1.plot(rounds, ts_curve[:, 1], color=green, label="its greedy version")
+ax1.axhline(optimal_value, color=style.INK, linestyle=":", linewidth=1, label="optimal")
+ax1.axhline(uniform_value, color=style.MUTED, linestyle="--", linewidth=1, label="uniform random")
+ax1.set(xlabel="Round", ylabel="average value")
+ax1.legend(fontsize=7, loc="lower right")
+ax2.plot(rounds, ts_curve[:, 2], color=blue)
+ax2.set(xlabel="Round", ylabel="share of optimal actions", ylim=(0, 1.02))
+ax3.plot(rounds, ts_curve[:, 3], color=orange)
+ax3.set(xlabel="Round", ylabel="critic's average error", ylim=(0, None))
+fig.tight_layout()
+plt.show()
+```
+
+After `{python} ROUNDS` rounds, the greedy policy picks the optimal action on `{python} round(ts_curve[-1, 2] * 21)` of 21 tiles and averages `{python} f"{ts_curve[-1, 1]:.2f}"`, against the optimal `{python} f"{optimal_value:.2f}"`. The critic's values are off by `{python} f"{ts_curve[-1, 3]:.2f}"` on average.
+
+## Solved problems
+
+**Problem 1: the TD residual of a perfect critic.** Show that if $U_\phi = U^\pi$, then $\mathbb{E}[\delta \mid s, a] = A^\pi(s, a)$.
+
+::: {.callout-tip collapse="true" title="Solution"}
+$\mathbb{E}[\delta \mid s, a] = \mathbb{E}[r + \gamma U^\pi(s') \mid s, a] - U^\pi(s) = Q^\pi(s, a) - U^\pi(s) = A^\pi(s, a)$. The first expectation is the definition of $Q^\pi$: the expected reward plus the discounted value of the next state. The estimate is exact on average, and its noise comes from one step only.
+:::
+
+**Problem 2: GAE's two extremes.** Write out $\hat A^{\text{GAE}}$ for a 3-step episode with $\lambda = 0$ and $\lambda = 1$, in terms of rewards and critic values.
+
+::: {.callout-tip collapse="true" title="Solution"}
+- **$\lambda = 0$:** $\hat A_1 = \delta_1 = r_1 + \gamma U(s_2) - U(s_1)$. Only the first reward is used.
+- **$\lambda = 1$:** $\hat A_1 = \delta_1 + \gamma\delta_2 + \gamma^2\delta_3 = r_1 + \gamma r_2 + \gamma^2 r_3 + \gamma^3 U(s_4) - U(s_1)$. The intermediate critic values cancel.
+
+So $\lambda = 1$ uses the critic only as a baseline at the start and a bootstrap at the very end. If the episode ends at step 3, it uses the critic only as a baseline.
+:::
+
+**Problem 3: a Jacobian for the deterministic policy gradient.** A policy outputs two actions, $\pi_\theta(s) = (\theta_1 s,\ \theta_2 + \theta_3 s^2)$. Write $\nabla_\theta \pi_\theta(s)$, and the actor's gradient if $\nabla_a Q = (g_1, g_2)$.
+
+::: {.callout-tip collapse="true" title="Solution"}
+Column $j$ is the gradient of action $j$:
+$$\nabla_\theta \pi_\theta(s) = \begin{pmatrix} s & 0 \\ 0 & 1 \\ 0 & s^2 \end{pmatrix}.$$
+The actor's gradient is $\nabla_\theta\pi\,\nabla_a Q = (s g_1,\ g_2,\ s^2 g_2)$. $\theta_1$ follows the first action's slope; $\theta_2$ and $\theta_3$ follow the second's.
+:::
+
+**Problem 4: cross entropy for a softmax policy.** A tile's policy is $\pi_\theta = \operatorname{softmax}(z)$ over three actions with logits $z = (0, 0, 0)$. The search visited the actions 6, 3 and 1 times. With step size 1, what are the new logits and probabilities?
+
+::: {.callout-tip collapse="true" title="Solution"}
+$\pi_\theta = (1/3, 1/3, 1/3)$ and $\pi_{\text{MCTS}} = (0.6, 0.3, 0.1)$. The gradient of the cross entropy with respect to the logits is $\pi_\theta - \pi_{\text{MCTS}} = (-0.267, 0.033, 0.233)$. Stepping against it, the new logits are $z = (0.267, -0.033, -0.233)$, giving $\operatorname{softmax}(z) \approx (0.42, 0.31, 0.26)$. That's a step toward the search's preferences.
+:::
+
+**Problem 5: which λ?** Early in training the critic is poor; late in training it's accurate. How should $\lambda$ change, and why do practical systems often just fix $\lambda \approx 0.95$?
+
+::: {.callout-tip collapse="true" title="Solution"}
+Early, a poor critic makes small $\lambda$ badly biased (@fig-gae-tradeoff), so a large $\lambda$ is safer. Late, the critic's bias is small, so a smaller $\lambda$ cuts variance. A fixed $\lambda \approx 0.95$ is a compromise that stays close to unbiased while still trimming the variance from rewards far in the future. Here the effective horizon is short (10 steps), so the benefit of small $\lambda$ is modest. In long tasks, where $\sum_k \gamma^k r_k$ is extremely noisy, it's much larger.
+:::
+
+## Recap
+
+1. **An actor-critic learns a policy and a value function together; the critic supplies advantages for the actor's gradient (@eq-td-residual, @eq-critic).**
+   *Why it matters:* it's how policy gradients become practical: lower variance, and learning from every step instead of waiting for whole episodes.
+2. **GAE's $\lambda$ trades the critic's bias against the returns' variance (@eq-k-step, @eq-gae).**
+   *Why it matters:* with no critic, $\lambda = 0$ missed the gradient by `{python} f"{gae_stats[0.0, 0.0]['bias']:.1f}"`; with a fitted critic, $\lambda = 0$ gave the smallest error of all. The right $\lambda$ depends on how good the critic is.
+3. **Two coupled learners need compatible step sizes.**
+   *Why it matters:* a critic that steps too fast can blow up and take the actor with it. This is the root of many practical tricks, such as target networks and slower critic updates.
+4. **The deterministic policy gradient follows the critic's slope in the action (@eq-dpg).**
+   *Why it matters:* it handles continuous actions directly (DDPG, TD3), but it needs deliberate exploration noise, neither too little nor too much.
+5. **Tree search can teach the actor and critic (@eq-puct, @eq-tree-targets).**
+   *Why it matters:* planning improves on the networks, and the networks make the next planning cheaper. This loop took AlphaGo Zero from random play to superhuman Go.
+
+## Cheat sheet & connections
+
+| Name | Formula | Ref |
+|---|---|---|
+| ★ TD residual | $\delta_k = r_k + \gamma U_\phi(s_{k+1}) - U_\phi(s_k)$ | @eq-td-residual |
+| Critic gradient | $\sum_k (U_\phi(s_k) - r_{\text{to-go}}^{(k)}) \nabla_\phi U_\phi(s_k)$ | @eq-critic |
+| $k$-step advantage | $\sum_{\ell \le k} \gamma^{\ell-1} r_\ell + \gamma^k U(s_{k+1}) - U(s) = \sum_{\ell \le k}\gamma^{\ell-1}\delta_\ell$ | @eq-k-step |
+| ★ GAE | $\sum_k (\gamma\lambda)^{k-1} \delta_k$ | @eq-gae |
+| ★ Deterministic policy gradient | $\mathbb{E}_s[\nabla_\theta\pi_\theta(s)\, \nabla_a Q_\phi(s, a)]$ | @eq-dpg |
+| PUCT | $Q(s,a) + c\,\pi_\theta(a \mid s)\sqrt{N(s)}/(1 + N(s,a))$ | @eq-puct |
+| Tree search targets | $\pi_{\text{MCTS}} \propto N^\eta$, $U_{\text{MCTS}} = \max_a Q$ | @eq-tree-targets |
+
+: Key equations from this page (★ = well-known by name). {#tbl-cheatsheet}
+
+**Common pitfalls**
+
+- **Trusting a new critic.** Small $\lambda$ with an untrained critic gives confident but wrong advantages. Start with larger $\lambda$, or pretrain the critic.
+- **Critic step sizes tuned for small states.** Features such as $s^2$ can be huge early on. Scale features, cap the critic's step, or step the critic more slowly.
+- **No exploration with deterministic policies.** Without action noise, the critic never learns $\partial Q/\partial a$ away from the policy's own actions.
+- **Training on thin search statistics.** Search targets from rarely visited states are noisy. Train where the search spent its simulations (here, the root).
+- **Forgetting that the critic chases a moving target.** As the actor changes, the true value changes. The critic always lags a little.
+
+**Connections**
+
+- [Ch 11 · Policy Gradient Estimation](ch11-policy-gradient-estimation.qmd): baselines and the advantage form, which the critic makes practical.
+- [Ch 12 · Policy Gradient Optimization](ch12-policy-gradient-optimization.qmd): TRPO and PPO typically use GAE advantages.
+- [Ch 8 · Approximate Value Functions](ch08-approximate-value-functions.qmd): the critic is a fitted value function.
+- [Ch 9 · Online Planning](ch09-online-planning.qmd): Monte Carlo tree search, here guided by a learned policy and value.
+- [Ch 17 · Model-Free Methods](../part3/ch17-model-free-methods.qmd): TD learning, replay buffers and target networks.

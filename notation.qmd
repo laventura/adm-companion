@@ -95,6 +95,12 @@ This site uses the book's notation. Symbols are added here as chapters are writt
 | $f(\theta, \theta')$, $g(\theta, \theta')$ | TRPO's surrogate objective and surrogate KL constraint | Ch 12 |
 | $b_{\gamma,\theta}(s)$ | Discounted state-visitation distribution of $\pi_\theta$ | Ch 12 |
 | $w = \pi_{\theta'}(a \mid s) / \pi_\theta(a \mid s)$ | Probability ratio (importance weight) | Ch 12 |
+| $U_\phi(s)$, $Q_\phi(s, a)$ | The critic: a value function with parameters $\phi$ | Ch 13 |
+| $\delta_k$ | Temporal difference residual $r_k + \gamma U(s_{k+1}) - U(s_k)$ | Ch 13 |
+| $\hat A^{(k)}$, $\hat A^{\text{GAE}}$ | $k$-step and generalized advantage estimates | Ch 13 |
+| $\lambda$ | GAE weight between TD residuals ($\lambda = 0$) and full returns ($\lambda = 1$) | Ch 13 |
+| $\nabla_\theta \pi_\theta(s)$ | Jacobian of a deterministic policy (one column per action component) | Ch 13 |
+| $\pi_{\text{MCTS}}$, $U_{\text{MCTS}}$, $\eta$ | Tree search's visit-count policy (sharpened by $\eta$) and value | Ch 13 |
 | $o$ | An observation | Ch 19 |
 | $O(o \mid a, s')$ | Observation model: probability of observing $o$ after taking $a$ and landing in $s'$ | Ch 19 |
 | $b(s)$ | Belief: probability that the current state is $s$, given the history | Ch 19 |

@@ -70,7 +70,7 @@ This page collects every problem used on the site, implemented in both Python (`
 | F.7 Crying Baby | POMDP | ✅ [below](#crying-baby) |
 | F.8 Machine Replacement | POMDP | added when first used |
 | F.9 Catch | POMDP | added when first used |
-| F.10–F.12 Prisoner's Dilemma, Rock-Paper-Scissors, Traveler's Dilemma | Simple games | added with Part V |
+| F.10–F.12 Prisoner's Dilemma, Rock-Paper-Scissors, Traveler's Dilemma | Simple games | ✅ [below](#simple-games) |
 | F.13–F.15 Predator-Prey Hex World, Multicaregiver Crying Baby, Collaborative Predator-Prey | Multiagent | added with Part V |
 
 : Appendix F problems on this site. {#tbl-problems}
@@ -341,6 +341,36 @@ b = update_discrete([0.8, 0.2], p.T, p.O, 3, 1)       # ignore, then hear crying
 
 **Where it's used.** [Ch 20](../part4/ch20-exact-belief-state-planning.qmd): conditional plans, alpha vectors, pruning and exact value iteration. The long-horizon policy ignores the baby until $P(\text{hungry})$ reaches about 0.28, then feeds; with the problem as defined here, singing is never optimal. [Ch 21](../part4/ch21-offline-belief-state-planning.qmd): every offline bound is compared with the exact value. [Ch 22](../part4/ch22-online-belief-state-planning.qmd): forward search, branch and bound, sparse sampling, determinized search, Monte Carlo tree search and gap heuristic search, all scored against the exact solution. [Ch 23](../part4/ch23-controller-abstractions.qmd): a 2-node controller ("feed on crying, but not twice in a row") is exactly optimal; policy iteration and gradient ascent find it.
 
+## Simple games {#simple-games}
+
+**The story.** Three one-round games for two agents, who choose at the same time. In the **prisoner's dilemma** (F.10), each prisoner can stay silent (cooperate) or blame the other (defect); rewards are minus the years served. In **rock-paper-scissors** (F.11), the winner gets 1 and the loser −1. In the **traveler's dilemma** (F.12; K. Basu, 1994), two travelers claim between \$2 and \$100 for identical lost suitcases; equal claims are paid, otherwise both are paid the lower claim, plus \$2 for the lower claimant and minus \$2 for the higher. All three store $R[i, a^1, a^2]$, agent $i$'s reward, with discount 0.9 when repeated.
+
+| Game | Actions | Rewards (agent 1, agent 2) |
+|---|---|---|
+| Prisoner's dilemma | cooperate, defect | (C, C) −1, −1; (C, D) −4, 0; (D, C) 0, −4; (D, D) −3, −3 |
+| Rock-paper-scissors | rock, paper, scissors | winner 1, loser −1, draw 0 |
+| Traveler's dilemma | claims \$2–\$100 (99 actions) | equal: both get the claim; else lower + 2 and lower − 2 |
+
+: The simple games. {#tbl-simple-games}
+
+::: {.panel-tabset group="lang"}
+## Python
+```{python}
+#| echo: true
+from adm.problems.simple_games import prisoners_dilemma, rock_paper_scissors, travelers_dilemma
+game = travelers_dilemma()               # R[i, a1, a2]; action 0 = $2
+print(game.R[:, 97, 98])                 # claims $99 and $100: [101.  97.]
+```
+## Julia
+```{.julia .snippet}
+using ADM
+g = travelers_dilemma()                  # R[i, a1, a2]; action 1 = $2
+@assert g.R[:, 98, 99] == [101.0, 97.0]  # claims $99 and $100
+```
+:::
+
+**Where it's used.** [Ch 24](../part5/ch24-multiagent-reasoning.qmd): defecting is a dominant strategy in the prisoner's dilemma; rock-paper-scissors has only a mixed Nash equilibrium, and iterated best response cycles in it; in the traveler's dilemma best responses unravel to \$2, while a hierarchical softmax model predicts claims near \$90.
+
 ## Problems made for this site
 
 The chapters also use small original problems, built to make one idea easy to see. The ones reused across pages get a full entry here, in both languages; the rest are listed in @tbl-originals.
@@ -599,6 +629,34 @@ p = fork()                                # 1-based: actions 1 wait, 2 ask, 3 go
 :::
 
 **Where it's used.** [Ch 21](../part4/ch21-offline-belief-state-planning.qmd): QMDP and the fast informed bound both wait forever; point-based value iteration asks until fairly sure, and its lower bound meets a triangulated upper bound at about 27.11. [Ch 22](../part4/ch22-online-belief-state-planning.qmd): a one-step lookahead on QMDP waits forever, but a two-step forward search on the same values asks, and acts exactly like the point-based policy; Monte Carlo tree search learns to ask when its exploration constant matches the reward scale. [Ch 23](../part4/ch23-controller-abstractions.qmd): no controller with fewer than 4 nodes beats waiting; a 5-node controller that counts the answers is optimal; gradient ascent from random starts always ends up waiting.
+
+### The intersection {#the-intersection}
+
+**The story.** Two drivers reach an empty intersection at the same moment, and each chooses to go or stop. If one goes and the other stops, the one who goes saves time (+3) and the other gets 0. If both go they nearly crash (−10 each); if both stop they both waste time (−1 each). It is a game of chicken: there's no dominant strategy, there are two pure Nash equilibria that each favor one driver, and a mixed one that is bad for both. A traffic light, a correlated equilibrium, gives each driver 1.5.
+
+| Driver 1 \\ Driver 2 | go | stop |
+|---|---:|---:|
+| **go** | −10, −10 | 3, 0 |
+| **stop** | 0, 3 | −1, −1 |
+
+: The intersection (driver 1's reward, driver 2's reward). {#tbl-intersection}
+
+::: {.panel-tabset group="lang"}
+## Python
+```{python}
+#| echo: true
+from adm.problems.simple_games import intersection
+game = intersection()                     # R[i, a1, a2]; 0 = go, 1 = stop
+```
+## Julia
+```{.julia .snippet}
+using ADM
+g = intersection()                        # 1-based: 1 = go, 2 = stop
+@assert g.R[1, 1, 2] == 3.0 && g.R[2, 1, 2] == 0.0
+```
+:::
+
+**Where it's used.** [Ch 24](../part5/ch24-multiagent-reasoning.qmd): three Nash equilibria (the mixed one, going with probability 2/7, is worth −5/7 to each); the traffic light as a correlated equilibrium; fictitious play from identical starting counts moves in lockstep, matching the mixed equilibrium's frequencies while earning −3.57 per round.
 
 ### Other problems on this site
 

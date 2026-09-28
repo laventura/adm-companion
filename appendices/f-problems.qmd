@@ -259,7 +259,7 @@ using ADM
 ```
 :::
 
-**Where it's used.** [Ch 10](../part2/ch10-policy-search.qmd): every policy search method is scored by the exact value of the policy it finds. [Ch 11](../part2/ch11-policy-gradient-estimation.qmd): the exact gradient (`exact_gradient`, from differentiating the same recursion) scores every gradient estimator's bias and variance.
+**Where it's used.** [Ch 10](../part2/ch10-policy-search.qmd): every policy search method is scored by the exact value of the policy it finds. [Ch 11](../part2/ch11-policy-gradient-estimation.qmd): the exact gradient (`exact_gradient`, from differentiating the same recursion) scores every gradient estimator's bias and variance. [Ch 12](../part2/ch12-policy-gradient-optimization.qmd): the policy's `log_policy` and `policy_kl` drive TRPO and PPO, and exact values score every update rule.
 
 ## Problems made for this site
 

@@ -198,3 +198,37 @@ end
     @test forward_search_belief(fk, b0, 2, b -> 0.0).a == 1 && forward_search_belief(fk, b0, 3, b -> 0.0).a == 2
     @test count(i -> HistoryMCTS(fk; d = 20, c = 50.0)(b0, 1000, MersenneTwister(i)) == 2, 1:20) >= 18
 end
+
+@testset "controllers (Ch 23)" begin
+    p, fk, b0 = crying_baby(), fork(), [0.5, 0.5]
+    opt = utility(value_iteration_pomdp(p, 200)[1][end][2], b0)
+    # Two 2-node controllers: feed on crying; the wiser one never feeds twice in a row.
+    react = deterministic_controller(p, [3, 1], [[2, 1], [2, 1]])
+    wise = deterministic_controller(p, [3, 1], [[2, 1], [1, 1]])
+    @test controller_value(p, wise, b0).u ≈ opt atol = 1e-6
+    @test controller_value(p, react, b0).u < opt - 0.5
+    # Evaluation agrees with simulation (5,000 runs from the feed node).
+    rets = [run_controller(p, wise, 2, rand(MersenneTwister(i), 1:2), 100, MersenneTwister(i))[1] for i in 1:5000]
+    @test abs(mean(rets) - controller_value(p, wise, b0).u) < 3 * std(rets) / sqrt(5000)
+    # The fork: counting answers (5 nodes) is optimal; 4-node brute force gets 15.33, 3 nodes only wait.
+    counter = deterministic_controller(fk, [2, 2, 2, 4, 3], [[3, 2], [1, 4], [5, 1], [1, 1], [1, 1]])
+    @test controller_value(fk, counter, b0).u ≈ 27.1149 atol = 1e-3
+    @test best_deterministic_controller(fk, 3, b0).u ≈ 0 atol = 1e-9
+    @test best_deterministic_controller(p, 2, b0).u ≈ opt atol = 1e-6
+    # Policy iteration reaches the optimum on both problems.
+    _, h = controller_policy_iteration(p, b0; k_max = 4)
+    @test h[end][2] ≈ opt atol = 1e-6
+    _, hf = controller_policy_iteration(fk, b0; k_max = 4)
+    @test hf[end][2] ≈ controller_value(fk, counter, b0).u atol = 1e-6
+    # The gradient matches finite differences; projection lands on the simplex.
+    c = random_controller(p, 2, MersenneTwister(3))
+    g = controller_gradient(p, c, b0)
+    ψ2 = copy(c.ψ); ψ2[2, 1] += 1e-6
+    @test (controller_gradient(p, Controller(ψ2, c.η), b0).J - g.J) / 1e-6 ≈ g.ψ[2, 1] rtol = 1e-4
+    η2 = copy(c.η); η2[1, 3, 1, 2] += 1e-6
+    @test (controller_gradient(p, Controller(c.ψ, η2), b0).J - g.J) / 1e-6 ≈ g.η[1, 3, 1, 2] rtol = 1e-4
+    @test project_simplex([0.7, 0.5, -0.1]) ≈ [0.6, 0.4, 0.0]
+    # Gradient ascent: optimal for the crying baby from most starts; stuck waiting at the fork.
+    @test count(i -> controller_gradient_ascent(p, b0, 2, MersenneTwister(i); α = 0.003, k_max = 3000)[2][end] > opt - 0.01, 1:10) >= 6
+    @test abs(controller_gradient_ascent(fk, b0, 5, MersenneTwister(1); α = 0.003, k_max = 3000)[2][end]) < 1e-3
+end

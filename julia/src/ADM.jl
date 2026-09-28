@@ -25,6 +25,7 @@ include("pomdp/value_iteration.jl")
 include("problems/fork.jl")
 include("pomdp/offline.jl")
 include("pomdp/online.jl")
+include("pomdp/controllers.jl")
 
 export write_json, show_source
 export predict_discrete, correct_discrete, update_discrete
@@ -52,6 +53,9 @@ export freudenthal, triangulated_iteration
 export pomdp_step, belief_rollout, forward_search_belief, branch_and_bound_belief, sparse_sampling_belief
 export HistoryMCTS, mcts_explore, mcts_simulate!, DeterminizedParticle, successor, determinized_belief
 export particle_belief, determinized_search, gap_heuristic_search, run_pomdp
+export Controller, nnodes, deterministic_controller, controller_chain, evaluate_controller, controller_value
+export run_controller, reachable_nodes, controller_policy_iteration, controller_gradient, project_simplex
+export controller_gradient_ascent, random_controller, best_deterministic_controller
 
 """
     write_json(obj, path) -> path

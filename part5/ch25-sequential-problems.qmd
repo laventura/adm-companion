@@ -1,8 +1,631 @@
 ---
 title: "25 · Sequential Problems"
 subtitle: "Part V — Multiagent Systems"
+jupyter: python3
+execute:
+  echo: false
 ---
 
 ::: {.callout-note appearance="minimal"}
-**In progress.** This page will cover ADM Ch. 25, *Sequential Problems*.
+**Executed in:** Python · **Book:** ADM Ch. 25 · **Lecture:** to be added
 :::
+<!-- TODO(video): link the official Stanford AA228 lecture on Markov games. -->
+
+```{python}
+#| include: false
+import itertools
+
+import numpy as np
+import matplotlib.pyplot as plt
+
+from adm import markov_games as M
+from adm import style
+from adm.io import write_json
+from adm.mdp import policy_iteration
+from adm.page import show_source
+from adm.problems.markov_games import (PREDATOR_PREY_TILES, PREDATOR_START, PREY_START, lake,
+                                       predator_prey)
+
+style.apply()
+blue, orange, green, yellow, pink, dkgreen, purple, red = style.CATEGORICAL
+fmt = lambda x, d=2: f"{x:.{d}f}".replace("-", "−")
+
+# --- The lake ---------------------------------------------------------------------------------
+LK = lake()
+LIGHT, HEAVY = np.eye(2)[[0, 0, 0]], np.eye(2)[[1, 1, 1]]
+GOOD = np.eye(2)[[0, 0, 1]]                              # light unless the stock is high
+PAIRS = {"both always light": [LIGHT, LIGHT], "both always heavy": [HEAVY, HEAVY],
+         "both light unless high": [GOOD, GOOD], "one light, one heavy": [LIGHT, HEAVY]}
+U_PAIR = {k: M.policy_evaluation(LK, v) for k, v in PAIRS.items()}
+X_PAIR = {k: M.exploitability(LK, v) for k, v in PAIRS.items()}
+BR_LIGHT, U_BR_LIGHT = M.best_response(LK, [LIGHT, LIGHT], 0)
+# Every pure stationary joint policy: which are Nash equilibria?
+PURE_EQ = []
+for c1, c2 in itertools.product(itertools.product(range(2), repeat=3), repeat=2):
+    if M.exploitability(LK, [np.eye(2)[list(c1)], np.eye(2)[list(c2)]]) < 1e-9:
+        PURE_EQ.append((c1, c2))
+assert PURE_EQ == [((0, 0, 1), (0, 0, 1)), ((1, 1, 1), (1, 1, 1))]
+# The team optimum: one MDP over joint actions, maximizing total catch.
+TEAM_PI, TEAM_U = policy_iteration(LK.T.reshape(3, 4, 3), (LK.R[0] + LK.R[1]).reshape(3, 4),
+                                   LK.gamma, np.zeros(3, int))[:2]
+assert list(TEAM_PI) == [0, 0, 3] and np.allclose(TEAM_U, U_PAIR["both light unless high"].sum(0))
+NLP_POL, NLP_X = M.nash_equilibrium(LK, np.random.default_rng(0))
+NLP_U = M.policy_evaluation(LK, NLP_POL)
+# One-step deviation from "both always light" at a high stock.
+Q_DEV = LK.R[0, 2, 1, 0] + LK.gamma * LK.T[2, 1, 0] @ U_PAIR["both always light"][0]
+SOFT = {lam: M.softmax_response(LK, [GOOD, GOOD], 0, lam)[:, 1] for lam in (0.1, 1.0, 10.0)}
+
+# Learning in the lake: 20 seeds each, classified by where the run ends.
+def classify(pols):
+    x = M.exploitability(LK, pols)
+    if x > 1e-6:
+        return "not an equilibrium"
+    return "good equilibrium" if all(np.array_equal(p, GOOD) for p in pols) else "tragedy"
+def fp_outcome(seed):
+    tr = M.fictitious_play(LK, 5000, np.random.default_rng(seed), s0=2)["trace"][-500:]
+    if all(a1 == 1 and a2 == 1 for _, a1, a2 in tr):
+        return "tragedy"
+    return "good equilibrium" if all((s == 2) == (a1 == 1 and a2 == 1) for s, a1, a2 in tr) \
+        else "not an equilibrium"
+LEARN = {
+    "fictitious play": [fp_outcome(s) for s in range(20)],
+    "Nash Q, ε = 0.2": [classify(M.nash_q_learning(LK, 10000, np.random.default_rng(s), s0=2, eps=0.2)[1])
+                        for s in range(20)],
+    "Nash Q, book's ε": [classify(M.nash_q_learning(LK, 10000, np.random.default_rng(s), s0=2)[1])
+                         for s in range(20)],
+    "gradient ascent": [classify(M.gradient_ascent_play(LK, 20000, np.random.default_rng(s), s0=2))
+                        for s in range(20)],
+}
+count = lambda k, o: LEARN[k].count(o)
+# Why the book's exploration schedule fails: joint actions never tried (visits = N - 1 = 0).
+NQ_UNTRIED = {eps: [int(((M.nash_q_learning(LK, 10000, np.random.default_rng(s), s0=2, eps=eps)[2] - 1) == 0).sum())
+                    for s in range(20)] for eps in (None, 0.2)}
+T_LOW, T_HIGH = min(NQ_UNTRIED[None]), max(NQ_UNTRIED[None])
+assert max(NQ_UNTRIED[0.2]) == 0
+assert NLP_X < 1e-9 and 0 < NLP_POL[0][1, 0] < 1       # a genuinely mixed equilibrium
+GA_X = [M.exploitability(LK, M.gradient_ascent_play(LK, 20000, np.random.default_rng(s), s0=2))
+        for s in range(20)]
+
+# --- Predator-prey hex world --------------------------------------------------------------------
+PP = predator_prey()
+TILES = PREDATOR_PREY_TILES
+N_T = len(TILES)
+S0 = TILES.index(PREDATOR_START) * N_T + TILES.index(PREY_START)
+RAND = np.full((N_T ** 2, 6), 1 / 6)
+BR_PRED, U_BR_PRED = M.best_response(PP, [RAND, RAND], 0)
+BR_PREY, _ = M.best_response(PP, [BR_PRED, RAND], 1)
+U_RAND_PREY = M.policy_evaluation(PP, [BR_PRED, RAND])[:, S0]
+U_BR_PREY = M.policy_evaluation(PP, [BR_PRED, BR_PREY])[:, S0]
+IBR = M.iterated_best_response(PP, 12)
+IBR_U = np.array([M.policy_evaluation(PP, p)[:, S0] for p in IBR[1:]])
+IBR_X = M.exploitability(PP, IBR[-1])
+FP_STEPS = (1000, 5000, 20000, 50000)
+FP_PP = {}
+for n in FP_STEPS:
+    FP_PP[n] = []
+    for seed in range(3):
+        N = M.fictitious_play(PP, n, np.random.default_rng(seed), s0=S0, reset=10)["N"]
+        FP_PP[n].append([Ni / Ni.sum(1, keepdims=True) for Ni in N])
+FP_X = {n: [M.exploitability(PP, p) for p in FP_PP[n]] for n in FP_STEPS}
+```
+
+## Big picture
+
+### Where this chapter fits
+
+[Chapter 24](ch24-multiagent-reasoning.qmd) had agents meet once, with no state. Here they interact over time in a changing world: a **Markov game** (also called a stochastic game) is an MDP ([Chapter 7](../part2/ch07-exact-solution-methods.qmd)) with several agents, each with its own reward, whose joint action moves a shared state. The ideas of Chapter 24 carry over, with values in place of one-shot rewards: best responses become MDPs, and equilibria become joint policies over states. [Chapter 26](ch26-state-uncertainty.qmd) removes the assumption that everyone sees the state.
+
+**The question:** when several agents act repeatedly in a shared, changing world, what are sensible joint policies, and how do agents find them?
+
+The short answer: **fix the others and you have an MDP; ask everyone to be at a best response at once and you have a Nash equilibrium; let them learn from play and they may reach one, or not.**
+
+- **Policy evaluation** of a joint policy is a linear solve, one value function per agent.
+- **Best response**: with the others' policies fixed, an agent faces an MDP.
+- **Nash equilibria** exist for every finite discounted game, can be found by nonlinear programming, and there may be several.
+- **Learning**: fictitious play, gradient ascent and Nash Q-learning adapt policies from experience.
+
+```{dot}
+//| label: fig-ch25-map
+//| fig-width: 4.12
+//| fig-height: 4.34
+//| fig-cap: "Map of this chapter. A Markov game gives each agent a value for any joint policy. Fixing the others turns an agent's problem into an MDP; equilibria make every agent's problem solved at once; learning rules adapt toward them from experience."
+//| fig-alt: "Diagram. A blue box, Markov game (states, joint actions, rewards per agent), points to Policy evaluation (a linear solve per agent). That points, labeled fix the others, to Best response (an MDP per agent), and labeled everyone at once, to Nash equilibrium (nonlinear program). Best response points, labeled repeat and adapt, to Learning from play (fictitious play, gradient ascent, Nash Q-learning), which points to Nash equilibrium, labeled may reach."
+digraph ch25 {
+  rankdir=TB; bgcolor="#fcfcfb"; pad=0.25; nodesep=0.4; ranksep=0.45;
+  node [shape=box, style="rounded,filled", fillcolor="white", color="#c3c2b7", penwidth=1.2,
+        fontname="Helvetica", fontsize=13, fontcolor="#0b0b0b", margin="0.12,0.07"];
+  edge [color="#52514e", penwidth=1.2, arrowsize=0.7, fontname="Helvetica", fontsize=11, fontcolor="#52514e"];
+  mg [label=<<B>Markov game</B><BR/><FONT POINT-SIZE="11">states, joint actions, rewards per agent</FONT>>, fillcolor="#cde2fb", color="#2a78d6"];
+  ev [label=<<B>Policy evaluation</B><BR/><FONT POINT-SIZE="11">a linear solve per agent</FONT>>];
+  br [label=<<B>Best response</B><BR/><FONT POINT-SIZE="11">an MDP per agent</FONT>>];
+  ne [label=<<B>Nash equilibrium</B><BR/><FONT POINT-SIZE="11">nonlinear program</FONT>>, fillcolor="#cde2fb", color="#2a78d6"];
+  learn [label=<<B>Learning from play</B><BR/><FONT POINT-SIZE="11">fictitious play, gradient ascent,<BR/>Nash Q-learning</FONT>>];
+  mg -> ev;
+  { rank=same; br; ne; }
+  ev -> br [label="fix the others"]; ev -> ne [label="everyone at once"];
+  br -> learn [label="repeat, adapt"]; learn -> ne [label="may reach"];
+}
+```
+
+### The key ideas at a glance
+
+1. **A Markov game** has states $\mathcal{S}$, agents with action sets $\mathcal{A}^i$, a transition model $T(s' \mid s, \boldsymbol{a})$ driven by the joint action, and a reward $R^i(s, \boldsymbol{a})$ for each agent. Each agent's policy $\pi^i(a^i \mid s)$ depends on the current state.
+
+2. **Evaluation is an MDP calculation.** With every policy fixed, the state moves as a Markov chain, and each agent's value $U^{\boldsymbol{\pi}, i}(s)$ solves its own linear Bellman equation.
+
+3. **A best response is an MDP.** Hold the others' policies fixed: they become part of the environment. Solving that MDP (Chapter 7) gives agent $i$'s best response.
+
+4. **Nash equilibria.** A joint policy where every agent's policy is a best response, in every state. Every finite discounted Markov game has one (A. M. Fink, 1964), possibly several, with very different values: our lake has a sustainable one and a tragic one.
+
+5. **Learning.** Agents can adapt from experience: **fictitious play** best-responds to the others' observed frequencies in each state; **gradient ascent** nudges policies along learned action values; **Nash Q-learning** learns joint action values and plays the equilibrium of each state's "stage game". Which equilibrium they reach, if any, depends on chance and on how they explore.
+
+### Vocabulary
+
+| Term | Plain meaning |
+|:---|:---|
+| Markov game (stochastic game) | An MDP with several agents, each with its own reward |
+| Joint policy $\boldsymbol{\pi}$ | Every agent's state-dependent policy |
+| Best response | An agent's optimal policy when the others' policies are fixed |
+| Exploitability | The most any agent could gain, in any state, by switching to its best response |
+| Stationary Nash equilibrium | A joint policy with zero exploitability |
+| Stage game | The simple game played in one state, with values in place of rewards |
+| Fictitious play | Best-respond to the others' observed action frequencies in each state |
+| Nash Q-learning | Q-learning on joint actions, valuing next states by stage-game equilibria |
+
+: Terms used on this page. {#tbl-vocab}
+
+### After this chapter you can
+
+- Write down a Markov game, and evaluate any joint policy by solving linear equations.
+- Compute a best response by building and solving the MDP the other agents induce.
+- Check whether a joint policy is a Nash equilibrium, and find equilibria by nonlinear programming or enumeration.
+- Run fictitious play, gradient ascent and Nash Q-learning, and judge the result by its exploitability.
+- Explain why several equilibria can exist, and why learning may land on the worse one.
+
+## Intuition
+
+::: {.callout-tip title="Analogy"}
+Two fishing boats share a lake. Each day each can fish lightly or heavily. Fishing heavily fills today's hold, but if both do it every day the fish population collapses and both are poorer for years. It's the prisoner's dilemma of Chapter 24, except that today's choices change tomorrow's lake. That's what makes the sequential version interesting: a boat that overfishes today pays for it later, so the long view can make restraint pay.
+:::
+
+We use two games. **The lake** is this site's problem ([problem gallery](../appendices/f-problems.qmd#the-lake)): the stock is low, medium or high; light fishing catches 1, 2 or 3 and heavy fishing 2, 3.5 or 5; the stock grows if both fish lightly and shrinks if both fish heavily. **The predator-prey hex world** (Appendix F.13, [gallery](../appendices/f-problems.qmd#predator-prey)) has a predator chasing a prey across 12 hexagonal tiles.
+
+### Every agent has its own value
+
+If both boats always fish lightly, the lake stays full and each boat earns `{python} fmt(U_PAIR["both always light"][0, 2], 1)` from a high stock. If both always fish heavily, each earns only `{python} fmt(U_PAIR["both always heavy"][0, 2], 1)`. These values come from the same linear equations as MDP policy evaluation, one set per boat. See @eq-mg-eval.
+
+### Fix the others, and it's an MDP
+
+If boat 2 always fishes lightly, boat 1's best response is to fish heavily at a high stock and lightly otherwise, worth `{python} fmt(U_BR_LIGHT[2], 1)` from high. The other boat's restraint is just part of boat 1's environment. See @eq-response-mdp.
+
+### Several equilibria, one tragic
+
+Trying all 64 deterministic joint policies finds exactly two Nash equilibria. In one, both fish **lightly unless the stock is high**, worth `{python} fmt(U_PAIR["both light unless high"][0, 2], 1)` each from high: this is also the best the two could do as a team. In the other, both **always fish heavily**, worth `{python} fmt(U_PAIR["both always heavy"][0, 2], 1)`. Neither boat can do better alone in either one. See @eq-mg-nash.
+
+### Learning finds one, or none
+
+Two boats learning by fictitious play reached the sustainable equilibrium in `{python} count("fictitious play", "good equilibrium")` of 20 runs and the tragic one in `{python} count("fictitious play", "tragedy")`. In the predator-prey game, best responses chase each other in circles, while fictitious play slowly settles: the most either agent could gain by switching fell from `{python} fmt(np.mean(FP_X[1000]), 0)` after 1,000 steps to `{python} fmt(np.mean(FP_X[50000]), 0)` after 50,000. See @eq-mg-fictitious and @eq-nash-q.
+
+## Formalism
+
+### Markov games and policy evaluation
+
+A Markov game (ADM §25.1; L. S. Shapley, *PNAS*, 1953) has states $\mathcal{S}$, agents $\mathcal{I}$ with actions $\mathcal{A}^i$, transitions $T(s' \mid s, \boldsymbol{a})$ and rewards $R^i(s, \boldsymbol{a})$. Under a joint policy with $\pi^j(a^j \mid s)$, the expected reward and transitions are averages over joint actions, $R^i(s, \boldsymbol{\pi}(s)) = \sum_{\boldsymbol{a}} R^i(s, \boldsymbol{a}) \prod_j \pi^j(a^j \mid s)$ and likewise for $T$, and agent $i$'s value satisfies
+
+::: {.key-equation data-name="Markov game policy evaluation"}
+$$
+U^{\boldsymbol{\pi}, i}(s) = R^i\big(s, \boldsymbol{\pi}(s)\big) + \gamma \sum_{s'} T\big(s' \mid s, \boldsymbol{\pi}(s)\big)\, U^{\boldsymbol{\pi}, i}(s')
+$$ {#eq-mg-eval}
+:::
+
+**In words.** Each agent's value is its expected reward now plus the discounted value of where the joint policy takes the state.
+
+**Term by term.**
+
+- $R^i(s, \boldsymbol{\pi}(s))$ and $T(s' \mid s, \boldsymbol{\pi}(s))$ average over joint actions, weighting each by $\prod_j \pi^j(a^j \mid s)$: the agents choose independently in each state.
+- The equation is linear in $U^{\boldsymbol{\pi}, i}$: $U = (I - \gamma T_{\boldsymbol{\pi}})^{-1} R^i_{\boldsymbol{\pi}}$, one solve per agent.
+- The agents share the state dynamics $T_{\boldsymbol{\pi}}$ but not the rewards.
+
+**Why it holds.** With every policy fixed, the state alone evolves as a Markov chain with rewards for each agent, and @eq-mg-eval is that chain's Bellman expectation equation (Chapter 7).
+
+### Best and softmax responses
+
+With the others' policies $\boldsymbol{\pi}^{-i}$ fixed, agent $i$ faces an MDP (ADM §25.2):
+
+::: {.key-equation data-name="Best response as an MDP"}
+$$
+T'(s' \mid s, a^i) = T\big(s' \mid s, a^i, \boldsymbol{\pi}^{-i}(s)\big), \qquad R'(s, a^i) = R^i\big(s, a^i, \boldsymbol{\pi}^{-i}(s)\big)
+$$ {#eq-response-mdp}
+:::
+
+**In words.** Average the others' actions into the environment, and solve the single-agent MDP that is left.
+
+**Term by term.**
+
+- $T(s' \mid s, a^i, \boldsymbol{\pi}^{-i}(s))$ averages the transition over the others' actions in state $s$.
+- Only agent $i$'s own reward $R^i$ appears.
+- Solving the MDP exactly (policy iteration) gives a deterministic best response.
+- A **softmax response** takes this MDP's optimal $Q(s, a^i)$ and plays $\pi^i(a^i \mid s) \propto \exp(\lambda Q(s, a^i))$.
+
+**Why it holds.** When the others' policies depend only on the current state, the rest of the world, including them, is Markov from agent $i$'s point of view.
+
+### Nash equilibrium
+
+::: {.key-equation .famous data-name="Nash equilibrium of a Markov game"}
+$$
+U^{\boldsymbol{\pi}, i}(s) \ge U^{(\pi^{i\prime}, \boldsymbol{\pi}^{-i}), i}(s) \quad \text{for every agent } i, \text{ policy } \pi^{i\prime} \text{ and state } s
+$$ {#eq-mg-nash}
+:::
+
+**In words.** In every state, no agent can do better by changing its own policy.
+
+**Term by term.**
+
+- The deviation $\pi^{i\prime}$ can be any policy, but it's enough to check the best response of @eq-response-mdp.
+- **Exploitability** $= \max_{i, s}\big(U^{*, i}(s) - U^{\boldsymbol{\pi}, i}(s)\big)$, where $U^{*, i}$ is the value of agent $i$'s best response. It is 0 exactly at an equilibrium; the page uses it to check every result.
+- Because policies here depend only on the state, these are **stationary Markov perfect equilibria**: no agent wants to deviate from any state, even ones the equilibrium rarely visits.
+
+**Why it holds.** Every finite discounted Markov game has a stationary Nash equilibrium (A. M. Fink, 1964). As a computation, the book (ADM eq. 25.7, after J. A. Filar et al., 1991) minimizes $\sum_{i,s} \big(U^i(s) - Q^i(s, \boldsymbol{\pi}(s))\big)$ subject to $U^i(s) \ge Q^i(s, a^i, \boldsymbol{\pi}^{-i}(s))$, with $Q^i(s, \cdot) = R^i(s, \cdot) + \gamma \sum_{s'} T(s' \mid s, \cdot) U^i(s')$; the minimum, 0, is attained exactly at equilibria. The page solves it with SciPy's SLSQP, and checks the answer's exploitability.
+
+### Learning in Markov games
+
+**Fictitious play** (ADM §25.4) counts, in each state, how often each agent played each action, $N(j, a^j, s)$, and best-responds to those frequencies:
+
+::: {.key-equation data-name="Fictitious play in a Markov game"}
+$$
+\hat{\pi}^j(a^j \mid s) \propto N(j, a^j, s), \qquad a^i = \arg\max_{a^i} Q^i\big(s, a^i, \hat{\boldsymbol{\pi}}^{-i}(s)\big)
+$$ {#eq-mg-fictitious}
+:::
+
+**In words.** In each state, assume the others play as often as you've seen them play there, and act to maximize your action value against that.
+
+**Term by term.**
+
+- $N(j, a^j, s)$ starts at 1 and grows each time $j$ plays $a^j$ in $s$.
+- $Q^i(s, \boldsymbol{a})$ is agent $i$'s value of the joint action, computed from the known model: $R^i(s, \boldsymbol{a}) + \gamma \sum_{s'} T(s' \mid s, \boldsymbol{a}) U^i(s')$, with $U^i(s')$ the value of $s'$ when everyone plays their frequencies.
+- Only the state just visited is updated, as in asynchronous value iteration.
+
+**Why it holds.** If the frequencies settle, each agent is best-responding to the others' limiting policy in every visited state: an equilibrium on the states the play visits. There's no general guarantee that they settle.
+
+**Gradient ascent** (ADM §25.5) has each agent learn $Q^i(s, \boldsymbol{a})$ by Q-learning, treating the others as if they will repeat their last actions, and step its policy at the visited state along $Q^i(s, \cdot, \boldsymbol{a}^{-i})$, projected back onto the simplex.
+
+**Nash Q-learning** (ADM §25.6; J. Hu and M. P. Wellman, *JMLR*, 2003) learns joint-action values for every agent. After a transition from $s$ to $s'$, it solves the **stage game** at $s'$, the simple game with rewards $Q^j(s', \cdot)$, for a Nash equilibrium $\boldsymbol{\pi}'$, and updates
+
+::: {.key-equation data-name="Nash Q-learning update"}
+$$
+Q^i(s, \boldsymbol{a}) \leftarrow Q^i(s, \boldsymbol{a}) + \alpha \Big( R^i(s, \boldsymbol{a}) + \gamma \sum_{\boldsymbol{a}'} Q^i(s', \boldsymbol{a}') \prod_j \pi^{j\prime}(a^{j\prime}) - Q^i(s, \boldsymbol{a}) \Big)
+$$ {#eq-nash-q}
+:::
+
+**In words.** Like Q-learning, but the next state is valued by the equilibrium of its stage game instead of by a maximum.
+
+**Term by term.**
+
+- $\alpha = 1/\sqrt{N(s, \boldsymbol{a})}$ shrinks with the number of visits to the state and joint action.
+- The sum is agent $i$'s value of the stage game at $s'$ under its equilibrium $\boldsymbol{\pi}'$.
+- The agents act on the stage equilibrium at the current state, choosing a random action with probability $\varepsilon$. The book uses $\varepsilon = 1/\sum_{\boldsymbol{a}} N(s, \boldsymbol{a})$.
+- When a stage game has several equilibria, all agents must pick the same one; the page takes the first one support enumeration finds.
+
+**Why it holds.** If every agent's $Q$ were the equilibrium's joint-action values, the stage equilibria would reproduce the equilibrium, and the update would leave $Q$ unchanged. Convergence is proved only under strong conditions on the stage games (Hu and Wellman), which the lake does not guarantee.
+
+## Worked example
+
+### Why "both always light" isn't an equilibrium
+
+If both boats always fish lightly from a high stock, the stock stays high (it grows or stays, and can't exceed high), so each boat earns 3 per day forever: $3/(1 - 0.9) = 30$. Now let boat 1 deviate once, at a high stock, and fish heavily, then go back to light fishing. Today it catches 5. With one heavy boat, the stock rises or stays with probability $0.2 + 0.5 = 0.7$ (still high), and falls to medium with probability 0.3:
+
+$$
+5 + 0.9\,\big(0.7 \times 30 + 0.3 \times U(\text{medium})\big), \qquad U(\text{medium}) = 28.63
+$$
+
+```{python}
+#| output: asis
+print(f"That's {fmt(Q_DEV, 2)}, more than 30. One day of heavy fishing pays, so restraint everywhere "
+      f"is not an equilibrium. Boat 1's full best response, heavy only at a high stock, earns "
+      f"{fmt(U_BR_LIGHT[2], 2)}: the exploitability of \"both always light\" is "
+      f"{fmt(X_PAIR['both always light'], 2)}.")
+```
+
+### Why "light unless high" is
+
+Now both boats fish heavily at a high stock and lightly otherwise. From high, both fish heavily; the stock falls to medium with probability 0.7, where both fish lightly and it regrows. Could boat 1 gain by fishing lightly at high instead? Then only one boat fishes heavily, and the stock falls less often, but boat 1 catches 3 instead of 5. And by fishing heavily at medium? It would catch 3.5 instead of 2, but push the stock down. The code checks every deviation in every state at once:
+
+```{python}
+#| output: asis
+U = U_PAIR["both light unless high"]
+print(f"Values (low, medium, high) for each boat: {', '.join(fmt(u, 2) for u in U[0])}. "
+      f"Exploitability: {X_PAIR['both light unless high']:.1e}. "
+      f"Both always heavy: {', '.join(fmt(u, 2) for u in U_PAIR['both always heavy'][0])}, "
+      f"exploitability {X_PAIR['both always heavy']:.1e}.")
+```
+
+Both are equilibria. The first is worth more than half again as much from a low stock.
+
+## Interactive
+
+### The chase
+
+Pick a matchup and step through one simulated game from the book's starting position (predator red, prey blue). Each agent follows its policy; moves slip to a neighboring direction 30% of the time.
+
+```{python}
+#| include: false
+def chase(pols, seed, steps=60):
+    rng = np.random.default_rng(seed)
+    s, rows, caught = S0, [], 0
+    for t in range(steps):
+        x, y = divmod(s, N_T)
+        a = [rng.choice(6, p=p[s]) for p in pols]
+        caught += x == y
+        rows.append({"pred": x, "prey": y, "caught": int(caught)})
+        s = M.step(PP, s, a, rng)
+    return rows
+
+xy = [[c + 0.5 * (r % 2), -r * 0.866] for r, c in PREDATOR_PREY_TILES]    # odd rows shift right
+matchups = {
+    "best-response predator vs random prey": [BR_PRED, RAND],
+    "best-response predator vs its best-response prey": [BR_PRED, BR_PREY],
+    "fictitious play, 1,000 steps": FP_PP[1000][0],
+    "fictitious play, 50,000 steps": FP_PP[50000][0],
+}
+write_json({"tiles": xy, "runs": {k: chase(v, 1) for k, v in matchups.items()},
+            "colors": {"pred": red, "prey": blue, "tile": "#d9d4d6", "ink": style.INK}},
+           "data/ch25-chase.json")
+```
+
+```{ojs}
+chaseData = FileAttachment("data/ch25-chase.json").json()
+viewof chaseName = Inputs.select(Object.keys(chaseData.runs), {label: "Matchup"})
+viewof chaseT = Inputs.range([0, 59], {step: 1, value: 0, label: "Step"})
+```
+
+```{ojs}
+chaseNow = chaseData.runs[chaseName][chaseT]
+md`Step **${chaseT}**: ${chaseNow.pred === chaseNow.prey ? "**caught!** " : ""}captures so far: **${chaseNow.caught}**.`
+```
+
+```{ojs}
+//| label: fig-chase
+//| fig-cap: "One simulated chase on the 12-tile map of Appendix F.13: the predator (red) and the prey (blue) after the chosen number of steps."
+//| fig-alt: "Interactive hex map of 12 gray hexagons in three rows. A red disk marks the predator and a blue disk the prey; moving the step slider moves them. When both are on the same tile, the readout says caught."
+{
+  const S = 46, pad = 30, h = S * 0.577;
+  const X = t => pad + (chaseData.tiles[t][0] + 0.5) * S, Y = t => pad + 10 - chaseData.tiles[t][1] * S;
+  const hex = t => d3.range(6).map(k => [X(t) + h * Math.cos(Math.PI / 6 + k * Math.PI / 3),
+                                         Y(t) + h * Math.sin(Math.PI / 6 + k * Math.PI / 3)].join(",")).join(" ");
+  const tiles = chaseData.tiles.map((_, t) => svg`<polygon points="${hex(t)}" fill="${chaseData.colors.tile}" stroke="#fcfcfb" stroke-width="3"/>`);
+  const same = chaseNow.pred === chaseNow.prey;
+  return svg`<svg width="${2 * pad + 6.5 * S}" height="${2 * pad + 3 * S}" style="background:#fcfcfb">${tiles}
+    <circle cx="${X(chaseNow.prey) + (same ? 7 : 0)}" cy="${Y(chaseNow.prey)}" r="9" fill="${chaseData.colors.prey}"/>
+    <circle cx="${X(chaseNow.pred) - (same ? 7 : 0)}" cy="${Y(chaseNow.pred)}" r="9" fill="${chaseData.colors.pred}"/></svg>`;
+}
+```
+
+## Algorithms & code
+
+### Evaluation, responses, equilibria and learning
+
+::: {.panel-tabset group="lang"}
+## Python
+```{python}
+#| output: asis
+show_source(M.joint_matrices, M.policy_evaluation, M.response_mdp, M.best_response,
+            M.softmax_response, M.exploitability, M.nash_equilibrium, M.fictitious_play,
+            M.gradient_ascent_play, M.nash_q_learning)
+```
+## Julia
+```{.julia .snippet}
+using ADM, LinearAlgebra
+
+g = lake()                        # T[s, a1, a2, s′], R[i, s, a1, a2]; 1-based
+nS = size(g.T, 1)
+
+# eq. 25.3 for agent i: average rewards and transitions over the joint action,
+# weighting each by p1[s, a1] * p2[s, a2], then one linear solve.
+function evaluate(g, p1, p2, i)
+    w(s, a1, a2) = p1[s, a1] * p2[s, a2]
+    R = [sum(w(s, a1, a2) * g.R[i, s, a1, a2] for a1 in 1:2, a2 in 1:2) for s in 1:nS]
+    T = [sum(w(s, a1, a2) * g.T[s, a1, a2, t] for a1 in 1:2, a2 in 1:2)
+         for s in 1:nS, t in 1:nS]
+    return (I - g.γ * T) \ R
+end
+
+# eqs. 25.4-25.5: agent 1's MDP when agent 2 plays p2, solved by value iteration.
+function best_response_value(g, p2; iters = 2000)
+    U = zeros(nS)
+    for _ in 1:iters
+        U = [maximum(sum(p2[s, a2] * (g.R[1, s, a1, a2] + g.γ * (g.T[s, a1, a2, :] ⋅ U))
+                         for a2 in 1:2) for a1 in 1:2) for s in 1:nS]
+    end
+    return U
+end
+
+good = [1.0 0.0; 1.0 0.0; 0.0 1.0]            # light unless the stock is high
+U = evaluate(g, good, good, 1)
+gain = maximum(best_response_value(g, good) .- U)
+println("light unless high: ", round.(U; digits = 3), "; best deviation gains ", round(gain; digits = 6))
+@assert gain < 1e-6 && isapprox(U[3], 36.103; atol = 1e-3)
+
+light = [1.0 0.0; 1.0 0.0; 1.0 0.0]
+gain = maximum(best_response_value(g, light) .- evaluate(g, light, light, 1))
+println("both always light: best deviation gains ", round(gain; digits = 3))
+@assert isapprox(gain, 11.9; atol = 1e-2)
+```
+:::
+
+::: {.callout-note collapse="true" title="Reading the Python code"}
+- **`np.einsum("sab,sabt->st", w, game.T)`** sums over both agents' actions (`a`, `b`) at once: for each state `s` and next state `t`, the transition probability averaged over the joint action. The letters name the axes; any letter missing from the output is summed over.
+- **`T.reshape(3, 4, 3)`** (in the team-optimum check) merges the two action axes into one axis of four joint actions, turning the game into a single-agent MDP.
+- **`M.step`** samples the next state with `rng.choice` from the row `T[s, a1, a2]`.
+- **Fictitious play** stores counts `N[i][s, a]`, and turns them into policies by dividing each row by its sum.
+:::
+
+### Run them
+
+```{python}
+#| echo: true
+game = lake()
+good = np.eye(2)[[0, 0, 1]]                  # light unless the stock is high
+print("values:", M.policy_evaluation(game, [good, good]).round(2))
+print("exploitability:", M.exploitability(game, [good, good]))
+br, U = M.best_response(game, [np.eye(2)[[0, 0, 0]]] * 2, 0)
+print("best response to 'always light':", br.argmax(1), U.round(2))
+```
+
+### Results
+
+#### The lake: values of four joint policies
+
+```{python}
+#| label: fig-lake
+#| fig-cap: "The lake. Left: each boat's value from each stock level under four joint policies (for the mixed pair, the light boat's value). Right: how much a boat could gain by switching to its best response (exploitability); the two equilibria are at 0."
+#| fig-alt: "Two bar charts. Left: grouped bars for low, medium and high stock. Light unless high is highest everywhere (about 31, 34 and 36), both always light next (about 26, 29, 30), both always heavy lower (20, 22, 26), and the light boat in the mixed pair lowest (about 15, 18, 21). Right: exploitability bars: both always light about 11.9, one light and one heavy about 7.2, and the two equilibria at zero."
+fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(10, 4.2), gridspec_kw={"width_ratios": [2, 1]})
+names = list(PAIRS)
+colors = [blue, red, green, yellow]
+for k, (name, c) in enumerate(zip(names, colors)):
+    ax1.bar(np.arange(3) + (k - 1.5) * 0.2, U_PAIR[name][0], width=0.2, color=c, label=name)
+ax1.set_xticks(range(3), LK.states)
+ax1.set_xlabel("stock")
+ax1.set_ylabel("boat 1's value")
+ax1.legend(fontsize=8, loc="upper center", bbox_to_anchor=(0.5, -0.2), ncol=2, frameon=False)
+ax2.barh(range(4), [X_PAIR[n] for n in names], color=colors)
+ax2.set_yticks(range(4), names, fontsize=8)
+ax2.invert_yaxis()
+ax2.set_xlabel("exploitability")
+plt.tight_layout()
+plt.show()
+```
+
+- **The sustainable equilibrium is also the team optimum.** Maximizing the two boats' total catch as one MDP gives exactly "light unless high". Unlike the prisoner's dilemma, here the best outcome needs no enforcement: once both play it, neither wants to deviate.
+- **Restraint everywhere is exploitable.** "Both always light" is worth less than the equilibrium (`{python} fmt(U_PAIR["both always light"][0, 2], 1)` against `{python} fmt(U_PAIR["both light unless high"][0, 2], 1)` from high), because it never harvests the surplus of a full lake, and a boat can gain `{python} fmt(X_PAIR["both always light"], 1)` by switching.
+- **The nonlinear program found a third equilibrium.** SLSQP from random starts returned policies with exploitability below $10^{-9}$: heavy at low and high, but light with probability `{python} fmt(NLP_POL[0][1, 0], 3)` at a medium stock, where the two actions are worth exactly the same. It's worth `{python} fmt(NLP_U[0, 2], 2)` from high: a mixed equilibrium next to the tragic one, which the enumeration of deterministic policies could not find.
+- **Softmax responses soften the rule.** Against a partner playing the sustainable equilibrium, a boat with precision 0.1 fishes heavily at high with probability `{python} fmt(SOFT[0.1][2], 2)`; with precision 10, `{python} fmt(SOFT[10.0][2], 2)`.
+
+#### Learning in the lake
+
+```{python}
+#| label: fig-learn
+#| fig-cap: "Where learning ends in the lake, over 20 runs of each method from a high stock: the sustainable equilibrium, the tragic one (both always heavy), or a joint policy that is not an equilibrium (exploitability above 10⁻⁶)."
+#| fig-alt: "Horizontal stacked bar chart with one bar per method, each of 20 runs, split into sustainable equilibrium (blue), tragedy (orange) and not an equilibrium (gray). Fictitious play splits between blue and orange; Nash Q-learning with epsilon 0.2 is mostly blue; Nash Q-learning with the book's epsilon and gradient ascent are all gray."
+fig, ax = plt.subplots(figsize=(8, 2.8))
+outcomes = [("good equilibrium", blue), ("tragedy", orange), ("not an equilibrium", "#c8c7c2")]
+for row, key in enumerate(LEARN):
+    left = 0
+    for o, c in outcomes:
+        n = count(key, o)
+        ax.barh(row, n, left=left, color=c, label=o if row == 0 else None)
+        if n:
+            ax.text(left + n / 2, row, str(n), ha="center", va="center", fontsize=9,
+                    color="white" if c != "#c8c7c2" else style.INK)
+        left += n
+ax.set_yticks(range(len(LEARN)), list(LEARN))
+ax.invert_yaxis()
+ax.set_xlabel("runs (of 20)")
+ax.legend(fontsize=8, loc="lower right", ncol=3, bbox_to_anchor=(1, 1.02))
+plt.tight_layout()
+plt.show()
+```
+
+- **Fictitious play** reached the sustainable equilibrium in `{python} count("fictitious play", "good equilibrium")` runs and the tragedy in `{python} count("fictitious play", "tragedy")`. Early bad luck (both fish heavily and the stock crashes) teaches each boat that the other fishes heavily, and the belief sustains itself.
+- **Nash Q-learning needs exploration.** With a constant exploration rate of 0.2, it found an equilibrium in `{python} count("Nash Q, ε = 0.2", "good equilibrium") + count("Nash Q, ε = 0.2", "tragedy")` of 20 runs. With the book's rate, $1/\sum_{\boldsymbol{a}} N(s, \boldsymbol{a})$, which falls to 0.01 after 96 visits to a state, it found one in `{python} count("Nash Q, book's ε", "good equilibrium") + count("Nash Q, book's ε", "tragedy")`. Each run left between `{python} T_LOW` and `{python} T_HIGH` of the 12 joint actions never tried (median `{python} int(np.median(NQ_UNTRIED[None]))`), and their values stayed at their initial 0. With the constant rate, every joint action was tried in every run.
+- **Gradient ascent didn't settle in 20,000 steps.** No run ended at an equilibrium; the median exploitability was `{python} fmt(np.median(GA_X), 1)`. Treating the other boat as "will repeat its last action" gives noisy targets in a game where the value of an action depends on what the other does in *future* states.
+
+#### The chase: best responses cycle, fictitious play settles
+
+```{python}
+#| label: fig-chase-learning
+#| fig-cap: "Predator-prey hex world, from the starting position. Left: both agents' values under iterated best response, round by round. Right: exploitability of fictitious play's frequency policies after 1,000 to 50,000 steps (three runs each, resets every 10 steps)."
+#| fig-alt: "Two charts. Left: the predator's value stays between about minus 9 and minus 10 each round, while the prey's value swings between about minus 24 and minus 102 from round to round without settling. Right: exploitability falls from about 67 after 1,000 steps to about 50, 29 and 19 after 5,000, 20,000 and 50,000 steps (log scale across)."
+fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(10, 3.4))
+rounds = np.arange(1, len(IBR_U) + 1)
+ax1.plot(rounds, IBR_U[:, 0], "o-", color=red, label="predator")
+ax1.plot(rounds, IBR_U[:, 1], "o-", color=blue, label="prey")
+ax1.set_xlabel("round of best responses")
+ax1.set_ylabel("value at the start")
+ax1.legend(fontsize=9)
+for n in FP_STEPS:
+    ax2.scatter([n] * 3, FP_X[n], color=blue, s=25)
+ax2.plot(FP_STEPS, [np.mean(FP_X[n]) for n in FP_STEPS], color=blue)
+ax2.set_xscale("log")
+ax2.set_xlabel("fictitious play steps")
+ax2.set_ylabel("exploitability")
+plt.tight_layout()
+plt.show()
+```
+
+- **A predator that knows the prey wanders at random** earns `{python} fmt(U_RAND_PREY[0], 2)` from the start (it pays 1 per step and gains 1 per capture), and the random prey loses `{python} fmt(-U_RAND_PREY[1], 0)`. A prey that best-responds to that predator cuts its loss to `{python} fmt(-U_BR_PREY[1], 0)`.
+- **Best responses chase each other.** Each round, the predator adapts to the last prey and the prey to the last predator. After 12 rounds the prey's value was still swinging between `{python} fmt(IBR_U[:, 1].max(), 0)` and `{python} fmt(IBR_U[:, 1].min(), 0)`, and the final pair was exploitable by `{python} fmt(IBR_X, 1)`.
+- **Fictitious play averages the chase.** Best-responding to *frequencies* instead of the last policy damps the cycle: exploitability fell from `{python} fmt(np.mean(FP_X[1000]), 1)` after 1,000 steps to `{python} fmt(np.mean(FP_X[50000]), 1)` after 50,000, still well away from 0.
+
+## Solved problems
+
+**Problem 1: special cases.** Show that an MDP and a repeated simple game are both Markov games.
+
+::: {.callout-tip collapse="true" title="Solution"}
+An MDP is a Markov game with one agent: $\mathcal{I} = \{1\}$, the same states, actions, transitions and reward. A simple game played repeatedly is a Markov game with a single state $s$ that always returns to itself, $T(s \mid s, \boldsymbol{a}) = 1$, and $R^i(s, \boldsymbol{a})$ equal to the game's rewards. Everything on this page then reduces to Chapter 7 or Chapter 24.
+:::
+
+**Problem 2: evaluate a joint policy.** A Markov game has two states. In state 1 both agents' only sensible actions lead to state 2 with probability 0.5 and back to state 1 otherwise, paying agent 1 a reward of 2; in state 2 they return to state 1 with certainty, paying agent 1 a reward of 0. With $\gamma = 0.9$, what is agent 1's value in each state?
+
+::: {.callout-tip collapse="true" title="Solution"}
+$U(2) = 0 + 0.9\,U(1)$ and $U(1) = 2 + 0.9\,(0.5\,U(1) + 0.5\,U(2))$. Substituting: $U(1) = 2 + 0.45\,U(1) + 0.405\,U(1)$, so $U(1)(1 - 0.855) = 2$ and $U(1) \approx 13.79$, $U(2) \approx 12.41$. It's policy evaluation (@eq-mg-eval) with the joint policy already folded in.
+:::
+
+**Problem 3: the stage game.** In Nash Q-learning, the agents reach a state $s'$ whose current joint-action values are, for (agent 1, agent 2): (light, light) (30, 30); (light, heavy) (25, 34); (heavy, light) (34, 25); (heavy, heavy) (22, 22). Find the stage game's pure Nash equilibria and the value used in the update.
+
+::: {.callout-tip collapse="true" title="Solution"}
+Against *light*, heavy is better (34 > 30); against *heavy*, light is better (25 > 22). So the pure equilibria are (light, heavy) and (heavy, light), like the intersection of Chapter 24. The update uses the value of whichever equilibrium is selected, 25 for one agent and 34 for the other. Both agents must pick the *same* one, or their updates are inconsistent; that selection problem is one reason Nash Q-learning's guarantees are limited.
+:::
+
+**Problem 4: why can't the predator best-respond once and be done?** In the predator-prey game, the predator computes a best response to a random prey. Why isn't that the end of the story?
+
+::: {.callout-tip collapse="true" title="Solution"}
+Because the prey will respond too. The predator's best response exploits the random prey's habits, and the prey's best response to *that* predator avoids exactly those habits, which makes the predator's policy wrong again. A best response is only optimal against fixed opponents; an equilibrium needs every agent's policy to be a best response to the others simultaneously. Iterated best response looks for that fixed point by alternating, and on this page it circled instead of finding it.
+:::
+
+**Problem 5: design a sustainable lake.** In the lake, suppose heavy fishing at a high stock caught 4 instead of 5. Would "light unless high" still be an equilibrium? How would you check?
+
+::: {.callout-tip collapse="true" title="Solution"}
+Build the game with the new catch and compute the exploitability of the joint policy: evaluate it (@eq-mg-eval), solve each boat's best-response MDP against it (@eq-response-mdp), and compare the values in every state. With a smaller reward for heavy fishing at high, "light unless high" may stop being a best response to itself (light might be better at high too), so the equilibrium could change to "always light". The only reliable way to know is to compute; intuition about which deviations pay is easy to get wrong in sequential games.
+:::
+
+## Recap
+
+1. **A Markov game is an MDP with several agents and several rewards (@eq-mg-eval).**
+   *Why it matters:* every joint policy has a value per agent, computed exactly like MDP policy evaluation; the rest of Part V builds on this.
+2. **Fixing the others turns a Markov game into an MDP (@eq-response-mdp).**
+   *Why it matters:* best responses, exploitability and equilibrium checks all reduce to Chapter 7's solvers.
+3. **Nash equilibria can be several, and very different (@eq-mg-nash).**
+   *Why it matters:* the lake has a sustainable equilibrium that is also the team optimum, and a tragic one; which one agents end up in is not settled by the game alone.
+4. **Learning can reach an equilibrium, the wrong one, or none (@eq-mg-fictitious, @eq-nash-q).**
+   *Why it matters:* fictitious play split between the two equilibria; Nash Q-learning worked only with enough exploration; best responses in the chase cycled. Always measure exploitability.
+5. **Exploration matters even more with several learners.**
+   *Why it matters:* joint actions that are never tried keep their initial values, and every agent's plan is built on them.
+
+## Cheat sheet & connections
+
+| Name | Formula | Ref |
+|---|---|---|
+| Policy evaluation | $U^{\boldsymbol{\pi}, i}(s) = R^i(s, \boldsymbol{\pi}(s)) + \gamma \sum_{s'} T(s' \mid s, \boldsymbol{\pi}(s)) U^{\boldsymbol{\pi}, i}(s')$ | @eq-mg-eval |
+| Best response MDP | $T' = T(s' \mid s, a^i, \boldsymbol{\pi}^{-i}(s))$, $R' = R^i(s, a^i, \boldsymbol{\pi}^{-i}(s))$ | @eq-response-mdp |
+| ★ Nash equilibrium | no agent gains by deviating, in any state | @eq-mg-nash |
+| Fictitious play | best-respond to $\hat{\pi}^j(a^j \mid s) \propto N(j, a^j, s)$ | @eq-mg-fictitious |
+| Nash Q-learning | $Q^i \leftarrow Q^i + \alpha(R^i + \gamma\, U^i_{\text{stage}}(s') - Q^i)$ | @eq-nash-q |
+
+: Key equations from this page (★ = well-known by name). {#tbl-cheatsheet}
+
+**Common pitfalls**
+
+- **Checking equilibrium only on the path of play.** A stationary equilibrium must hold in every state, including rarely visited ones.
+- **Reporting what a learner converged to without checking it.** Compute the exploitability.
+- **Starving exploration.** Fast-decaying exploration leaves joint actions untried, and their values stay wrong.
+- **Assuming one equilibrium.** Enumerate small games, or run from several starts.
+- **Confusing the team optimum with an equilibrium.** They coincide in the lake; in the prisoner's dilemma they don't.
+
+**Connections**
+
+- [Ch 7 · Exact Solution Methods](../part2/ch07-exact-solution-methods.qmd): policy evaluation and policy iteration, used for evaluation and best responses.
+- [Ch 17 · Model-Free Methods](../part3/ch17-model-free-methods.qmd): Q-learning, which Nash Q-learning extends.
+- [Ch 24 · Multiagent Reasoning](ch24-multiagent-reasoning.qmd): simple games, whose equilibria are the stage games here.
+- [Ch 26 · State Uncertainty](ch26-state-uncertainty.qmd): Markov games in which the agents can't see the state.
+- [Ch 27 · Collaborative Agents](ch27-collaborative-agents.qmd): agents that share one reward, like the lake's team optimum.

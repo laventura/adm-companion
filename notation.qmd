@@ -175,6 +175,11 @@ This site uses the book's notation. Symbols are added here as chapters are writt
 | $\pi(\boldsymbol{a})$ (correlated) | A single distribution over joint actions | Ch 24 |
 | $\lambda$, $k$ (hierarchical softmax) | Precision of the softmax response; level of reasoning | Ch 24 |
 | $N^i(j, a^j)$ | Agent $i$'s count of how often agent $j$ played $a^j$ (fictitious play) | Ch 24 |
+| $\pi^i(a^i \mid s)$ | Agent $i$'s state-dependent policy in a Markov game | Ch 25 |
+| $R^i(s, \boldsymbol{a})$, $T(s' \mid s, \boldsymbol{a})$ | Agent $i$'s reward and the shared transition model, given the joint action | Ch 25 |
+| $U^{\boldsymbol{\pi}, i}(s)$ | Agent $i$'s value of state $s$ under the joint policy | Ch 25 |
+| $Q^i(s, \boldsymbol{a})$ | Agent $i$'s value of a joint action in state $s$ | Ch 25 |
+| $N(j, a^j, s)$ | Count of agent $j$ playing $a^j$ in state $s$ (fictitious play) | Ch 25 |
 | $o$ | An observation | Ch 19 |
 | $O(o \mid a, s')$ | Observation model: probability of observing $o$ after taking $a$ and landing in $s'$ | Ch 19 |
 | $b(s)$ | Belief: probability that the current state is $s$, given the history | Ch 19 |

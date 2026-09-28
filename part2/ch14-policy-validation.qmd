@@ -1,8 +1,1034 @@
 ---
 title: "14 · Policy Validation"
 subtitle: "Part II — Sequential Problems"
+jupyter: python3
+execute:
+  echo: false
 ---
 
 ::: {.callout-note appearance="minimal"}
-**In progress.** This page will cover ADM Ch. 14, *Policy Validation*.
+**Executed in:** Python · **Book:** ADM Ch. 14 · **Lecture:** to be added
 :::
+<!-- TODO(video): link the official Stanford AA228 lecture on policy validation. -->
+
+```{python}
+#| include: false
+import numpy as np
+import matplotlib.pyplot as plt
+from matplotlib.colors import ListedColormap
+from matplotlib.patches import Patch
+from IPython.display import Markdown
+
+from adm import style
+from adm.io import write_json
+from adm.page import show_source
+from adm.problems import collision_avoidance as ca
+from adm.validation import beta_interval, importance_estimate, mc_estimate, pareto_front
+
+style.apply()
+blue, orange, green, yellow = style.CATEGORICAL[:4]
+purple = style.CATEGORICAL[6]
+M = ca.Model()
+Z = np.zeros((2 * M.h_max + 1, 2 * M.hdot_max + 1))    # a zero final metric
+
+
+def changes(a_prev, a):
+    """Step metric: 1 each time the advisory changes."""
+    return (a != a_prev).astype(float)
+
+
+def metrics(policy, model=M):
+    """Exact (collision probability, expected advisory changes) from the start distribution."""
+    return (ca.start_average(model, ca.evaluate(model, policy)),
+            ca.start_average(model, ca.evaluate(model, policy, changes, Z)))
+
+
+POL, COST = ca.optimal_policy(M)
+SIMPLE = ca.simple_policy(M)
+P_OPT, CH_OPT = metrics(POL)
+P_SIMPLE, CH_SIMPLE = metrics(SIMPLE)
+RISK_OPT = ca.evaluate(M, POL, history=True)       # collision probability-to-go at every t_col
+RISK_SIMPLE = ca.evaluate(M, SIMPLE, history=True)
+start_risk = RISK_OPT[-1][0][np.ix_(np.arange(-200, 201) + M.h_max, np.arange(-10, 11) + M.hdot_max)]
+
+# Direct Monte Carlo: 50,000 episodes of the optimal policy.
+N_MC = 50_000
+rng = np.random.default_rng(0)
+hf, n_changes, _ = ca.simulate(M, POL, *ca.sample_starts(N_MC, rng), rng)
+hits = (np.abs(hf) < ca.COLLISION_H).astype(float)
+mc10 = mc_estimate(hits[:10_000])                  # (mean, se, rel, (lo, hi)) after 10,000
+k10 = int(hits[:10_000].sum())
+beta10 = beta_interval(k10, 10_000)
+mc_ch = mc_estimate(n_changes[:10_000])
+n_for_10pct = (1 - P_OPT) / (P_OPT * 0.1**2)       # direct samples for a 10% relative error
+
+# Importance sampling: 100 repetitions of 10,000 episodes for each proposal.
+GUIDE = RISK_OPT
+GUIDE_ROUGH = ca.evaluate(ca.Model(noise=3), POL, history=True)   # risk-to-go from a wrong model
+METHODS = [("direct", {}), ("tilt 0.25", {"tilt": 0.25}), ("tilt 1", {"tilt": 1.0}),
+           ("rough", {"guide": GUIDE_ROUGH}), ("exact", {"guide": GUIDE})]
+METHOD_LABELS = {"direct": "direct", "tilt 0.25": "tilt 0.25", "tilt 1": "tilt 1",
+                 "rough": "guided by a\nrough model", "exact": "guided by the\nexact risk"}
+IS_REPS, IS_N = 100, 10_000
+rng_is = np.random.default_rng(1)
+is_est, is_hits, is_ess = {}, {}, {}
+for name, kw in METHODS:
+    est, nh, ess = [], [], []
+    for _ in range(IS_REPS):
+        h_end, _, lw = ca.simulate(M, POL, *ca.sample_starts(IS_N, rng_is), rng_is, **kw)
+        f = np.abs(h_end) < ca.COLLISION_H
+        mean, _, e = importance_estimate(f, lw)
+        est.append(mean), nh.append(f.sum()), ess.append(e)
+    is_est[name], is_hits[name], is_ess[name] = np.array(est), float(np.mean(nh)), float(np.mean(ess))
+is_rel = {name: float(np.sqrt(np.mean((e - P_OPT) ** 2)) / P_OPT) for name, e in is_est.items()}
+is_gain = {name: (is_rel["direct"] / r) ** 2 for name, r in is_rel.items()}   # samples saved
+
+# Robustness: the pilot follows each advisory with probability q.
+ROBUST = ca.optimal_policy(M, models=[M, ca.Model(compliance=0.8)])[0]
+QS = (1.0, 0.9, 0.8, 0.7, 0.6, 0.5)
+robust_rows = {name: np.array([metrics(P, ca.Model(compliance=q)) for q in QS])
+               for name, P in (("optimal", POL), ("robust", ROBUST), ("simple", SIMPLE))}
+noise_rows = {s: metrics(POL, ca.Model(noise=s))[0] for s in (0, 1, 3, 4)}
+
+# Trade analysis: the simple policy over a grid of thresholds, and optimal policies over change costs.
+H_TH, T_TH = np.arange(25, 301, 25), np.arange(5, 41, 5)
+simple_grid = np.array([[metrics(ca.simple_policy(M, h, t)) for t in T_TH] for h in H_TH])  # (h, t, 2)
+flat = simple_grid.reshape(-1, 2)
+simple_front = pareto_front(flat)
+C_COSTS = (1, 0.5, 0.3, 0.1, 0.05, 0.02, 0.01, 0.005, 0.002, 0.001, 0.0003)
+opt_curve, opt_curve_q8 = [], []
+for c in C_COSTS:
+    P_c = ca.optimal_policy(ca.Model(change_cost=c))[0]
+    opt_curve.append(metrics(P_c)), opt_curve_q8.append(metrics(P_c, ca.Model(compliance=0.8))[0])
+opt_curve = np.array(opt_curve)
+cost_at = {c: k for k, c in enumerate(C_COSTS)}         # row of opt_curve for a change cost
+ROBUST_PT = metrics(ROBUST)
+# Share of simple policies that some optimal policy on the curve dominates (eq. on Pareto dominance).
+# A simple policy (row 0 below) is dominated if it falls off the front of itself plus the curve.
+dominated = float(np.mean([not pareto_front(np.vstack([pt, opt_curve]))[0] for pt in flat]))
+# The optimal curve's collision probability at the robust policy's alert rate (log-linear interpolation).
+order = np.argsort(opt_curve[:, 1])
+curve_at_robust = float(np.exp(np.interp(ROBUST_PT[1], opt_curve[order, 1], np.log(opt_curve[order, 0]))))
+
+# Adversarial analysis: the most likely failure from every start.
+def pushes_needed(W):
+    """Noise pushes a failure needs: each push is half as likely as no push (0.25 vs 0.5)."""
+    Ws = W[0][np.ix_(np.arange(-200, 201) + M.h_max, np.arange(-10, 11) + M.hdot_max)]
+    return np.round((ca.T_START * np.log(0.5) - Ws) / np.log(2))
+
+
+W_OPT, CHOICE_OPT = ca.adversary(M, POL)
+W_SIMPLE, _ = ca.adversary(M, SIMPLE)
+push_opt, push_simple = pushes_needed(W_OPT), pushes_needed(W_SIMPLE)
+# Several starts tie for the fewest gusts. Show the most surprising one: the start whose calm-air
+# encounter (every gust 0, the policy still acting) ends farthest from the intruder.
+CALM = ca.Model(noise=0)
+calm_choice = [None] + [np.zeros_like(POL[1])] * ca.T_START   # always branch 0, which is calm here
+tied = np.argwhere(push_opt == push_opt.min())                 # rows of (h index, rate index)
+calm_end = [abs(ca.replay(CALM, POL, calm_choice, int(i) - 200, int(j) - 10)[-1][1]) for i, j in tied]
+n_tied = len(tied)
+WORST = tuple(int(x) for x in tied[int(np.argmax(calm_end))] - (200, 10))
+mlf = ca.replay(M, POL, CHOICE_OPT, *WORST)
+mlf_pushes = [(t, nu) for t, _, _, _, nu in mlf[:-1] if nu != 0]
+calm = ca.replay(CALM, POL, calm_choice, *WORST)
+calm_first = next(t for t, _, _, a, _ in calm if a)            # first advisory in calm air
+calm_advice = ca.ADVISORIES[calm[ca.T_START - calm_first][3]]
+mlf_first = next(t for t, _, _, a, _ in mlf if a)              # first advisory on the failing path
+```
+
+## Big picture
+
+### Where this chapter fits
+
+Chapters 7–13 built ways to *find* good policies. Every one of them optimized a **model**: a transition function, a reward, a start distribution. Before a policy flies an aircraft or trades money, we need evidence that it does what we want in the world, not just in the model. **Policy validation** asks how well a policy performs on the metrics we care about, how sure we are of that answer, and how the answer changes when the model is wrong. This chapter closes Part II. Part III ([Chapter 15](../part3/ch15-exploration-and-exploitation.qmd) on) drops the assumption that the model is known at all.
+
+**The question:** how do we measure a policy's safety and performance, especially for rare failures, and how do we find the situations in which it breaks?
+
+The short answer: **evaluate the metrics exactly when the problem is small, and by simulation when it isn't, always with error bars.** Rare failures need **importance sampling**, which simulates dangerous situations more often and then corrects for it. **Robustness analysis** re-evaluates the policy on models that differ from the one it was optimized for. **Trade analysis** maps the compromises between metrics, such as safety and nuisance alerts. **Adversarial analysis** searches for the most likely way the policy fails.
+
+```{dot}
+//| label: fig-ch14-map
+//| fig-width: 7
+//| fig-height: 4.6
+//| fig-cap: "Map of this chapter. A policy optimized on a model is checked in four ways; each can send us back to redesign it."
+//| fig-alt: "Diagram. A blue box, Policy (optimized on a model), at the top, with arrows to four boxes: Performance metrics (exact evaluation or simulation, with error bars), which leads to Rare events (importance sampling); Robustness (other models; robust dynamic programming); Trade analysis (Pareto front); and Adversarial analysis (most likely failure). All four point to a box at the bottom: deploy, or redesign (actions, rewards, dynamics, solver)."
+digraph ch14 {
+  rankdir=TB; bgcolor="#fcfcfb"; pad=0.25; nodesep=0.3; ranksep=0.5;
+  node [shape=box, style="rounded,filled", fillcolor="white", color="#c3c2b7", penwidth=1.2,
+        fontname="Helvetica", fontsize=13, fontcolor="#0b0b0b", margin="0.12,0.07"];
+  edge [color="#52514e", penwidth=1.2, arrowsize=0.7, fontname="Helvetica", fontsize=11, fontcolor="#52514e"];
+  policy [label=<<B>Policy</B><BR/><FONT POINT-SIZE="11">optimized on a model</FONT>>, fillcolor="#cde2fb", color="#2a78d6"];
+  metric [label=<<B>Performance<BR/>metrics</B><BR/><FONT POINT-SIZE="11">exact or simulated,<BR/>with error bars</FONT>>];
+  rare [label=<<B>Rare events</B><BR/><FONT POINT-SIZE="11">importance sampling</FONT>>];
+  robust [label=<<B>Robustness</B><BR/><FONT POINT-SIZE="11">other models;<BR/>robust DP</FONT>>];
+  trade [label=<<B>Trade analysis</B><BR/><FONT POINT-SIZE="11">Pareto front</FONT>>];
+  adv [label=<<B>Adversarial<BR/>analysis</B><BR/><FONT POINT-SIZE="11">most likely failure</FONT>>];
+  decide [label=<<B>Deploy, or redesign</B><BR/><FONT POINT-SIZE="11">actions, rewards, dynamics, solver</FONT>>, fillcolor="#f0efec"];
+  policy -> metric [label="evaluate"]; policy -> robust [label="perturb"];
+  policy -> trade [label="vary"]; policy -> adv [label="attack"];
+  metric -> rare [label="too rare"];
+  rare -> decide; robust -> decide; trade -> decide; adv -> decide;
+  { rank=same; metric; robust; trade; adv; }
+}
+```
+
+### The key ideas at a glance
+
+1. **A metric is an expectation over trajectories.** Collision probability, expected advisory changes, and expected return are all averages of a per-trajectory score over the trajectories a policy produces. If the score adds up step by step, **policy evaluation** (Chapter 7) computes it exactly. Otherwise, or when the state space is too large, we **simulate** and average.
+
+2. **Every estimate needs an error bar.** The **standard error** $\hat\sigma / \sqrt{n}$ says how far the average of $n$ simulations typically is from the truth. For a rare event, the **relative** standard error matters: an estimate of $10^{-4}$ that is off by $10^{-4}$ is useless, however small that error looks.
+
+3. **Importance sampling for rare events.** Draw trajectories from a **proposal** that makes failures common, and weight each by how much more likely it was under the proposal than under the real model. The weighted average is still unbiased. The ideal proposal samples trajectories in proportion to how much they contribute. A proposal that pushes too hard produces a few enormous weights and can be worse than no proposal at all.
+
+4. **Robustness.** A policy is only as good as its model. Re-evaluate it on plausible variations: noisier dynamics, a pilot who doesn't always comply. **Robust dynamic programming** optimizes against the worst model in a set.
+
+5. **Trade analysis.** Safety and efficiency compete. Varying a policy's design parameters traces out the achievable pairs of metrics. Policies that are beaten on every metric by another policy are **dominated**; the rest form the **Pareto front**.
+
+6. **Adversarial analysis.** Let an adversary choose the random outcomes, balancing "cause a failure" against "stay plausible". The result is the **most likely failure**: a concrete story that engineers can inspect and judge.
+
+### Vocabulary
+
+| Term | Plain meaning |
+|:---|:---|
+| Trajectory metric $f_{\text{traj}}(\tau)$ | A score for one simulated trajectory, such as 1 if it ends in a collision |
+| Performance metric $f(\pi)$ | The expected trajectory metric under policy $\pi$ |
+| Standard error (SE) | Typical distance between a sample average and the true mean |
+| Relative standard error | Standard error divided by the estimate; what matters for rare events |
+| Proposal distribution $P'(\tau)$ | The distribution we actually sample from in importance sampling |
+| Importance weight $w$ | $P(\tau)/P'(\tau)$: corrects for sampling from the proposal |
+| Effective sample size | How many unweighted samples the weighted ones are worth |
+| Robust dynamic programming | Choose actions against the worst model in a set |
+| Pareto front | The policies that no other policy beats on every metric |
+| Most likely failure | The highest-probability trajectory that ends in failure |
+
+: Terms used on this page. {#tbl-vocab}
+
+### After this chapter you can
+
+- Evaluate a policy's metrics exactly by policy evaluation, or by simulation with standard errors and confidence intervals.
+- Estimate a rare-event probability with importance sampling, and recognize a proposal that makes things worse.
+- Stress-test a policy on models it wasn't designed for, and use robust dynamic programming.
+- Build a trade-off curve and identify the Pareto front.
+- Turn a policy into an adversarial search problem and find its most likely failure.
+
+## Intuition
+
+::: {.callout-tip title="Analogy"}
+A bridge has been designed on a computer. Before opening it, engineers:
+
+- **Measure its performance** under typical traffic, and report the figure with a margin of error.
+- **Look for rare failures** by loading the model with heavy trucks far more often than real traffic would, then scaling the results back down.
+- **Check robustness:** what if the steel is 10% weaker than specified?
+- **Weigh trade-offs:** a stiffer bridge is safer but costs more; which designs are not beaten on both counts?
+- **Play the adversary:** what is the most plausible combination of wind, load and fatigue that brings it down?
+
+Each check can send the design back to the drawing board.
+:::
+
+Our running example is **aircraft collision avoidance** (ADM Appendix F.6, in the [problem gallery](../appendices/f-problems.qmd#collision-avoidance)). Our aircraft flies head on toward an intruder, which it would meet in 40 seconds. The state is our altitude $h$ relative to the intruder, our vertical rate $\dot h$, the previous advisory, and the time left $t_{\text{col}}$. Every second the policy issues an advisory: none, descend at 5 m/s, or climb at 5 m/s. The pilot changes the vertical rate by at most 1 m/s per second, and random gusts add $\pm 2$ m/s with probability ¼ each. A **collision** means passing within 50 m vertically. Each change of advisory costs 0.01, a collision costs 1. We compare two policies:
+
+- the **optimal** policy for those costs, found by backward induction (Chapter 7);
+- a **simple** policy: when the intruder is within 50 m vertically and less than 30 s away, climb if we are above it and descend if below.
+
+Because the starting $h$ and $\dot h$ are whole numbers here, and every change is a whole number, the state stays on an integer grid. That makes exact evaluation possible, so every estimate on this page can be checked against the true answer.
+
+### Scoring a policy
+
+From starts spread uniformly over $\pm 200$ m and $\pm 10$ m/s, the optimal policy collides with probability `{python} f"{P_OPT:.2e}"` and changes its advisory `{python} f"{CH_OPT:.2f}"` times per encounter on average. The simple policy collides with probability `{python} f"{P_SIMPLE:.3f}"` and changes advisories `{python} f"{CH_SIMPLE:.2f}"` times. Both numbers are exact: they come from policy evaluation, the same backward sweep that computes a value function, but scoring collisions and changes instead of rewards. See @eq-metric and @eq-additive.
+
+### How sure are we?
+
+Simulating 10,000 encounters of the optimal policy gave `{python} k10` collisions: an estimate of `{python} f"{mc10[0]:.1e}"` with standard error `{python} f"{mc10[1]:.1e}"`. That's a **relative** error of `{python} f"{mc10[2]:.0%}"`. To bring it down to 10%, direct simulation needs about `{python} f"{n_for_10pct:,.0f}"` encounters. Meanwhile the average number of advisory changes, a common event, is already pinned down to `{python} f"{mc_ch[2]:.1%}"` after 10,000. See @eq-standard-error.
+
+### Make failures common, then correct
+
+Instead of waiting for gusts to cause a collision, sample gusts that are more likely to cause one, and weight each simulated encounter by how much less likely it was in reality. A crude version, "push toward the intruder a bit more often", cuts the error only a little: its relative error is `{python} f"{is_rel['tilt 0.25']:.0%}"` against `{python} f"{is_rel['direct']:.0%}"` for direct sampling. Pushing much harder makes it worse (`{python} f"{is_rel['tilt 1']:.0%}"`). A proposal guided by an estimate of the risk from each state does far better: `{python} f"{is_rel['rough']:.1%}"` with the risk computed from a deliberately wrong model (@fig-importance). See @eq-importance and @eq-optimal-proposal.
+
+### What if the model is wrong?
+
+The optimal policy assumed the pilot always follows the advisory. If the pilot complies only 80% of the time, its collision probability rises to `{python} f"{robust_rows['optimal'][2, 0]:.1e}"`, about `{python} f"{robust_rows['optimal'][2, 0] / P_OPT:.0f}"` times higher. A policy optimized against the worse of the two models (always complies, or complies 80% of the time) keeps it at `{python} f"{robust_rows['robust'][2, 0]:.1e}"`, at the price of more advisory changes (@fig-robustness). See @eq-robust.
+
+### Safety costs alerts
+
+Lowering the cost of an advisory change makes the optimal policy more cautious: safer, but more disruptive. Plotting collision probability against advisory changes for many policies shows the achievable compromises. Of the 96 simple threshold policies we tried, `{python} f"{dominated:.0%}"` are beaten by some optimal policy on both metrics at once (@fig-trade). See @eq-pareto.
+
+### How does it fail?
+
+An adversary that controls the gusts can always cause a collision. The question is how *unlikely* its gusts must be. For the optimal policy, every start needs at least `{python} int(push_opt.min())` gusts, each half as likely as calm air. For the simple policy, `{python} f"{np.mean(push_simple == 0):.1%}"` of starts end in a collision with no gust at all (@fig-adversary). See @eq-adversarial.
+
+## Formalism
+
+### Performance metrics
+
+A trajectory $\tau = (s_1, a_1, s_2, \ldots)$ produced by policy $\pi$ from a start distribution $b$ gets a score $f_{\text{traj}}(\tau)$. The policy's **performance metric** is its expectation (ADM §14.1):
+
+::: {.key-equation data-name="Performance metric"}
+$$
+f(\pi) = \mathbb{E}_\tau\big[f_{\text{traj}}(\tau)\big],
+\qquad
+P(\tau) = b(s_1) \prod_t T\big(s_{t+1} \mid s_t, \pi(s_t)\big)
+$$ {#eq-metric}
+:::
+
+**In words.** Average the score over all the trajectories the policy can produce, each weighted by its probability.
+
+**Term by term.**
+
+- $b(s_1)$ is the probability of the start state.
+- Each factor $T(s_{t+1} \mid s_t, \pi(s_t))$ is the probability of one transition when following the policy.
+- With $f_{\text{traj}} = 1$ for a collision and 0 otherwise, $f(\pi)$ is the collision probability.
+
+The expectation is only one summary. Tail measures, such as the 5th percentile of the return or the mean of the worst 5%, can matter more for safety.
+
+When the score adds up over steps, the expectation is a value function:
+
+::: {.key-equation data-name="Additive metrics by policy evaluation"}
+$$
+f_{\text{traj}}(\tau) = \sum_t f_{\text{step}}(s_t, a_t),
+\qquad
+f(\pi) = \sum_s f_{\text{state}}(s)\, b(s)
+$$ {#eq-additive}
+:::
+
+**In words.** If the score is a sum of per-step scores, treat the per-step score as a reward. Policy evaluation then gives its expected total from every state, $f_{\text{state}}$. Average that over the start distribution.
+
+**Term by term.** Advisory changes are additive: $f_{\text{step}} = 1$ when $a_t \ne a_{t-1}$. Collision is additive too, with a single nonzero term at $t_{\text{col}} = 0$. In the code, `evaluate` runs this backward sweep for any per-step and final score.
+
+**Why it holds.** Linearity of expectation: the expected sum is the sum of expected per-step scores. That is exactly the quantity a value function computes when the reward is $f_{\text{step}}$ (Chapter 7, with $\gamma = 1$ over a finite horizon).
+
+### Error bars for simulation
+
+With $n$ simulated trajectory scores $x_1, \ldots, x_n$, sample mean $\hat\mu$ and sample standard deviation $\hat\sigma$:
+
+::: {.key-equation .famous data-name="Standard error and relative standard error"}
+$$
+\text{SE} = \frac{\hat\sigma}{\sqrt n},
+\qquad
+\text{relative SE} = \frac{\hat\sigma}{\hat\mu\sqrt n},
+\qquad
+\text{95\% interval: } \hat\mu \pm 1.96\,\text{SE}
+$$ {#eq-standard-error}
+:::
+
+**In words.** The average of $n$ samples wanders around the true mean by about $\hat\sigma/\sqrt n$. Quadrupling the sample size halves the error.
+
+**Term by term.**
+
+- $\hat\sigma$ is the spread of individual trajectory scores. For a 0/1 event with probability $p$, it is $\sqrt{p(1-p)}$.
+- For that event, the relative SE is $\sqrt{(1-p)/(np)} \approx 1/\sqrt{np}$: one over the square root of the *number of failures observed*. Ten failures give about 32% relative error, a hundred about 10%.
+- The normal interval can extend below 0 for a rare event. The Bayesian alternative from Chapter 4, a $\text{Beta}(1 + k, 1 + n - k)$ posterior after $k$ failures in $n$ trials, never does.
+
+**Why it holds.** The variance of a sum of $n$ independent samples is $n\sigma^2$, so the variance of their average is $\sigma^2/n$. The central limit theorem makes the average approximately normal, which gives the 1.96.
+
+### Importance sampling
+
+To estimate $f(\pi)$ from trajectories drawn from a **proposal** $P'$ instead of $P$ (ADM §14.2):
+
+::: {.key-equation .famous data-name="Importance sampling"}
+$$
+f(\pi) = \sum_\tau f_{\text{traj}}(\tau)\, P(\tau)
+= \sum_\tau f_{\text{traj}}(\tau)\, \frac{P(\tau)}{P'(\tau)}\, P'(\tau)
+\approx \frac1n \sum_{i=1}^n f_{\text{traj}}(\tau^{(i)})\, \frac{P(\tau^{(i)})}{P'(\tau^{(i)})},
+\quad \tau^{(i)} \sim P'
+$$ {#eq-importance}
+:::
+
+**In words.** Sample from a distribution that produces the interesting trajectories more often, and down-weight each one by how much more often it was produced than it should have been.
+
+**Term by term.**
+
+- $w^{(i)} = P(\tau^{(i)})/P'(\tau^{(i)})$ is the **importance weight**. A failure that the proposal makes 100 times more likely counts $1/100$.
+- $P'$ must give positive probability to every trajectory that $P$ does and that has $f_{\text{traj}} \neq 0$. Otherwise those trajectories are never seen, and the estimate is biased.
+- With $P(\tau)$ from @eq-metric, the start and policy terms cancel if the proposal only changes the noise. The weight is then a product of per-step ratios $P(\nu_t)/P'(\nu_t)$. That's what `simulate` accumulates, in logs.
+
+**Why it holds.** Multiplying and dividing by $P'(\tau)$ changes nothing. The second sum is an expectation under $P'$, and a sample average estimates it without bias. This is the same idea as likelihood weighting in Bayesian networks (Chapter 3).
+
+Which proposal is best?
+
+::: {.key-equation data-name="Optimal proposal"}
+$$
+P^*(\tau) = \frac{|f_{\text{traj}}(\tau)|\, P(\tau)}{\sum_{\tau'} |f_{\text{traj}}(\tau')|\, P(\tau')},
+\qquad
+P'(\nu \mid s) \propto P(\nu)\, \hat U\big(s'(s, \nu)\big)
+$$ {#eq-optimal-proposal}
+:::
+
+**In words.** The ideal proposal samples each trajectory in proportion to its contribution to the answer. For a sequential problem, that can be done one step at a time: choose each random outcome in proportion to its probability times the risk that remains afterward.
+
+**Term by term.**
+
+- For a nonnegative $f_{\text{traj}}$ the denominator of $P^*$ is $f(\pi)$ itself, the unknown. So $P^*$ is a target to approximate, not something we can use directly.
+- On the right, $\hat U(s')$ is an estimate of the risk-to-go: the probability of a failure from the next state $s'$ onward. With the exact risk-to-go this reproduces $P^*$ and every weighted sample equals the start state's risk, so the estimate's only noise is from the start states. With an approximate $\hat U$ (here, computed from a model with larger gusts), it is still very good.
+- We add a small constant to $\hat U$ so that no outcome gets probability 0 (the support condition above).
+
+**Why it holds.** Under $P^*$ with $f_{\text{traj}} \ge 0$, every sample's weighted value is $f_{\text{traj}}(\tau)P(\tau)/P^*(\tau) = f(\pi)$: zero variance. For the step-by-step form, write the risk-to-go as $U(s) = \sum_\nu P(\nu)\, U(s'(s, \nu))$. Choosing $\nu$ with probability $P(\nu)U(s')/U(s)$ gives a step weight of $U(s)/U(s')$. Along a failing trajectory these ratios telescope to $U(s_1)/U(s_{\text{end}}) = U(s_1)$, because the final risk of a failure is 1.
+
+### Robustness and robust dynamic programming
+
+Evaluate the policy on models other than the one it was optimized for: stress testing (ADM §14.3). If it is too sensitive, optimize against a set of models $(T_1, R_1), \ldots, (T_n, R_n)$ at once (G. N. Iyengar, *Mathematics of Operations Research*, 2005):
+
+::: {.key-equation data-name="Robust Bellman update"}
+$$
+U_{k+1}(s) = \max_a\ \min_i\ \Big(R_i(s, a) + \gamma \sum_{s'} T_i(s' \mid s, a)\, U_k(s')\Big)
+$$ {#eq-robust}
+:::
+
+**In words.** Score each action by the model that is worst for it, then pick the action with the best worst case.
+
+**Term by term.**
+
+- The $\min_i$ is taken separately for each state and action: the "worst model" can differ from place to place.
+- With a single model, this is the ordinary Bellman update (Chapter 7).
+- In the code we minimize cost rather than maximize reward, so the update reads $\min_a \max_i$.
+
+**Why it holds.** It is the Bellman update of a game in which nature picks the model after seeing our action. The result guarantees at least $U(s)$ against any sequence of models chosen from the set.
+
+### Trade analysis
+
+For several metrics $f_1, \ldots, f_k$, all to be minimized (ADM §14.4):
+
+::: {.key-equation data-name="Pareto dominance"}
+$$
+\pi' \text{ dominates } \pi \iff f_j(\pi') \le f_j(\pi) \text{ for all } j \text{ and } f_j(\pi') < f_j(\pi) \text{ for some } j
+$$ {#eq-pareto}
+:::
+
+**In words.** One policy dominates another if it is at least as good on every metric and strictly better on one. The **Pareto front** is the set of policies nothing dominates.
+
+**Term by term.** Metrics to be maximized are negated first. Dominated policies can be discarded whatever the relative importance of the metrics. Choosing among the policies on the front is a value judgment, such as how many nuisance alerts one avoided collision is worth.
+
+A single weighted objective $\theta f_1 + (1 - \theta) f_2$, optimized for each $\theta$, traces part of the front. That is what varying the cost of an advisory change does in @fig-trade.
+
+### Adversarial analysis
+
+Turn validation into search (ADM §14.5). An adversary picks the next state as its action, among those our policy can lead to. Its reward is
+
+::: {.key-equation data-name="Adversarial reward"}
+$$
+R'(s, s') = -R\big(s, \pi(s)\big) + \lambda \log T\big(s' \mid s, \pi(s)\big)
+$$ {#eq-adversarial}
+:::
+
+**In words.** The adversary wants us to do badly, but pays for every unlikely outcome it chooses. $\lambda$ sets the exchange rate between our loss and plausibility.
+
+**Term by term.**
+
+- $-R$ is our cost, so the adversary gains when we lose.
+- $\log T$ is the log-probability of the outcome it chose. Summed over the trajectory, it is the trajectory's log-likelihood.
+- Small $\lambda$: the adversary causes a failure whatever it takes. Large $\lambda$: it follows the most likely trajectory, failure or not.
+- The adversarial transitions are deterministic (the next state is the adversary's action), so this is a search problem that dynamic programming solves exactly on our lattice.
+- This $\lambda$ is unrelated to GAE's $\lambda$ in Chapter 13.
+
+To find the **most likely failure**, keep only the log-probabilities as rewards and require the trajectory to end in a failure: a terminal reward of 0 for a failure and $-\infty$ otherwise (eq. 14.16 in the book). The answer is the highest-probability trajectory among those that fail.
+
+## Worked example
+
+### Error bars by hand
+
+The first 10,000 simulated encounters of the optimal policy contained $k =$ `{python} k10` collisions.
+
+- **Estimate:** $\hat\mu = k/n =$ `{python} f"{mc10[0]:.1e}"`.
+- **Spread:** $\hat\sigma \approx \sqrt{\hat\mu(1 - \hat\mu)} =$ `{python} f"{np.sqrt(mc10[0] * (1 - mc10[0])):.4f}"`.
+- **Standard error:** $\hat\sigma/\sqrt{10{,}000} =$ `{python} f"{mc10[1]:.1e}"`, a relative error of `{python} f"{mc10[2]:.0%}"`.
+- **95% normal interval:** (`{python} f"{mc10[3][0]:.1e}"`, `{python} f"{mc10[3][1]:.1e}"`). The Beta posterior's 95% interval is (`{python} f"{beta10[0]:.1e}"`, `{python} f"{beta10[1]:.1e}"`).
+
+The true value, from exact evaluation, is `{python} f"{P_OPT:.2e}"`. Both intervals contain it, but both are wide: the upper end is `{python} f"{mc10[3][1] / mc10[3][0]:.0f}"` times the lower end for the normal interval and `{python} f"{beta10[1] / beta10[0]:.1f}"` times for the Beta interval.
+
+### One importance weight
+
+Take a state below the intruder ($h < 0$), where an upward push of +2 m/s is "toward" it. The tilt proposal with strength 1 multiplies each outcome's probability by $e^{+1}$ (toward), $e^0$ (calm) or $e^{-1}$ (away), then renormalizes:
+
+```{python}
+#| include: false
+p_true = np.array([0.25, 0.5, 0.25])                       # away (-2), calm (0), toward (+2)
+tilted = p_true * np.exp([-1, 0, 1])
+p_prop = tilted / tilted.sum()
+w3 = (p_true[2] / p_prop[2]) * (p_true[1] / p_prop[1]) * (p_true[2] / p_prop[2])
+```
+
+| Outcome | $P(\nu)$ | $P'(\nu)$ | Ratio $P/P'$ |
+|---|---|---|---|
+| away, −2 | 0.25 | `{python} f"{p_prop[0]:.3f}"` | `{python} f"{p_true[0] / p_prop[0]:.2f}"` |
+| calm, 0 | 0.50 | `{python} f"{p_prop[1]:.3f}"` | `{python} f"{p_true[1] / p_prop[1]:.2f}"` |
+| toward, +2 | 0.25 | `{python} f"{p_prop[2]:.3f}"` | `{python} f"{p_true[2] / p_prop[2]:.2f}"` |
+
+: Tilted noise below the intruder. {#tbl-tilt}
+
+Three steps with outcomes toward, calm, toward get weight `{python} f"{p_true[2] / p_prop[2]:.2f}"` × `{python} f"{p_true[1] / p_prop[1]:.2f}"` × `{python} f"{p_true[2] / p_prop[2]:.2f}"` = `{python} f"{w3:.3f}"`. Over 40 steps these factors multiply. A trajectory with many "away" steps gets a weight of `{python} f"{p_true[0] / p_prop[0]:.1f}"` per step, so a handful of such trajectories can carry enormous weight. That is why a strong tilt made the estimate *worse*.
+
+### Who dominates whom?
+
+Four policies, scored exactly (collision probability, advisory changes):
+
+```{python}
+pick = {"simple, 50 m / 30 s": simple_grid[1, 5], "simple, 150 m / 30 s": simple_grid[5, 5],
+        "simple, 200 m / 40 s": simple_grid[7, 7], "optimal, change cost 0.01": opt_curve[cost_at[0.01]]}
+pick_front = pareto_front(np.array(list(pick.values())))
+rows = [f"| {k} | {v[0]:.2e} | {v[1]:.2f} | {'yes' if f else 'no'} |" for (k, v), f in zip(pick.items(), pick_front)]
+Markdown("| Policy | Collision probability | Advisory changes | On the front? |\n|---|---|---|---|\n" + "\n".join(rows))
+```
+
+The optimal policy has both fewer collisions and fewer changes than the first two simple policies, so it dominates them. The 200 m / 40 s simple policy has fewer collisions than the optimal one, but it changes advisories much more often, so neither dominates the other. Among these four, the front is the optimal policy and that one simple policy.
+
+## Interactive
+
+### Explore the trade-off
+
+Move the simple policy's thresholds and see where it lands among all the policies of @fig-trade. The blue curve is the optimal policy for different costs of an advisory change. A simple policy on or near that curve is as good as it gets for its number of alerts.
+
+```{python}
+#| include: false
+write_json({"h": H_TH, "t": T_TH, "grid": simple_grid.round(8), "front": simple_front.reshape(len(H_TH), len(T_TH)),
+            "curve": opt_curve.round(8), "costs": C_COSTS,
+            "style": {"blue": blue, "orange": orange, "ink": style.INK, "muted": style.MUTED,
+                      "surface": style.SURFACE}}, "data/ch14-trade.json")
+```
+
+```{ojs}
+tradeData = FileAttachment("data/ch14-trade.json").json()
+viewof hThresh = Inputs.range([25, 300], {step: 25, value: 50, label: "Altitude threshold (m)"})
+viewof tThresh = Inputs.range([5, 40], {step: 5, value: 30, label: "Time threshold (s)"})
+```
+
+```{ojs}
+tradeNow = {
+  // Grid rows are altitude thresholds 25, 50, ...; columns are time thresholds 5, 10, ...
+  const i = hThresh / 25 - 1, j = tThresh / 5 - 1;
+  return {p: tradeData.grid[i][j][0], ch: tradeData.grid[i][j][1], front: tradeData.front[i][j]};
+}
+md`Collision probability **${tradeNow.p.toExponential(2)}**, advisory changes **${tradeNow.ch.toFixed(2)}** per encounter. ${tradeNow.front ? "On the Pareto front of the simple policies." : "Dominated by another simple policy."}`
+```
+
+```{ojs}
+//| label: fig-trade-explorer
+//| fig-cap: "The chosen simple policy (large orange dot) among all 96 simple policies (grey), their Pareto front (orange line), and the optimal policies for different change costs (blue)."
+//| fig-alt: "Interactive scatter plot with expected advisory changes from 0 to about 2 across and collision probability on a log scale from 0.00003 to 0.2 up the side. Grey dots are simple threshold policies; an orange line joins those on their Pareto front; a blue line of optimal policies lies below and to the left of all of them. Two sliders set the altitude and time thresholds and move a large orange dot."
+{
+  const pts = tradeData.grid.flat().map(d => ({ch: d[1], p: d[0]}));
+  const front = tradeData.grid.flat().map((d, k) => ({ch: d[1], p: d[0], on: tradeData.front.flat()[k]}))
+    .filter(d => d.on).sort((a, b) => a.ch - b.ch);
+  const curve = tradeData.curve.map(d => ({ch: d[1], p: d[0]}));
+  return Plot.plot({
+    width: 560, height: 380,
+    style: {background: tradeData.style.surface, color: tradeData.style.ink},
+    x: {domain: [0, 2.1], label: "expected advisory changes", grid: true},
+    // Exponent labels: the default SI format would print 1e-3 as "1m", easily misread as metres.
+    y: {type: "log", domain: [3e-5, 0.2], label: "collision probability", grid: true, tickFormat: ".0e"},
+    marks: [
+      Plot.dot(pts, {x: "ch", y: "p", r: 3, fill: tradeData.style.muted, fillOpacity: 0.5}),
+      Plot.line(front, {x: "ch", y: "p", stroke: tradeData.style.orange, strokeWidth: 1.5}),
+      Plot.line(curve, {x: "ch", y: "p", stroke: tradeData.style.blue, strokeWidth: 2}),
+      Plot.dot(curve, {x: "ch", y: "p", r: 3, fill: tradeData.style.blue}),
+      Plot.dot([tradeNow], {x: "ch", y: "p", r: 8, fill: tradeData.style.orange, stroke: "white", strokeWidth: 2})
+    ]
+  });
+}
+```
+
+### Play the adversary
+
+Pick a start and the adversary's $\lambda$. The adversary controls every gust, trading "cause a collision" against "stay likely" (@eq-adversarial). Dots mark its gusts; the shaded band is the collision zone at $t_{\text{col}} = 0$. Small $\lambda$ buys a collision with many gusts; at large $\lambda$ it stops paying for gusts and the encounter ends safely.
+
+```{python}
+#| include: false
+# Adversarial paths for several lambda values and starts, against the optimal policy.
+ADV_LAMS = (0.001, 0.003, 0.01, 0.03, 0.1, 0.3, 1.0)
+ADV_STARTS = ((60, 0), (-120, 4), (150, -6), WORST)
+adv_choices = {lam: ca.adversary(M, POL, lam=lam)[1] for lam in ADV_LAMS}
+adv_paths = {}
+for k, lam in enumerate(ADV_LAMS):
+    for h0, d0 in ADV_STARTS:
+        steps = ca.replay(M, POL, adv_choices[lam], h0, d0)
+        # Keyed by the index of lambda: JSON turns 1.0 into 1, so string keys from floats won't match.
+        adv_paths[f"{k}|{h0},{d0}"] = [[t, int(h), int(a) if a is not None else -1, int(nu) if nu is not None else 0]
+                                         for t, h, _, a, nu in steps]
+write_json({"lams": ADV_LAMS, "starts": ADV_STARTS, "paths": adv_paths, "advisories": ca.ADVISORIES,
+            "style": {"blue": blue, "orange": orange, "ink": style.INK, "muted": style.MUTED,
+                      "surface": style.SURFACE, "band": "#f0efec"}}, "data/ch14-adversary.json")
+```
+
+```{ojs}
+advData = FileAttachment("data/ch14-adversary.json").json()
+viewof advStart = Inputs.select(advData.starts, {label: "Start (h, ḣ)", format: d => `h = ${d[0]} m, ḣ = ${d[1]} m/s`})
+viewof advLam = Inputs.select(advData.lams, {label: "λ", value: 0.03})
+```
+
+```{ojs}
+advPath = advData.paths[`${advData.lams.indexOf(advLam)}|${advStart[0]},${advStart[1]}`]
+advSummary = {
+  const gusts = advPath.filter(d => d[3] !== 0).length;
+  const end = advPath[advPath.length - 1][1];
+  const changes = advPath.slice(0, -1).filter((d, k) => d[2] !== (k === 0 ? 0 : advPath[k - 1][2])).length;
+  return {gusts, end, changes, crash: Math.abs(end) < 50};
+}
+md`**${advSummary.gusts}** gusts, **${advSummary.changes}** advisory changes, final altitude **${advSummary.end} m**: ${advSummary.crash ? "**collision**" : "safe"}. The path is 2<sup>−${advSummary.gusts}</sup> as likely as the calm-air path from this start (each gust halves it).`
+```
+
+```{ojs}
+//| label: fig-adversary-explorer
+//| fig-cap: "The adversary's chosen encounter against the optimal policy: altitude relative to the intruder over the final 40 seconds, colored by advisory, with the adversary's gusts marked."
+//| fig-alt: "Interactive line chart with seconds to collision from 40 down to 0 across and altitude relative to the intruder up the side, with a grey band from minus 50 to 50 at the right edge marking a collision. The path is drawn as dots colored by advisory (grey none, orange descend, blue climb); black triangles mark gusts. Menus choose the start and lambda; at small lambda the path wiggles with many gusts and ends inside the band, at large lambda it ends outside."
+Plot.plot({
+  width: 600, height: 340,
+  style: {background: advData.style.surface, color: advData.style.ink},
+  x: {domain: [40, 0], label: "seconds to collision, t_col"},
+  y: {domain: [-260, 260], label: "altitude relative to intruder, h (m)", grid: true},
+  // Advisory codes: -1 marks the final point, 0 none, 1 descend, 2 climb. "ordinal" keeps them categories.
+  color: {type: "ordinal", domain: [-1, 0, 1, 2],
+          range: [advData.style.ink, advData.style.muted, advData.style.orange, advData.style.blue]},
+  marks: [
+    Plot.rect([{x1: 1.5, x2: -0.5, y1: -50, y2: 50}], {x1: "x1", x2: "x2", y1: "y1", y2: "y2", fill: advData.style.band}),
+    Plot.ruleY([0], {stroke: advData.style.muted, strokeDasharray: "4,3"}),
+    Plot.line(advPath, {x: d => d[0], y: d => d[1], stroke: advData.style.ink, strokeOpacity: 0.4}),
+    Plot.dot(advPath, {x: d => d[0], y: d => d[1], fill: d => d[2], r: 3.5}),
+    Plot.dot(advPath.filter(d => d[3] !== 0), {x: d => d[0], y: d => d[1] + (d[3] > 0 ? 14 : -14),
+      symbol: "triangle", rotate: d => d[3] > 0 ? 0 : 180, fill: advData.style.ink, r: 4})
+  ]
+})
+```
+
+Grey dots mean no advisory, orange descend, blue climb. A triangle pointing up is an upward gust (+2 m/s), pointing down a downward one.
+
+## Algorithms & code
+
+### Estimating a metric
+
+::: {.panel-tabset group="lang"}
+## Python
+```{python}
+#| output: asis
+show_source(mc_estimate, beta_interval, ca.evaluate)
+```
+## Julia
+```{.julia .snippet}
+using ADM, Random, Statistics
+import Distributions
+
+# Mean, standard error (eq. 14.5), relative standard error (eq. 14.6), 95% interval.
+function mc_estimate(x)
+    μ, se = mean(x), std(x) / sqrt(length(x))     # std uses n - 1, like ddof=1
+    return μ, se, se / μ, (μ - 1.96se, μ + 1.96se)
+end
+
+# Bayesian interval after k successes in n trials: Beta(1 + k, 1 + n - k) posterior.
+beta_interval(k, n) = Distributions.quantile.(Distributions.Beta(1 + k, 1 + n - k), (0.025, 0.975))
+
+m = CAModel()
+policy, _ = ca_optimal_policy(m)
+exact = ca_start_average(m, ca_evaluate(m, policy))        # exact, by policy evaluation
+
+# Direct simulation from uniform integer starts.
+rng = MersenneTwister(0)
+# Float64 turns each true/false into 1.0/0.0 so mean and std are ordinary numbers.
+hits = [Float64(abs(ca_simulate(m, policy, rand(rng, -CA_H_START:CA_H_START),
+                                rand(rng, -CA_HDOT_START:CA_HDOT_START), rng)[1]) < CA_COLLISION_H)
+        for _ in 1:100_000]
+μ, se, rel, ci = mc_estimate(hits)
+println("exact $(round(exact; sigdigits = 3)), estimate $(round(μ; sigdigits = 3)) ± $(round(se; sigdigits = 2))")
+@assert abs(μ - exact) < 4se
+@assert beta_interval(sum(hits), length(hits))[1] > 0
+```
+:::
+
+### Importance sampling
+
+::: {.panel-tabset group="lang"}
+## Python
+```{python}
+#| output: asis
+show_source(importance_estimate, ca.simulate)
+```
+## Julia
+```{.julia .snippet}
+using ADM, Random, Statistics
+
+m = CAModel()
+policy, _ = ca_optimal_policy(m)
+risk = ca_evaluate(m, policy; history = true)   # risk[t + 1]: risk-to-go at t_col = t
+exact = ca_start_average(m, risk[end])
+
+# One guided encounter: choose each gust with probability ∝ P(ν) (risk after it + ε)
+# (eq. 14.13 one step at a time) and return (collided?, log weight).
+function guided_rollout(h, ḣ, rng; ε = 1e-6)
+    a_prev, logw = 1, 0.0
+    noise = ADM.ca_noise(m)                          # ((ν, P(ν)) for ν = -2, 0, 2)
+    for t in CA_T_START:-1:1
+        a = policy[t][a_prev, ca_index(m, h, ḣ)...]
+        acc = ADM.ca_accel(m, ḣ, a)
+        # Proposal weights: P(ν) times the risk-to-go of the state after ν.
+        w = [p * (risk[t][a, ca_index(m, h + ḣ, ḣ + acc + ν)...] + ε) for (ν, p) in noise]
+        q = w ./ sum(w)
+        k = min(searchsortedfirst(cumsum(q), rand(rng)), 3)   # inverse-CDF draw
+        logw += log(noise[k][2]) - log(q[k])                  # log P(ν) - log P'(ν)
+        h, ḣ, a_prev = h + ḣ, ḣ + acc + noise[k][1], a
+    end
+    return abs(h) < CA_COLLISION_H, logw
+end
+
+# Importance sampling estimate (eq. 14.12): mean of f × w, with its standard error.
+function importance_estimate(f, logw)
+    fw = f .* exp.(logw)
+    return mean(fw), std(fw) / sqrt(length(fw))
+end
+
+rng = MersenneTwister(1)
+runs = [guided_rollout(rand(rng, -200:200), rand(rng, -10:10), rng) for _ in 1:2_000]
+μ, se = importance_estimate(first.(runs), last.(runs))
+println("exact $(round(exact; sigdigits = 4)), guided estimate $(round(μ; sigdigits = 4)) ± $(round(se; sigdigits = 2))")
+@assert abs(μ - exact) < 4se && se < 0.05exact
+```
+:::
+
+### Robustness and trade-offs
+
+::: {.panel-tabset group="lang"}
+## Python
+```{python}
+#| output: asis
+show_source(ca.optimal_policy, pareto_front)
+```
+## Julia
+```{.julia .snippet}
+using ADM
+
+# Rows of `points` that no other row dominates (all metrics minimized, eq. on Pareto dominance).
+function pareto_front(points)
+    n = size(points, 1)
+    dominates(j, i) = all(points[j, :] .<= points[i, :]) && any(points[j, :] .< points[i, :])
+    return [!any(dominates(j, i) for j in 1:n if j != i) for i in 1:n]
+end
+
+m, worse = CAModel(), CAModel(compliance = 0.8)
+nominal, _ = ca_optimal_policy(m)
+robust, _ = ca_optimal_policy(m; models = [m, worse])   # robust dynamic programming (eq. 14.14)
+collision(policy, model) = ca_start_average(model, ca_evaluate(model, policy))
+advisory_changes(policy) = ca_start_average(m, ca_evaluate(m, policy; step_metric = (p, a) -> p != a,
+                                                           final = zeros(1001, 61)))
+for (name, p) in (("nominal", nominal), ("robust", robust))
+    println(name, ": collision ", round(collision(p, m); sigdigits = 3), " (complies), ",
+            round(collision(p, worse); sigdigits = 3), " (80%), changes ", round(advisory_changes(p); digits = 3))
+end
+@assert collision(robust, worse) < collision(nominal, worse)
+
+# Simple threshold policies: altitude thresholds 50, 100, 150, 200 m, time 30 s.
+pts = [[collision(ca_simple_policy(m; h_thresh = h), m), advisory_changes(ca_simple_policy(m; h_thresh = h))]
+       for h in (50, 100, 150, 200)]
+println("on the Pareto front: ", pareto_front(permutedims(hcat(pts...))))
+```
+:::
+
+### Adversarial analysis
+
+::: {.panel-tabset group="lang"}
+## Python
+```{python}
+#| output: asis
+show_source(ca.adversary, ca.replay)
+```
+## Julia
+```{.julia .snippet}
+using ADM
+
+m = CAModel()
+policy, _ = ca_optimal_policy(m)
+simple = ca_simple_policy(m)
+
+# W[a_prev, i, j]: best log-probability of a path that ends in a collision (eq. 14.16).
+# Each gust (probability ¼) is half as likely as calm air (½), so a path with k gusts
+# has log-probability 40 log ½ - k log 2.
+function gusts_needed(policy)
+    W = ca_most_likely_failure(m, policy)
+    Ws = W[1, (-200:200) .+ (m.h_max + 1), (-10:10) .+ (m.hdot_max + 1)]  # starts; a_prev = none
+    return round.(Int, (CA_T_START * log(0.5) .- Ws) ./ log(2))
+end
+
+g_opt, g_simple = gusts_needed(policy), gusts_needed(simple)
+println("optimal policy: at least $(minimum(g_opt)) gusts from any start")
+println("simple policy: $(round(100 * sum(g_simple .== 0) / length(g_simple); digits = 1))% of starts fail in calm air")
+@assert minimum(g_opt) >= 3 && any(g_simple .== 0)
+```
+:::
+
+::: {.callout-note collapse="true" title="Reading the Julia code (for Python programmers)"}
+- **`policy[t][a_prev, ca_index(m, h, ḣ)...]`**: `...` splats the tuple of two indices into the indexing call, like `policy[t][(a_prev,) + idx]` in Python.
+- **`risk[t]` is the risk at $t_{\text{col}} = t - 1$**: Julia arrays start at 1, so the list of values from $t_{\text{col}} = 0$ to 40 is indexed 1 to 41.
+- **Advisories are 1, 2, 3** (none, descend, climb) in Julia and 0, 1, 2 in Python.
+- **`first.(runs)`** applies `first` to each tuple, like `[r[0] for r in runs]`.
+- **`import Distributions`** with qualified names avoids clashes with other packages' exports (§6.1 of the site's conventions).
+:::
+
+### Run them
+
+```{python}
+#| echo: true
+m = ca.Model()
+policy, cost = ca.optimal_policy(m)
+exact = ca.start_average(m, ca.evaluate(m, policy))
+
+rng = np.random.default_rng(7)
+starts = ca.sample_starts(10_000, rng)
+h_end, _, _ = ca.simulate(m, policy, *starts, rng)
+direct = mc_estimate(np.abs(h_end) < ca.COLLISION_H)
+
+risk = ca.evaluate(ca.Model(noise=3), policy, history=True)   # a rough model's risk-to-go
+h_end, _, log_w = ca.simulate(m, policy, *starts, rng, guide=risk)
+guided = importance_estimate(np.abs(h_end) < ca.COLLISION_H, log_w)
+```
+
+```{python}
+print(f"exact {exact:.3e}; direct {direct[0]:.2e} ± {direct[1]:.1e}; "
+      f"guided {guided[0]:.3e} ± {guided[1]:.1e} (effective sample size {guided[2]:,.0f})")
+```
+
+### Results
+
+#### The two policies and their risk
+
+```{python}
+#| label: fig-policies
+#| fig-cap: "Top: the advisory each policy issues at vertical rate 0 with no previous advisory, by time to collision (across, counting down) and altitude relative to the intruder (up). Bottom: the probability of a collision from each of those states if the policy is followed, from exact policy evaluation."
+#| fig-alt: "Four heat maps with seconds to collision from 40 down to 0 across and altitude from minus 200 to 200 up the side. Top left, optimal policy: no advisory except a lens-shaped region around altitude 0 from about 25 seconds to 2 seconds, widest (about plus and minus 80 m) near 10 seconds, climb above 0 and descend below. Top right, simple policy: a horizontal band from minus 50 to 50 during the last 30 seconds, climb above 0 and descend below. Bottom left, optimal policy's collision probability: near zero except a dark wedge around altitude 0 that starts near 15 seconds and widens to plus and minus 50 m at 0. Bottom right, simple policy's: a similar but larger dark wedge, plus two lighter diagonal ridges running from plus and minus 200 m at 40 seconds toward plus and minus 50 m at 0."
+hs = np.arange(-200, 201)
+ih, j0 = hs + M.h_max, M.hdot_max                      # vertical rate 0
+T_AX = np.arange(1, ca.T_START + 1)
+fig, axes = plt.subplots(2, 2, figsize=(10, 6.4), sharex=True, sharey=True)
+cmap = ListedColormap(["#f0efec", orange, blue])       # none, descend, climb
+for col, (name, P, V) in enumerate((("Optimal", POL, RISK_OPT), ("Simple", SIMPLE, RISK_SIMPLE))):
+    A = np.array([P[t][0, ih, j0] for t in T_AX]).T     # (h, t_col)
+    axes[0, col].pcolormesh(T_AX, hs, A, cmap=cmap, vmin=0, vmax=2, shading="nearest", rasterized=True)
+    axes[0, col].set_title(f"{name} policy", fontsize=11)
+    R = np.array([V[t][0, ih, j0] for t in range(ca.T_START + 1)]).T
+    im = axes[1, col].pcolormesh(np.arange(ca.T_START + 1), hs, R, cmap=style.sequential_cmap(),
+                                 vmin=0, vmax=1, shading="nearest", rasterized=True)
+    axes[1, col].set_xlabel(r"seconds to collision, $t_{col}$")
+for ax in axes[:, 0]:
+    ax.set_ylabel(r"altitude $h$ (m)")
+axes[0, 0].invert_xaxis()
+axes[0, 1].legend(handles=[Patch(facecolor=c, edgecolor=style.AXIS, label=l)
+                           for c, l in zip(("#f0efec", orange, blue), ca.ADVISORIES)],
+                  fontsize=8, loc="upper left")
+fig.colorbar(im, ax=axes[1, :], label="collision probability", shrink=0.9)
+plt.show()
+```
+
+- **The optimal policy waits.** At rate 0 it issues no advisory until about 25 s before the encounter. Each advisory has a cost, and far out, the gusts will often carry the aircraft clear anyway. Its advisory region is widest, about ±80 m, around 10 s out. It narrows in the last seconds, where an advisory can no longer change the outcome.
+- **The simple policy reacts only inside its fixed ±50 m band.** Its risk map has two ridges of moderate risk well away from the intruder. From those states, gusts tend to carry the aircraft to the edge of the band late in the encounter, and the policy acts only once inside it.
+- **Close in and late, even the optimal policy collides.** The pilot can change the rate by only 1 m/s each second.
+
+#### Direct simulation converges slowly for rare events
+
+```{python}
+#| label: fig-mc
+#| fig-cap: "Running estimates from direct simulation of the optimal policy (lines) with their 95% intervals (shading), against the exact values (dotted). Left: collision probability, a rare event. Right: expected advisory changes, a common one."
+#| fig-alt: "Two line charts with the number of simulated encounters from 0 to 50,000 across. Left, collision probability: a saw-tooth line that jumps up at each collision and decays in between, wandering between about 0.0003 and 0.0009 and ending near 0.00074, above the dotted exact value of 0.00064 but inside a wide shaded band that narrows slowly. Right, advisory changes: the estimate settles on the dotted exact value of about 0.34 within a few thousand encounters, with a thin band."
+n = np.arange(1, N_MC + 1)
+fig, axes = plt.subplots(1, 2, figsize=(10, 3.4))
+for ax, x, exact, label in ((axes[0], hits, P_OPT, "collision probability"),
+                            (axes[1], n_changes, CH_OPT, "advisory changes")):
+    mean = np.cumsum(x) / n
+    sd = np.sqrt(np.maximum(np.cumsum(x**2) / n - mean**2, 0))    # running standard deviation
+    se = sd / np.sqrt(n)
+    ax.fill_between(n[99:], (mean - 1.96 * se)[99:], (mean + 1.96 * se)[99:], color=blue, alpha=0.2, lw=0)
+    ax.plot(n[99:], mean[99:], color=blue, lw=1.2)
+    ax.axhline(exact, color=style.INK, ls=":", lw=1)
+    ax.set(xlabel="encounters simulated", ylabel=label)
+axes[0].set_ylim(0, 3 * P_OPT)
+axes[1].set_ylim(0, 2 * CH_OPT)
+fig.tight_layout()
+plt.show()
+```
+
+After all `{python} f"{N_MC:,}"` encounters, the collision estimate rests on `{python} int(hits.sum())` collisions. Each one makes the estimate jump, and it decays between them. The advisory-change estimate converges within a few thousand encounters, because changes are common: `{python} f"{CH_OPT:.2f}"` per encounter on average.
+
+#### Importance sampling: the proposal is everything
+
+```{python}
+#| label: fig-importance
+#| fig-cap: "One hundred estimates of the optimal policy's collision probability for each method, from 10,000 simulated encounters each, against the exact value (dotted). Labels give the relative root-mean-square error and what the method is worth in direct samples: 63× means as accurate as direct simulation with 63 times as many encounters."
+#| fig-alt: "Strip chart with five methods across and estimates in units of ten to the minus four up the side, with a dotted line at the exact value of about 6.4. Direct sampling: dots from 2 to 13 in horizontal rows, since each estimate is a whole number of collisions over 10,000; error 36%. Tilt 0.25: somewhat tighter, error 27%. Tilt 1: most dots below the line, between 2 and 6, but a few far above, up to 40; error 92%, worth less than direct sampling. Guided by a rough model: a tight cluster around 6.4, error 4.5%. Guided by the exact risk: an almost flat line of dots at 6.4, error 0.6%."
+fig, ax = plt.subplots(figsize=(8.4, 3.8))
+jitter = np.random.default_rng(5).uniform(-0.18, 0.18, IS_REPS)
+for k, (name, _) in enumerate(METHODS):
+    ax.scatter(k + jitter, is_est[name] * 1e4, s=10, color=blue, alpha=0.55, lw=0)
+    gain = f"{is_gain[name]:.2f}" if is_gain[name] < 10 else f"{is_gain[name]:,.0f}"
+    ax.text(k, -0.12, f"error {is_rel[name]:.1%}\nworth {gain}× direct", ha="center", va="top",
+            fontsize=8, color=style.INK_SECONDARY, transform=ax.get_xaxis_transform())
+ax.axhline(P_OPT * 1e4, color=style.INK, ls=":", lw=1)
+ax.set_xticks(range(len(METHODS)), [METHOD_LABELS[n] for n, _ in METHODS], fontsize=8)
+ax.set_ylabel(r"estimate ($\times 10^{-4}$)")
+ax.xaxis.set_ticks_position("top")
+ax.tick_params(axis="x", length=0)
+fig.subplots_adjust(bottom=0.2)
+plt.show()
+```
+
+- **Direct sampling** sees about `{python} f"{is_hits['direct']:.0f}"` collisions per run, so each estimate is a small whole number divided by 10,000.
+- **Tilting the gusts toward the intruder** helps a little at strength 0.25 (`{python} f"{is_hits['tilt 0.25']:.0f}"` collisions per run). At strength 1 there are `{python} f"{is_hits['tilt 1']:,.0f}"` collisions per run, but their weights vary wildly: the effective sample size averages only `{python} f"{is_ess['tilt 1']:,.0f}"` of 10,000. Most estimates fall below the truth and a few far above it. That is the signature of heavy-tailed weights: unbiased on average, useless in any single run.
+- **Guided proposals** follow @eq-optimal-proposal. With the exact risk-to-go, the error is `{python} f"{is_rel['exact']:.1%}"`, but computing that risk already answers the question. The practical case uses a risk estimate from a cheaper or cruder model. Here it came from a model with ±3 m/s gusts instead of ±2, and the error was still `{python} f"{is_rel['rough']:.1%}"`: as good as about `{python} f"{is_gain['rough']:,.0f}"` times as many direct samples.
+
+#### Robustness to the pilot
+
+```{python}
+#| label: fig-robustness
+#| fig-cap: "Exact collision probability (left, log scale) and expected advisory changes (right) when the pilot follows each advisory with probability q, for the optimal policy (planned for q = 1), the robust policy (planned for the worse of q = 1 and q = 0.8), and the simple policy."
+#| fig-alt: "Two line charts with compliance q from 1 down to 0.5 across. Left, collision probability on a log scale: the simple policy is flat near 0.07 to 0.09 at the top; the optimal policy rises from about 0.0006 at q = 1 to about 0.02 at q = 0.5; the robust policy lies below it throughout, from about 0.00015 to about 0.013. Right, advisory changes: the simple policy is highest at about 1; the robust policy near 0.46 to 0.51; the optimal policy lowest, about 0.34 to 0.39."
+fig, axes = plt.subplots(1, 2, figsize=(10, 3.4))
+for name, color in (("optimal", blue), ("robust", green), ("simple", orange)):
+    axes[0].plot(QS, robust_rows[name][:, 0], "o-", color=color, label=f"{name} policy")
+    axes[1].plot(QS, robust_rows[name][:, 1], "o-", color=color, label=f"{name} policy")
+axes[0].set(yscale="log", xlabel="compliance q", ylabel="collision probability")
+axes[1].set(xlabel="compliance q", ylabel="advisory changes", ylim=(0, None))
+for ax in axes:
+    ax.invert_xaxis()
+axes[0].legend(fontsize=8)
+fig.tight_layout()
+plt.show()
+```
+
+- **The optimal policy is sensitive to compliance.** Its collision probability rises from `{python} f"{P_OPT:.1e}"` with full compliance to `{python} f"{robust_rows['optimal'][2, 0]:.1e}"` at 80% and `{python} f"{robust_rows['optimal'][5, 0]:.1e}"` at 50%. Stronger gusts hurt it too: ±3 m/s gives `{python} f"{noise_rows[3]:.1e}"` and ±4 m/s gives `{python} f"{noise_rows[4]:.1e}"`.
+- **The robust policy** is safer under every compliance level shown, including full compliance, where its collision probability is `{python} f"{robust_rows['robust'][0, 0]:.1e}"`. It pays with more advisory changes: `{python} f"{robust_rows['robust'][0, 1]:.2f}"` against `{python} f"{CH_OPT:.2f}"`.
+- **Part of that gain is simply more caution.** An ordinary optimal policy with a lower change cost (0.002) alerts about as often, `{python} f"{opt_curve[cost_at[0.002], 1]:.2f}"` changes, and has collision probability `{python} f"{opt_curve_q8[cost_at[0.002]]:.1e}"` at 80% compliance, against the robust policy's `{python} f"{robust_rows['robust'][2, 0]:.1e}"`. So robust dynamic programming buys caution where it helps most, and a little extra safety on top.
+
+#### Trade-offs
+
+```{python}
+#| label: fig-trade
+#| fig-cap: "Collision probability (log scale) against expected advisory changes for 96 simple threshold policies (grey; their Pareto front in orange), optimal policies for change costs from 1 to 0.0003 (blue; labeled with the cost), and the robust policy (green). Down and to the left is better."
+#| fig-alt: "Scatter plot with expected advisory changes from 0 to about 2 across and collision probability on a log scale up the side. Grey dots for simple policies fill a region from about (0.1, 0.11) to (1.9, 0.0002); an orange line along their lower-left edge marks their Pareto front. A blue line of optimal policies starts at (0, 0.11) for change cost 1, drops steeply through (0.12, 0.038) at cost 0.5 and (0.17, 0.016) at cost 0.3, and reaches (0.56, 0.00005) at cost 0.0003, below and left of the grey points. A green star for the robust policy sits on the blue line near (0.46, 0.00015)."
+fig, ax = plt.subplots(figsize=(7.2, 4.2))
+ax.scatter(flat[:, 1], flat[:, 0], s=14, color=style.MUTED, alpha=0.5, lw=0, label="simple policies")
+fr = flat[simple_front][np.argsort(flat[simple_front][:, 1])]
+ax.plot(fr[:, 1], fr[:, 0], color=orange, lw=1.5, label="Pareto front of simple policies")
+ax.plot(opt_curve[:, 1], opt_curve[:, 0], "o-", color=blue, ms=4, label="optimal policies")
+for c, (p, ch) in zip(C_COSTS, opt_curve):
+    ax.annotate(f"{c:g}", (ch, p), textcoords="offset points", xytext=(5, 3), fontsize=7, color=style.INK_SECONDARY)
+ax.plot(ROBUST_PT[1], ROBUST_PT[0], "*", color=green, ms=12, mec="white", label="robust policy")
+ax.set(yscale="log", ylim=(1.2e-5, 0.2), xlabel="expected advisory changes", ylabel="collision probability")
+ax.legend(fontsize=8, loc="lower right")
+plt.show()
+```
+
+`{python} f"{simple_front.sum()}"` of the 96 simple policies are on their own Pareto front, but the optimal curve is better still: `{python} f"{dominated:.0%}"` of the simple policies are dominated by one of the `{python} len(C_COSTS)` optimal policies shown. With a change cost of 1 or more, the optimal policy never alerts (collision probability `{python} f"{opt_curve[0, 0]:.3f}"`): no advisory is worth its cost.
+
+The robust policy sits just above the curve. Under the nominal model, its collision probability, `{python} f"{ROBUST_PT[0]:.2e}"`, is a little higher than the `{python} f"{curve_at_robust:.2e}"` of an optimal policy with the same alert rate (interpolated along the curve). That is the price of its insurance against non-compliance.
+
+#### The most likely failure
+
+```{python}
+#| label: fig-adversary
+#| fig-cap: "Left and middle: the fewest gusts an adversary needs to cause a collision from each start, for the optimal and simple policies (each gust makes the path half as likely). Right: the optimal policy's most likely failure, from the start that needs the fewest gusts; triangles mark the gusts."
+#| fig-alt: "Two heat maps and a line chart. The heat maps have the starting vertical rate from minus 10 to 10 across and the starting altitude from minus 200 to 200 up the side. Optimal policy: between 3 and 13 gusts are needed everywhere, fewest in the bottom-right and top-left corners (far away but moving toward the intruder) and most in the other two corners. Simple policy: lighter overall, with a diagonal band from bottom right to top left where 0 to 2 gusts suffice, and at most 8 needed anywhere. Right: altitude against seconds to collision for the most likely failure from minus 200 m climbing at 6 m/s. A dashed calm-air path levels off and ends far below after a descend advisory. The failing path has an upward gust near 35 seconds, no advisory, downward gusts near 22 and 16 seconds, then climb advisories from 14 seconds; it ends at 44 m, inside the collision zone."
+fig = plt.figure(figsize=(11.5, 3.8))
+gs = fig.add_gridspec(1, 3, width_ratios=[1, 1, 1.5], wspace=0.35)
+ax1, ax2, ax3 = (fig.add_subplot(gs[k]) for k in range(3))
+vmax = max(push_opt.max(), push_simple.max())
+for ax, G, name in ((ax1, push_opt, "Optimal"), (ax2, push_simple, "Simple")):
+    im = ax.pcolormesh(np.arange(-10, 11), np.arange(-200, 201), G, cmap=style.sequential_cmap(),
+                       vmin=0, vmax=vmax, shading="nearest", rasterized=True)
+    ax.set(title=f"{name}: gusts to collide", xlabel=r"start rate $\dot h$ (m/s)")
+ax1.set_ylabel(r"start altitude $h$ (m)")
+fig.colorbar(im, ax=[ax1, ax2], label="fewest gusts", shrink=0.9)
+t_path = [s[0] for s in mlf]
+h_path = [s[1] for s in mlf]
+colors = {0: style.MUTED, 1: orange, 2: blue}
+ax3.axhspan(-50, 50, xmin=0.93, color="#f0efec")
+ax3.plot(t_path, h_path, color=style.INK, alpha=0.35, lw=1)
+ax3.scatter(t_path[:-1], h_path[:-1], c=[colors[s[3]] for s in mlf[:-1]], s=14, zorder=3)
+for t, nu in mlf_pushes:
+    hh = h_path[t_path.index(t)]
+    ax3.plot(t, hh + (18 if nu > 0 else -18), marker="^" if nu > 0 else "v", color=style.INK, ms=6)
+ax3.plot([s[0] for s in calm], [s[1] for s in calm], ls="--", color=style.MUTED, lw=1, label="calm air")
+ax3.set(xlim=(41, -1), xlabel=r"seconds to collision, $t_{col}$", ylabel=r"$h$ (m)",
+        title="Optimal policy: most likely failure")
+ax3.legend(handles=[Patch(color=c, label=l) for c, l in zip(colors.values(), ca.ADVISORIES)]
+           + ax3.get_legend_handles_labels()[0], fontsize=8, loc="lower left")
+plt.show()
+```
+
+`{python} n_tied` starts tie for the fewest gusts, `{python} int(push_opt.min())`. The figure shows the most surprising of them: the one whose calm-air encounter ends farthest from the intruder. It starts at $h =$ `{python} WORST[0]` m, $\dot h =$ `{python} WORST[1]` m/s, well below the intruder and climbing toward it. In calm air (dashed) the policy issues *`{python} calm_advice`* at `{python} calm_first` s and passes `{python} abs(calm[-1][1])` m below. The adversary's gusts, at `{python} ", ".join(f"{t} s" for t, _ in mlf_pushes)` before the encounter, turn that into a collision:
+
+1. **An early upward gust** speeds up the climb, so the aircraft now looks set to pass safely *above* the intruder. The policy stays silent instead of descending.
+2. **Two downward gusts** later slow the climb, until the path heads for the collision zone.
+3. **The policy finally issues *climb*** at `{python} mlf_first` s. The advisory asks for 5 m/s, barely more than the `{python} mlf[ca.T_START - mlf_first][2]` m/s the aircraft is already climbing at. The aircraft ends `{python} mlf[-1][1]` m above the intruder, `{python} 50 - abs(mlf[-1][1])` m short of safe.
+
+This is typical of what adversarial analysis produces: a concrete story that engineers can judge. Are three gusts, each half as likely as calm air, plausible at those moments? The path is $2^{-3} = 1/8$ as likely as the calm-air path from the same start. The story also points at a specific weakness: late in the encounter, the strongest advisory adds little to a climb already under way. The simple policy, by contrast, fails *in calm air* from `{python} f"{np.mean(push_simple == 0):.1%}"` of starts.
+
+If a failure like this merits concern, the book lists the options: change the action space (here, stronger climb and descend advisories), the reward (cheaper advisory changes, as in @fig-trade), the dynamics (a higher acceleration limit), or the solver, or don't deploy.
+
+## Solved problems
+
+**Problem 1: how many simulations?** A system's failure probability is about $10^{-5}$. How many direct simulations are needed for a relative standard error of 20%? How many failures would you expect to see?
+
+::: {.callout-tip collapse="true" title="Solution"}
+The relative SE of a 0/1 estimate is $\sqrt{(1-p)/(np)}$. Setting it to 0.2 gives $n = (1-p)/(0.04\,p) \approx 2.5 \times 10^6$. That's about $np = 25$ failures. In general, relative error $\approx 1/\sqrt{\text{failures}}$: 25 failures for 20%, 100 for 10%, whatever $p$ is. Rarer events just take longer to produce those failures.
+:::
+
+**Problem 2: an importance weight.** A proposal changes a coin with $P(\text{heads}) = 0.1$ into one with $P'(\text{heads}) = 0.5$. In 5 flips we see H, T, T, H, T. What is the importance weight of this sequence? If the event of interest is "at least 2 heads", what does this one sample contribute to the estimate?
+
+::: {.callout-tip collapse="true" title="Solution"}
+Heads contributes $0.1/0.5 = 0.2$ and tails $0.9/0.5 = 1.8$. The weight is $0.2^2 \times 1.8^3 = 0.04 \times 5.832 = 0.233$. The event occurred, so the sample contributes $1 \times 0.233 = 0.233$ to the average. For comparison, the true $P(\ge 2 \text{ heads}) = 1 - 0.9^5 - 5(0.1)(0.9^4) \approx 0.081$. Samples with more heads get smaller weights, and samples with fewer heads (which rarely satisfy the event) get larger ones, and on average they balance.
+:::
+
+**Problem 3: the ideal proposal.** A fair six-sided die is rolled. You want $\mathbb{E}[f(X)]$ with $f(x) = x$ if $x \ge 5$ and 0 otherwise. What is the optimal proposal, and what does each of its samples contribute?
+
+::: {.callout-tip collapse="true" title="Solution"}
+By @eq-optimal-proposal, $P^*(x) \propto |f(x)|\,P(x)$: $P^*(5) \propto 5/6$ and $P^*(6) \propto 6/6$, so $P^*(5) = 5/11$ and $P^*(6) = 6/11$. A sample of 5 contributes $f(5)\,P(5)/P^*(5) = 5 \times (1/6)/(5/11) = 11/6$. A sample of 6 contributes $6 \times (1/6)/(6/11) = 11/6$. Every sample gives the exact answer $\mathbb{E}[f] = (5 + 6)/6 = 11/6$: zero variance. Building $P^*$ required knowing the answer, the normalizing sum 11/6, which is the catch.
+:::
+
+**Problem 4: a robust choice.** In one state, action $x$ has expected costs 1.0 under model A and 3.0 under model B, and action $y$ has 1.8 under both. Which action does the nominal policy (model A only) choose, and which does robust dynamic programming choose? When is the robust choice a mistake?
+
+::: {.callout-tip collapse="true" title="Solution"}
+The nominal policy picks $x$ (1.0 < 1.8). Robust DP scores each action by its worst model: $x \to 3.0$, $y \to 1.8$, and picks $y$. If model A is almost always right, the robust choice pays 0.8 extra nearly every time to insure against a rare case. Robust DP ignores how likely each model is; if the models' probabilities are known, minimizing the expected cost over them (a belief over models, as in Part IV) can be the better choice.
+:::
+
+**Problem 5: when does the adversary give up?** From some start, the most likely collision needs $k$ gusts, each half as likely as calm air, and our only cost is 1 for a collision. For which $\lambda$ does the adversary of @eq-adversarial choose the collision over the calm-air path? Check against the explorer's start (60, 0), whose most likely collision needs 7 gusts.
+
+::: {.callout-tip collapse="true" title="Solution"}
+The collision path's log-likelihood is $k \log 2$ below the calm path's. The adversary prefers the collision when $1 > \lambda k \log 2$, that is $\lambda < 1/(k \log 2)$. For $k = 7$: $\lambda < 1/(7 \times 0.693) \approx 0.21$. In the explorer, the start (60, 0) collides for $\lambda \le 0.1$ and stays safe at 0.3, as predicted. (Advisory changes add 0.01 each to the adversary's reward, which barely moves the threshold.) At very small $\lambda$ the adversary uses many more gusts than needed, because it also gains 0.01 for each advisory change it provokes.
+:::
+
+## Recap
+
+1. **A performance metric is an expected trajectory score; additive scores are value functions (@eq-metric, @eq-additive).**
+   *Why it matters:* any policy evaluation method from Chapters 7–9 doubles as a validation tool. Here exact evaluation gave the true collision probability, `{python} f"{P_OPT:.2e}"`, against which every estimate was checked.
+2. **Every simulated estimate needs an error bar, and rare events need relative ones (@eq-standard-error).**
+   *Why it matters:* relative error is about one over the square root of the number of failures observed. 10,000 encounters with `{python} k10` collisions gave a `{python} f"{mc10[2]:.0%}"` relative error.
+3. **Importance sampling makes rare events common, then reweights (@eq-importance, @eq-optimal-proposal).**
+   *Why it matters:* a proposal guided by an approximate risk-to-go matched about `{python} f"{is_gain['rough']:,.0f}"` times as many direct samples. An over-aggressive proposal was worse than none. Chapter 3's likelihood weighting is the same idea.
+4. **Policies are only as good as their models: stress-test them, and optimize against the worst case if needed (@eq-robust).**
+   *Why it matters:* 80% pilot compliance made the optimal policy's collision risk `{python} f"{robust_rows['optimal'][2, 0] / P_OPT:.0f}"` times higher. Uncertainty about the model itself is the theme of Part III.
+5. **Trade analysis separates dominated designs from real choices (@eq-pareto).**
+   *Why it matters:* the Pareto front shows what is achievable. Here every simple policy was beaten by an optimized one on both safety and alerts.
+6. **Adversarial analysis turns validation into search for the most likely failure (@eq-adversarial).**
+   *Why it matters:* it produces concrete, reviewable failure stories, like the late and too-weak climb above, and finds flaws, like the simple policy's calm-air collisions, that random testing may take a long time to hit.
+
+## Cheat sheet & connections
+
+| Name | Formula | Ref |
+|---|---|---|
+| Performance metric | $f(\pi) = \mathbb{E}_\tau[f_{\text{traj}}(\tau)]$, $P(\tau) = b(s_1)\prod_t T(s_{t+1} \mid s_t, \pi(s_t))$ | @eq-metric |
+| Additive metric | $f(\pi) = \sum_s f_{\text{state}}(s)\, b(s)$ by policy evaluation | @eq-additive |
+| ★ Standard error | $\hat\sigma/\sqrt n$; relative: $\hat\sigma/(\hat\mu\sqrt n)$ | @eq-standard-error |
+| ★ Importance sampling | $\frac1n\sum_i f_{\text{traj}}(\tau^{(i)})\,P(\tau^{(i)})/P'(\tau^{(i)})$, $\tau^{(i)} \sim P'$ | @eq-importance |
+| Optimal proposal | $P^* \propto |f_{\text{traj}}|\,P$; per step $P'(\nu \mid s) \propto P(\nu)\,\hat U(s')$ | @eq-optimal-proposal |
+| Robust Bellman update | $\max_a \min_i (R_i + \gamma \sum_{s'} T_i U_k)$ | @eq-robust |
+| Pareto dominance | no worse on every metric, better on one | @eq-pareto |
+| Adversarial reward | $-R(s, \pi(s)) + \lambda \log T(s' \mid s, \pi(s))$ | @eq-adversarial |
+
+: Key equations from this page (★ = well-known by name). {#tbl-cheatsheet}
+
+**Common pitfalls**
+
+- **Reporting a rare-event estimate without its relative error.** Three failures in 10,000 trials is an estimate with an error bar about as wide as the estimate itself.
+- **A proposal that is too aggressive.** Weights that vary over orders of magnitude give estimates that are unbiased on average but wrong in almost every run. Watch the effective sample size.
+- **A proposal that misses part of the failure space.** If $P'$ can't produce some failures, the estimate is biased low, with no warning. Keep every outcome possible (the small constant in the guided proposal).
+- **Validating on the planning model only.** A policy exploits its model's assumptions, such as perfect compliance. Evaluate on models it wasn't optimized for.
+- **Treating the most likely failure as the only failure.** It is the single most probable failing path. Many less likely paths together can carry most of the risk.
+
+**Connections**
+
+- [Ch 7 · Exact Solution Methods](ch07-exact-solution-methods.qmd): policy evaluation and backward induction, used here for exact metrics and robust dynamic programming.
+- [Ch 3 · Inference](../part1/ch03-inference.qmd): likelihood weighting, the same reweighting idea as importance sampling.
+- [Ch 4 · Parameter Learning](../part1/ch04-parameter-learning.qmd): the Beta posterior behind the Bayesian interval.
+- [Ch 9 · Online Planning](ch09-online-planning.qmd): search methods that can find adversarial trajectories in problems too large for dynamic programming.
+- [Ch 15 · Exploration and Exploitation](../part3/ch15-exploration-and-exploitation.qmd): Part III begins, where the model itself must be learned.

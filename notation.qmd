@@ -101,6 +101,14 @@ This site uses the book's notation. Symbols are added here as chapters are writt
 | $\lambda$ | GAE weight between TD residuals ($\lambda = 0$) and full returns ($\lambda = 1$) | Ch 13 |
 | $\nabla_\theta \pi_\theta(s)$ | Jacobian of a deterministic policy (one column per action component) | Ch 13 |
 | $\pi_{\text{MCTS}}$, $U_{\text{MCTS}}$, $\eta$ | Tree search's visit-count policy (sharpened by $\eta$) and value | Ch 13 |
+| $f(\pi)$ | A performance metric of policy $\pi$: the expected trajectory metric | Ch 14 |
+| $f_{\text{traj}}$, $f_{\text{step}}$, $f_{\text{state}}$ | Metric of a trajectory, of one step, and its expected total from a state | Ch 14 |
+| $b(s_1)$ | Start (initial state) distribution; in Ch 19 on, $b$ is a belief | Ch 14 |
+| $\text{SE} = \hat\sigma/\sqrt n$ | Standard error of a sample mean; divided by $\hat\mu$, the relative standard error | Ch 14 |
+| $P'(\tau)$, $P^*(\tau)$ | Proposal distribution for importance sampling; the optimal (zero-variance) proposal | Ch 14 |
+| $w = P(\tau)/P'(\tau)$ | Importance weight of a trajectory sampled from the proposal | Ch 14 |
+| $T_i$, $R_i$ | The $i$-th of several candidate models in robust dynamic programming | Ch 14 |
+| $R'$, $\lambda$ | Adversarial reward, and its weight on the log-likelihood of the adversary's choices | Ch 14 |
 | $o$ | An observation | Ch 19 |
 | $O(o \mid a, s')$ | Observation model: probability of observing $o$ after taking $a$ and landing in $s'$ | Ch 19 |
 | $b(s)$ | Belief: probability that the current state is $s$, given the history | Ch 19 |

@@ -194,7 +194,7 @@ for k, ax in enumerate(axes, start=1):
 plt.show()
 ```
 
-**Where it's used.** [Ch 9](../part2/ch09-online-planning.qmd): every online planner is scored against the exact solution. `optimistic_values` in `adm/problems/hex_world.py` gives an upper bound on the optimal values (each positive reward discounted by the fewest moves to reach it), used by branch and bound and heuristic search.
+**Where it's used.** [Ch 9](../part2/ch09-online-planning.qmd): every online planner is scored against the exact solution. [Ch 13](../part2/ch13-actor-critic-methods.qmd): a tabular policy and value table learned from guided tree search. `optimistic_values` in `adm/problems/hex_world.py` gives an upper bound on the optimal values (each positive reward discounted by the fewest moves to reach it), used by branch and bound and heuristic search.
 
 ## Mountain car {#mountain-car}
 
@@ -259,7 +259,7 @@ using ADM
 ```
 :::
 
-**Where it's used.** [Ch 10](../part2/ch10-policy-search.qmd): every policy search method is scored by the exact value of the policy it finds. [Ch 11](../part2/ch11-policy-gradient-estimation.qmd): the exact gradient (`exact_gradient`, from differentiating the same recursion) scores every gradient estimator's bias and variance. [Ch 12](../part2/ch12-policy-gradient-optimization.qmd): the policy's `log_policy` and `policy_kl` drive TRPO and PPO, and exact values score every update rule.
+**Where it's used.** [Ch 10](../part2/ch10-policy-search.qmd): every policy search method is scored by the exact value of the policy it finds. [Ch 11](../part2/ch11-policy-gradient-estimation.qmd): the exact gradient (`exact_gradient`, from differentiating the same recursion) scores every gradient estimator's bias and variance. [Ch 12](../part2/ch12-policy-gradient-optimization.qmd): the policy's `log_policy` and `policy_kl` drive TRPO and PPO, and exact values score every update rule. [Ch 13](../part2/ch13-actor-critic-methods.qmd): actor-critic with a quadratic critic, and the deterministic policy gradient.
 
 ## Problems made for this site
 

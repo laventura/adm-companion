@@ -166,6 +166,15 @@ This site uses the book's notation. Symbols are added here as chapters are writt
 | $T_\theta$, $r_\theta$, $u_\theta$ | Transition matrix, rewards and values on (node, state) pairs for controller parameters $\theta = (\psi, \eta)$ | Ch 23 |
 | $\beta$, $v$ | Start distribution on (node, state) pairs; expected discounted time spent in each pair | Ch 23 |
 | $\tau$ | Shift in the projection onto the probability simplex | Ch 23 |
+| $\mathcal{I}$, $i$, $k$ | The agents, one agent, and their number | Ch 24 |
+| $\mathcal{A}^i$, $\boldsymbol{a} = (a^1, \dots, a^k)$ | Agent $i$'s actions; a joint action | Ch 24 |
+| $-i$ | Every agent except $i$, as in $\boldsymbol{a}^{-i}$ or $\boldsymbol{\pi}^{-i}$ | Ch 24 |
+| $R^i(\boldsymbol{a})$ | Agent $i$'s reward for the joint action $\boldsymbol{a}$ | Ch 24 |
+| $\pi^i(a^i)$, $\boldsymbol{\pi}$ | Agent $i$'s policy (a pure or mixed strategy); the joint policy | Ch 24 |
+| $U^i(\boldsymbol{\pi})$ | Agent $i$'s expected reward under the joint policy | Ch 24 |
+| $\pi(\boldsymbol{a})$ (correlated) | A single distribution over joint actions | Ch 24 |
+| $\lambda$, $k$ (hierarchical softmax) | Precision of the softmax response; level of reasoning | Ch 24 |
+| $N^i(j, a^j)$ | Agent $i$'s count of how often agent $j$ played $a^j$ (fictitious play) | Ch 24 |
 | $o$ | An observation | Ch 19 |
 | $O(o \mid a, s')$ | Observation model: probability of observing $o$ after taking $a$ and landing in $s'$ | Ch 19 |
 | $b(s)$ | Belief: probability that the current state is $s$, given the history | Ch 19 |

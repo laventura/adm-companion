@@ -1,8 +1,779 @@
 ---
 title: "20 · Exact Belief State Planning"
 subtitle: "Part IV — State Uncertainty"
+engine: julia
+execute:
+  echo: false
 ---
 
 ::: {.callout-note appearance="minimal"}
-**In progress.** This page will cover ADM Ch. 20, *Exact Belief State Planning*.
+**Executed in:** Julia · **Book:** ADM Ch. 20 · **Lecture:** to be added
 :::
+<!-- TODO(video): link the official Stanford AA228 lecture on exact POMDP solution methods. -->
+
+```{julia}
+#| include: false
+using ADM, CairoMakie, LinearAlgebra, Random, Statistics
+import Distributions   # qualified use only: Makie also exports a `Categorical`
+include("../julia/src/makie_theme.jl")
+set_theme!(adm_theme())
+CairoMakie.activate!(type = "png", px_per_unit = 2)
+C = ADM.CATEGORICAL
+ACOLOR = Dict(1 => C[2], 2 => C[3], 3 => C[1])          # feed orange, sing green, ignore blue
+
+"Print a Markdown table from a header and rows of strings."
+function md_table(header, rows)
+    println("| ", join(header, " | "), " |")
+    println("|", repeat("---|", length(header)))
+    foreach(r -> println("| ", join(r, " | "), " |"), rows)
+end
+fmt(x; d = 2) = string(round(x; digits = d))
+
+const P = crying_baby()
+const H_MAX = 30
+const HIST, COUNTS = value_iteration_pomdp(P, H_MAX)
+const GRID = collect(0:0.001:1)                          # P(hungry)
+bel(x) = [1 - x, x]                                      # belief (sated, hungry)
+
+leaf(a) = ConditionalPlan(a)
+# The example plan: ignore; after crying feed, after quiet ignore; then feed only if crying.
+const PLAN3 = ConditionalPlan(3, [ConditionalPlan(1, [leaf(1), leaf(3)]),
+                                  ConditionalPlan(3, [leaf(1), leaf(3)])])
+always(a, h) = h == 1 ? leaf(a) : ConditionalPlan(a, [always(a, h - 1), always(a, h - 1)])
+const α_PLAN3, α_FEED3, α_IGNORE3 = alphavector(P, PLAN3), alphavector(P, always(1, 3)), alphavector(P, always(3, 3))
+const Γ3 = HIST[3][2]
+best3(x) = utility(Γ3, bel(x))
+
+# Where the long-horizon policy switches from ignoring to feeding.
+root_action(h, x) = (pl = HIST[h][1]; Γ = HIST[h][2]; pl[argmax([α ⋅ bel(x) for α in Γ])].a)
+switch_at(h) = (i = findfirst(x -> root_action(h, x) == 1, GRID); i === nothing ? NaN : GRID[i])
+const SWITCH = Dict(h => switch_at(h) for h in 1:H_MAX)
+const U30_SATED, U30_HUNGRY = utility(HIST[H_MAX][2], [1.0, 0.0]), utility(HIST[H_MAX][2], [0.0, 1.0])
+n_plans(h) = big(3)^(2^h - 1)                             # |A|^((|O|^h - 1)/(|O| - 1)) with |O| = 2
+# 30 hours of care under the 30-step policy (one seed): the true state evolves with T,
+# the baby cries according to O, and the caregiver updates its belief and acts on it.
+const SIM = let rng = MersenneTwister(4), (plans, Γ) = HIST[H_MAX]
+    b, s = [1.0, 0.0], 1
+    xs, states, feeds, cries = Float64[], Int[], Int[], Int[]
+    for t in 1:30
+        push!(xs, b[2]); push!(states, s)
+        a = plans[argmax([α ⋅ b for α in Γ])].a
+        a == 1 && push!(feeds, t)
+        s = rand(rng, Distributions.Categorical(P.T[s, a, :]))
+        o = rand(rng, Distributions.Categorical(P.O[a, s, :]))
+        o == 1 && push!(cries, t)
+        b = update_discrete(b, P.T, P.O, a, o)
+    end
+    (; xs, states, feeds, cries)
+end
+const FALSE_ALARMS = count(t -> SIM.states[t] == 1, SIM.feeds)     # fed while actually sated
+const QUIET_LEVEL = maximum(x for x in SIM.xs if x < SWITCH[H_MAX])  # highest belief while ignoring
+const SING_EVER = any(root_action(h, x) == 2 for h in 1:H_MAX for x in GRID)
+@assert !SING_EVER "singing became optimal somewhere: revise the text about singing"
+```
+
+## Big picture
+
+### Where this chapter fits
+
+[Chapter 19](ch19-beliefs.qmd) kept track of *where the agent probably is*: a belief, updated after every action and observation. Now we decide *what to do* with it. A **partially observable MDP (POMDP)** is an MDP whose state the agent can't see; it sees only noisy observations. The key move is to treat the **belief itself as the state**. A POMDP then becomes an ordinary MDP over beliefs, with a continuous state space. This chapter solves that MDP *exactly*, for finite horizons, by exploiting a special structure: the value function over beliefs is piecewise linear and convex. Chapters [21](ch21-offline-belief-state-planning.qmd) and [22](ch22-online-belief-state-planning.qmd) approximate it when exact solutions are too expensive.
+
+**The question:** how do we choose actions optimally when we only have a belief about the state, not the state itself?
+
+The short answer: **plan over beliefs.** A policy can be written as a **conditional plan**, a tree of actions that branches on what you observe. Each plan's expected utility is *linear* in the belief, given by an **alpha vector** of per-state utilities. The best achievable utility is the upper surface of those lines (planes in higher dimensions), so it's piecewise linear and convex. **Value iteration** builds longer plans from shorter ones and **prunes** the plans that are never the best, keeping the problem small enough to solve.
+
+```{dot}
+//| label: fig-ch20-map
+//| fig-width: 6.8
+//| fig-height: 3.4
+//| fig-cap: "Map of this chapter. Treating the belief as the state turns a POMDP into a belief-state MDP; conditional plans and their alpha vectors make it solvable exactly by value iteration with pruning."
+//| fig-alt: "Diagram. A grey box, POMDP (hidden state, noisy observations), points with the label belief as state to a blue box, Belief-state MDP (continuous states). That points to Conditional plans (trees that branch on observations), which point with the label evaluate to Alpha vectors (utility linear in the belief). Alpha vectors point to Value iteration (expand plans, then prune), which points to an Optimal policy (the best alpha vector at the current belief). A separate box, Linear-Gaussian with quadratic reward, points with the label certainty equivalence to Linear policy (act on the mean)."
+digraph ch20 {
+  rankdir=TB; bgcolor="#fcfcfb"; pad=0.25; nodesep=0.35; ranksep=0.42;
+  node [shape=box, style="rounded,filled", fillcolor="white", color="#c3c2b7", penwidth=1.2,
+        fontname="Helvetica", fontsize=13, fontcolor="#0b0b0b", margin="0.12,0.07"];
+  edge [color="#52514e", penwidth=1.2, arrowsize=0.7, fontname="Helvetica", fontsize=11, fontcolor="#52514e"];
+  pomdp [label=<<B>POMDP</B><BR/><FONT POINT-SIZE="11">hidden state, noisy observations</FONT>>, fillcolor="#f0efec"];
+  bmdp [label=<<B>Belief-state MDP</B><BR/><FONT POINT-SIZE="11">continuous states</FONT>>, fillcolor="#cde2fb", color="#2a78d6"];
+  plans [label=<<B>Conditional plans</B><BR/><FONT POINT-SIZE="11">trees that branch on observations</FONT>>];
+  alpha [label=<<B>Alpha vectors</B><BR/><FONT POINT-SIZE="11">utility linear in the belief</FONT>>];
+  vi [label=<<B>Value iteration</B><BR/><FONT POINT-SIZE="11">expand plans, then prune</FONT>>, fillcolor="#cde2fb", color="#2a78d6"];
+  policy [label=<<B>Optimal policy</B><BR/><FONT POINT-SIZE="11">best alpha vector at the belief</FONT>>];
+  lqg [label=<<B>Linear-Gaussian,<BR/>quadratic reward</B>>];
+  linear [label=<<B>Linear policy</B><BR/><FONT POINT-SIZE="11">act on the mean</FONT>>];
+  pomdp -> bmdp [label="belief as state"]; bmdp -> plans; plans -> alpha [label="evaluate"];
+  alpha -> vi; vi -> policy; pomdp -> lqg [style=dashed]; lqg -> linear [label="certainty equivalence"];
+}
+```
+
+### The key ideas at a glance
+
+1. **The belief-state MDP.** A belief summarizes everything the agent knows. Its reward is the expected reward over the belief, and it moves according to Bayes' rule after each action and observation. So the POMDP is an MDP whose states are beliefs. That MDP has infinitely many states, but a lot of structure.
+
+2. **Conditional plans.** With a finite horizon, a policy can be written as a tree: take this action; if you observe this, do that; if you observe the other, do something else. A plan's utility from each true state can be computed recursively.
+
+3. **Alpha vectors.** A plan's utility from a belief is the belief-weighted average of its utilities from each state: a dot product $\alpha^\top b$. Each plan is a line over the belief (a plane in higher dimensions). The best value over all plans is the upper surface of these lines, which is **piecewise linear and convex**.
+
+4. **Pruning.** Most plans are never the best at any belief. A linear program finds, for each alpha vector, the belief where it beats the others by the most. If it never beats them, the plan is dropped. For the crying baby, only 2 or 3 plans of each horizon survive.
+
+5. **Value iteration.** Build every $(k+1)$-step plan from a first action and a choice of pruned $k$-step subplan after each observation, compute their alpha vectors from the subplans' vectors, and prune. The number of all plans explodes doubly exponentially with the horizon; pruning keeps the working set small.
+
+6. **Linear policies.** With linear-Gaussian dynamics and quadratic rewards, the belief is a Gaussian and the optimal action is the fully observed optimal controller applied to the belief's mean: **certainty equivalence**.
+
+### Vocabulary
+
+| Term | Plain meaning |
+|:---|:---|
+| POMDP | An MDP whose state is hidden; the agent receives observations instead |
+| Observation model $O(o \mid a, s')$ | Probability of observing $o$ after taking $a$ and arriving in $s'$ |
+| Belief $b$ | A probability distribution over states (Chapter 19) |
+| Belief-state MDP | The MDP whose states are beliefs and whose transitions are belief updates |
+| Conditional plan $\pi$ | A tree: an action, then a subplan for each possible observation |
+| Alpha vector $\alpha_\pi$ | A plan's expected utility from each state; its value at a belief is $\alpha_\pi^\top b$ |
+| Piecewise linear and convex | The shape of the optimal value over beliefs: the upper surface of lines |
+| Dominated alpha vector | One that is never the best at any belief |
+| Pruning | Removing dominated alpha vectors (and their plans) |
+| Certainty equivalence | Acting as if the belief's mean were the true state (optimal in the linear-Gaussian case) |
+
+: Terms used on this page. {#tbl-vocab}
+
+### After this chapter you can
+
+- Write down the belief-state MDP of a discrete POMDP.
+- Evaluate a conditional plan and compute its alpha vector.
+- Act from a set of alpha vectors, directly or by one-step lookahead.
+- Detect dominated alpha vectors with a linear program, and prune them.
+- Run POMDP value iteration and read off the optimal policy for a small problem.
+- Explain when acting on the belief's mean is optimal.
+
+## Intuition
+
+::: {.callout-tip title="Analogy"}
+You're looking after a baby who can't say "I'm hungry". You only hear whether it cries.
+
+- **Belief:** after an hour of quiet, you think it's probably still content; a cry makes hunger much more likely. Your confidence is the belief.
+- **A plan:** "Wait. If it cries, feed it; if not, keep waiting, and feed it at the next cry." That's a strategy that responds to what you hear, not a fixed schedule.
+- **Plans are straight lines:** how well a plan does depends on how likely the baby is to be hungry right now, and that dependence is linear. Feeding is costly if the baby is sated, but pays if it's hungry.
+- **The best strategy** depends on your current belief: ignore while hunger seems unlikely, feed when it seems likely. The crossing point is the decision threshold.
+:::
+
+Our running example is the **crying baby** (ADM Appendix F.7, in the [problem gallery](../appendices/f-problems.qmd#crying-baby)). The baby is sated or hungry. Each hour the caregiver can **feed** it (cost 5, always sates it), **sing** (cost 0.5), or **ignore** it. A sated baby becomes hungry 10% of the time unless fed. Hunger costs 10 per hour. A hungry baby cries 80% of the time, a sated one 10% (when sung to: 90% and 0%). The discount is 0.9.
+
+### The belief is the state
+
+If you're 30% sure the baby is hungry and you ignore it, next hour's expected cost is $0.3 \times 10 = 3$. Whatever you hear next, you can work out your new belief with Chapter 19's filter. So "30% sure" behaves exactly like a state of an MDP, one with a continuum of values. See @eq-belief-mdp.
+
+### A plan is a tree
+
+"Ignore. If it cries, feed; if it's quiet, ignore. Then feed only if it cries." That three-hour plan chooses among 2 × 2 = 4 possible action sequences depending on what it hears. Its expected cost can be worked out for a baby that is sated now (`{julia} fmt(α_PLAN3[1])`) and one that is hungry now (`{julia} fmt(α_PLAN3[2])`). See @eq-plan.
+
+### Plans are lines over the belief
+
+For a belief $P(\text{hungry}) = x$, the plan's value mixes those two numbers in proportion: $(1 - x)$ times `{julia} fmt(α_PLAN3[1])` plus $x$ times `{julia} fmt(α_PLAN3[2])`, a straight line in $x$. "Always feed" and "always ignore" are two other lines. The best three-hour value is the upper surface of all such lines (@fig-plan-values). See @eq-alpha.
+
+### Most plans are never best
+
+There are `{julia} n_plans(3)` three-step plans: three actions at each of the tree's 7 nodes. But only `{julia} length(Γ3)` of them are best at some belief. The rest can be discarded without losing anything (@fig-vi). See @eq-prune.
+
+### Build long plans from short ones
+
+A $(k+1)$-step plan is a first action plus a surviving $k$-step plan after each observation. Pruning at every step, value iteration reaches 30 hours with at most `{julia} maximum(COUNTS)` plans to check per step, although the number of 30-step plans has hundreds of millions of digits. The resulting policy: ignore the baby until $P(\text{hungry})$ reaches about `{julia} fmt(SWITCH[H_MAX])`, then feed it (@fig-policy). See @eq-expand.
+
+## Formalism
+
+### POMDPs and the belief-state MDP
+
+A POMDP adds to an MDP an observation space $\mathcal{O}$ and an observation model $O(o \mid a, s')$ (ADM §20.1; Chapter 19). Treating beliefs as states gives an MDP with reward and transition
+
+::: {.key-equation .famous data-name="Belief-state MDP"}
+$$
+R(b, a) = \sum_s R(s, a)\, b(s),
+\qquad
+T(b' \mid b, a) = \sum_o \mathbb{1}\big[b' = \text{Update}(b, a, o)\big]\ \sum_{s'} O(o \mid a, s') \sum_s T(s' \mid s, a)\, b(s)
+$$ {#eq-belief-mdp}
+:::
+
+**In words.** The reward of acting on a belief is the belief-weighted average reward. The next belief is the Bayes update for whichever observation arrives, and each observation arrives with its predicted probability.
+
+**Term by term.**
+
+- $\sum_s T(s' \mid s, a) b(s)$ is the predicted distribution of the next state; weighting by $O(o \mid a, s')$ and summing gives $P(o \mid b, a)$.
+- $\text{Update}(b, a, o)$ is the discrete filter of Chapter 19: predict, weight by the observation's likelihood, normalize.
+- The indicator says the belief transition is deterministic *given* the observation; only the observation is random.
+
+**Why it holds.** The belief is a sufficient statistic: the probability of every future observation and reward, given the whole history, depends on the history only through $b$ (K. J. Åström, *J. Math. Anal. Appl.*, 1965). So an optimal policy can map beliefs to actions, and the belief evolves as a Markov process.
+
+The belief space is continuous, so the tabular methods of Chapter 7 don't apply directly. The rest of the chapter exploits its structure instead.
+
+### Conditional plans
+
+A conditional plan $\pi$ has a root action $\pi()$ and a subplan $\pi(o)$ for each observation (ADM §20.2). Its utility from state $s$ is
+
+::: {.key-equation data-name="Conditional plan utility"}
+$$
+U^\pi(s) = R\big(s, \pi()\big) + \gamma \sum_{s'} T\big(s' \mid s, \pi()\big) \sum_o O\big(o \mid \pi(), s'\big)\, U^{\pi(o)}(s')
+$$ {#eq-plan}
+:::
+
+**In words.** Take the root action, collect its reward, then average over where you end up and what you observe, following the matching subplan.
+
+**Term by term.**
+
+- A leaf's utility is just its reward.
+- An $h$-step plan with $|\mathcal{O}|$ observations has $(|\mathcal{O}|^h - 1)/(|\mathcal{O}| - 1)$ nodes, and any action can go at each node, so there are $|\mathcal{A}|^{(|\mathcal{O}|^h - 1)/(|\mathcal{O}| - 1)}$ plans: doubly exponential in $h$.
+- The best $h$-step value from belief $b$ is $U^*(b) = \max_\pi U^\pi(b)$.
+
+**Why it holds.** It is the Bellman expectation equation (Chapter 7) for the fixed plan, with the observation choosing which subplan applies.
+
+### Alpha vectors
+
+A plan's utility from a belief averages its utility from each state (ADM §20.3):
+
+::: {.key-equation .famous data-name="Alpha vector value function"}
+$$
+U^\pi(b) = \sum_s b(s)\, U^\pi(s) = \alpha_\pi^\top b,
+\qquad
+U^*(b) = \max_\pi\ \alpha_\pi^\top b
+$$ {#eq-alpha}
+:::
+
+**In words.** Each plan's value is linear in the belief. The optimal value is the maximum of these linear functions: piecewise linear and convex.
+
+**Term by term.**
+
+- $\alpha_\pi = (U^\pi(s))_s$ is the plan's **alpha vector**. Its entries are utilities, not probabilities.
+- With two states, a belief is one number, $x = P(\text{hungry})$, and $\alpha_\pi^\top b = (1 - x)\alpha_\pi(\text{sated}) + x\,\alpha_\pi(\text{hungry})$: a line from $\alpha_\pi(\text{sated})$ at $x = 0$ to $\alpha_\pi(\text{hungry})$ at $x = 1$.
+- A set $\Gamma$ of alpha vectors, each labeled with its plan's root action, is a policy: at belief $b$, take the action of the vector with the largest $\alpha^\top b$.
+
+**Why it holds.** Utility is an expectation over the unknown current state, and expectation is linear in the probabilities. A maximum of linear functions is convex: mixing two beliefs can't give a higher best value than the mix of their best values. Intuitively, being uncertain never beats knowing, on average.
+
+With a set $\Gamma$ we can also act by **one-step lookahead** (ADM eqs. 20.13–20.15):
+
+::: {.key-equation data-name="One-step lookahead from a belief"}
+$$
+\pi_\Gamma(b) = \arg\max_a\Big[R(b, a) + \gamma \sum_o P(o \mid b, a)\, U^\Gamma\big(\text{Update}(b, a, o)\big)\Big],
+\qquad
+P(o \mid b, a) = \sum_s b(s) \sum_{s'} T(s' \mid s, a)\, O(o \mid a, s')
+$$ {#eq-lookahead}
+:::
+
+**In words.** Try each action: its expected reward now, plus, for each observation it might produce, the value of the belief you'd then hold.
+
+**Term by term.** $U^\Gamma(b) = \max_{\alpha \in \Gamma}\alpha^\top b$. This needs no action labels on the vectors, and it works with any value function over beliefs, which the approximate methods of Chapters 21–22 rely on.
+
+### Pruning
+
+An alpha vector $\alpha$ is dominated if no belief makes it the best. Find the belief where it beats the others by the most (ADM §20.4):
+
+::: {.key-equation data-name="Dominance linear program"}
+$$
+\max_{\delta,\, b}\ \delta
+\quad\text{subject to}\quad
+b \ge 0,\quad \mathbf 1^\top b = 1,\quad
+\alpha^\top b \ge \alpha'^\top b + \delta\ \ \text{for all } \alpha' \in \Gamma
+$$ {#eq-prune}
+:::
+
+**In words.** Search over all beliefs for the one where $\alpha$ has the biggest lead over every other vector. If even the biggest lead is not positive, $\alpha$ is never needed.
+
+**Term by term.**
+
+- $\delta$ is the lead; $b$ is a probability distribution.
+- The objective and constraints are linear, so it's a small linear program. The book uses a general LP solver. This site's code uses a few lines of the simplex method, after relaxing $\mathbf 1^\top b = 1$ to $\le 1$ and requiring $\delta \ge 0$. That makes $b = 0$ a starting corner and doesn't change the answer when the lead is positive, since scaling $b$ up to sum to 1 only increases $\delta$. The test suite checks it against a brute-force search over beliefs.
+- Pruning a whole set compares each candidate only with the vectors already kept (algorithm 20.7): a candidate that wins somewhere brings in whichever vector is best at that belief.
+
+**Why it holds.** The optimal value is the maximum over the set. Removing a vector that is never the maximum changes the maximum nowhere.
+
+### Value iteration
+
+Build $(k + 1)$-step plans from a root action $a$ and one $k$-step subplan per observation, with alpha vectors computed from the subplans' (ADM §20.5):
+
+::: {.key-equation .famous data-name="POMDP value iteration backup"}
+$$
+\alpha(s) = R(s, a) + \gamma \sum_{s'} T(s' \mid s, a) \sum_o O(o \mid a, s')\, \alpha_o(s')
+$$ {#eq-expand}
+:::
+
+**In words.** A new plan's utility from each state is the first action's reward plus the discounted, observation-weighted utility of the subplan chosen for each observation.
+
+**Term by term.**
+
+- $\alpha_o$ is the alpha vector of the subplan chosen for observation $o$.
+- Each step creates $|\mathcal{A}| \times |\Gamma_k|^{|\mathcal{O}|}$ plans, which are then pruned.
+- It is @eq-plan with the subplans' utilities already computed, so no tree is re-evaluated.
+- Only pruned subplans are needed: a dominated subplan can always be replaced by one that is at least as good at the belief that follows.
+
+**Why it holds.** It is Chapter 7's Bellman backup, carried out on whole plans. The Bellman backup of a piecewise linear convex function is again piecewise linear and convex, and its pieces are exactly these combinations (R. D. Smallwood and E. J. Sondik, *Operations Research*, 1973).
+
+### Linear policies
+
+If the dynamics and observations are linear with Gaussian noise and the reward is quadratic, the belief is a Gaussian $\mathcal{N}(\mu_b, \Sigma_b)$, tracked exactly by the Kalman filter of Chapter 19 (ADM §20.6):
+
+::: {.key-equation data-name="Certainty equivalence (LQG)"}
+$$
+a = -K\,\mu_b
+$$ {#eq-lqg}
+:::
+
+**In words.** Use the fully observed optimal controller (the linear feedback gain $K$ of the linear quadratic regulator, Chapter 7), and feed it the belief's mean as if it were the true state.
+
+**Term by term.**
+
+- $K$ comes from the Riccati recursion of the fully observed problem, and doesn't depend on the observation noise.
+- $\mu_b$ comes from the Kalman filter, which doesn't depend on the rewards. Estimation and control separate.
+
+**Why it holds.** With a quadratic reward, the expected cost of a Gaussian belief is the cost at its mean plus a term that depends only on the covariance. The covariance evolves the same way whatever the agent does, so it can't affect the choice of action. This is special to the linear-quadratic-Gaussian case; in general, beliefs matter beyond their mean.
+
+## Worked example
+
+### A plan's alpha vector by hand
+
+Take the two-step plan "ignore; then feed if crying, ignore if quiet". The subplans are one-step leaves: feed has $\alpha = R(\cdot, \text{feed}) = (-5, -15)$ for (sated, hungry), and ignore has $(0, -10)$.
+
+- **From sated:** ignoring costs nothing now. The baby stays sated (0.9) or becomes hungry (0.1). If sated, it cries 10% of the time: $0.1(-5) + 0.9(0) = -0.5$. If hungry, it cries 80% of the time: $0.8(-15) + 0.2(-10) = -14$. So $\alpha(\text{sated}) = 0 + 0.9\,[0.9(-0.5) + 0.1(-14)] = -1.665$.
+- **From hungry:** $-10$ now; it stays hungry, so $\alpha(\text{hungry}) = -10 + 0.9(-14) = -22.6$.
+
+```{julia}
+#| output: asis
+let π2 = ConditionalPlan(3, [leaf(1), leaf(3)])
+    α = alphavector(P, π2)
+    println("The code agrees: `alphavector` gives (", fmt(α[1]; d = 3), ", ", fmt(α[2]; d = 3), ").")
+end
+```
+
+### Lookahead from an even belief
+
+At $b = (0.5, 0.5)$, use the two-step value function $U^\Gamma$ (the `{julia} length(HIST[2][2])` vectors that survive pruning at horizon 2) and look one step ahead:
+
+```{julia}
+#| output: asis
+let b = [0.5, 0.5], Γ = HIST[2][2], U = b -> utility(Γ, b)
+    rows = []
+    for a in 1:3
+        r = P.R[:, a] ⋅ b
+        parts = String[]
+        total = r
+        for o in 1:2
+            po = observation_probability(P, b, a, o)
+            po > 0 || continue
+            b′ = update_discrete(b, P.T, P.O, a, o)
+            total += P.γ * po * U(b′)
+            push!(parts, "$(P.observations[o]): P = $(fmt(po; d = 3)), b′(hungry) = $(fmt(b′[2]; d = 3)), U = $(fmt(U(b′)))")
+        end
+        push!(rows, [P.actions[a], fmt(r), join(parts, "; "), fmt(total)])
+    end
+    md_table(["Action", "R(b, a)", "Each observation", "Q(b, a)"], rows)
+    println("\n: One-step lookahead at b = (0.5, 0.5). {#tbl-lookahead}")
+end
+```
+
+Feeding costs the most now, but leaves the baby sated whatever is heard, so its future is cheap. Ignoring saves the 5 now, but a hungry baby stays hungry, and the likely cry makes the next belief bad. At an even belief, feeding wins.
+
+### Is a vector dominated?
+
+Three vectors over (sated, hungry): $\alpha_1 = (-3, -18)$, $\alpha_2 = (-6, -12)$, $\alpha_3 = (-5, -16)$. The lines of $\alpha_1$ and $\alpha_2$ cross where $-3 - 15x = -6 - 6x$, at $x = 1/3$, both worth $-8$. There, $\alpha_3$ is worth $-5 - 11/3 = -8.67$, worse than both. Being a line, it can't beat the upper envelope anywhere else either: it's dominated. The linear program finds the same:
+
+```{julia}
+#| output: asis
+let Γ = [[-3.0, -18.0], [-6.0, -12.0]]
+    b = find_maximal_belief([-5.0, -16.0], Γ)
+    println("`find_maximal_belief` returns `", b === nothing ? "nothing" : string(b), "` for α₃ against {α₁, α₂}, ",
+            "and belief (", join(fmt.(find_maximal_belief([-3.0, -18.0], [[-6.0, -12.0]]); d = 3), ", "),
+            ") for α₁ against α₂: α₁ leads most when the baby is surely sated.")
+end
+```
+
+## Interactive
+
+### Alpha vectors by horizon
+
+Choose a planning horizon and a belief. The chart shows the alpha vectors that survive pruning, colored by their first action; the upper surface is the optimal value. The table gives each action's one-step lookahead value at the chosen belief.
+
+```{julia}
+#| include: false
+write_json(Dict("horizons" => [Dict("alphas" => [collect(α) for α in HIST[h][2]],
+                                    "actions" => [q.a for q in HIST[h][1]]) for h in 1:12],
+                "T" => [[[P.T[s, a, s′] for s′ in 1:2] for a in 1:3] for s in 1:2],
+                "O" => [[[P.O[a, s′, o] for o in 1:2] for s′ in 1:2] for a in 1:3],
+                "R" => [[P.R[s, a] for a in 1:3] for s in 1:2], "gamma" => P.γ,
+                "actions" => P.actions, "colors" => [ACOLOR[1], ACOLOR[2], ACOLOR[3]]),
+           "data/ch20-alphas.json")
+```
+
+```{ojs}
+alphaData = FileAttachment("data/ch20-alphas.json").json()
+viewof horizon = Inputs.range([1, 12], {step: 1, value: 3, label: "Horizon (steps)"})
+viewof xHungry = Inputs.range([0, 1], {step: 0.01, value: 0.5, label: "P(hungry)"})
+```
+
+```{ojs}
+lookaheadNow = {
+  // One-step lookahead (eq. 20.13) with the chosen horizon's alpha vectors as U.
+  const H = alphaData.horizons[horizon - 1], d = alphaData;
+  const U = b => d3.max(H.alphas, a => a[0] * b[0] + a[1] * b[1]);
+  const b = [1 - xHungry, xHungry];
+  return d.actions.map((name, a) => {
+    let q = b[0] * d.R[0][a] + b[1] * d.R[1][a];
+    for (let o = 0; o < 2; o++) {
+      // Predict with T, weight by O, normalize: the discrete filter.
+      const pred = [0, 1].map(s2 => b[0] * d.T[0][a][s2] + b[1] * d.T[1][a][s2]);
+      const w = pred.map((p, s2) => p * d.O[a][s2][o]), po = w[0] + w[1];
+      if (po > 0) q += d.gamma * po * U(w.map(x => x / po));
+    }
+    return {action: name, q};
+  });
+}
+// Keep Q numeric so the table sorts by value; format it only for display.
+Inputs.table(lookaheadNow.map(r => ({Action: r.action, "Q(b, a)": r.q})),
+             {sort: "Q(b, a)", reverse: true, format: {"Q(b, a)": x => x.toFixed(3)}})
+```
+
+```{ojs}
+//| label: fig-alpha-explorer
+//| fig-cap: "The pruned alpha vectors of the chosen horizon (lines, colored by the plan's first action) and the optimal value, their upper surface (black), with the chosen belief marked."
+//| fig-alt: "Interactive line chart with P(hungry) from 0 to 1 across and utility up the side. Each surviving alpha vector is a straight line, blue for plans that start by ignoring and orange for plans that start by feeding; a black line traces their upper surface. A vertical rule marks the chosen belief. At horizon 1 a single blue line runs from 0 down to minus 10. At longer horizons there are two or three lines, blue best at low P(hungry) and orange at high, crossing near 0.28, and all of them lower as the horizon grows."
+{
+  const H = alphaData.horizons[horizon - 1];
+  const lines = H.alphas.flatMap((a, i) => [0, 1].map(x => ({i, x, u: (1 - x) * a[0] + x * a[1], act: alphaData.actions[H.actions[i] - 1]})));
+  const env = d3.range(0, 1.001, 0.01).map(x => ({x, u: d3.max(H.alphas, a => (1 - x) * a[0] + x * a[1])}));
+  return Plot.plot({
+    width: 600, height: 340, style: {background: "#fcfcfb"},
+    x: {domain: [0, 1], label: "P(hungry)"}, y: {label: "utility", grid: true},
+    color: {domain: alphaData.actions, range: alphaData.colors, legend: true},
+    marks: [
+      Plot.line(lines, {x: "x", y: "u", z: "i", stroke: "act", strokeWidth: 1.5, strokeOpacity: 0.8}),
+      Plot.line(env, {x: "x", y: "u", stroke: "#0b0b0b", strokeWidth: 2.5}),
+      Plot.ruleX([xHungry], {stroke: "#52514e", strokeDasharray: "3,3"})
+    ]
+  });
+}
+```
+
+## Algorithms & code
+
+### Conditional plans, alpha vectors and lookahead
+
+::: {.panel-tabset group="lang"}
+## Julia
+```{julia}
+#| output: asis
+show_source("pomdp/conditional_plans.jl")
+```
+## Python
+```{.python .snippet}
+import numpy as np
+
+from adm.problems.crying_baby import belief_update, crying_baby
+
+p = crying_baby()                     # states: sated, hungry; actions: feed, sing, ignore
+
+
+class Plan:
+    """An action at the root and one subplan per observation (none at a leaf)."""
+    def __init__(self, a, subplans=()):
+        self.a, self.subplans = a, list(subplans)
+
+
+def evaluate_plan(p, plan, s):
+    """U^pi(s) (eq. 20.8): reward now, then the subplan chosen by the observation."""
+    r = p.R[s, plan.a]
+    if not plan.subplans:
+        return r
+    nS, nO = p.T.shape[2], p.O.shape[2]
+    return r + p.gamma * sum(p.T[s, plan.a, s2] * p.O[plan.a, s2, o]
+                             * evaluate_plan(p, plan.subplans[o], s2)
+                             for s2 in range(nS) for o in range(nO))
+
+
+def alphavector(p, plan):
+    return np.array([evaluate_plan(p, plan, s) for s in range(p.T.shape[0])])
+
+
+def lookahead(p, U, b, a):
+    """Q(b, a) (eq. 20.13): expected reward, plus each observation's updated belief's value."""
+    q = p.R[:, a] @ b
+    for o in range(p.O.shape[2]):
+        po = (b @ p.T[:, a, :]) @ p.O[a, :, o]           # P(o | b, a)
+        if po > 0:
+            q += p.gamma * po * U(belief_update(p, b, a, o))
+    return q
+
+
+FEED, SING, IGNORE = 0, 1, 2
+plan2 = Plan(IGNORE, [Plan(FEED), Plan(IGNORE)])            # ignore; feed if crying
+alpha = alphavector(p, plan2)
+assert np.allclose(alpha, [-1.665, -22.6])
+U = lambda b: max(a @ b for a in [p.R[:, IGNORE], alpha])   # a tiny value function
+print("Q at an even belief:", [round(lookahead(p, U, np.array([0.5, 0.5]), a), 3) for a in range(3)])
+```
+:::
+
+### Pruning and value iteration
+
+::: {.panel-tabset group="lang"}
+## Julia
+```{julia}
+#| output: asis
+show_source("pomdp/value_iteration.jl")
+```
+## Python
+```{.python .snippet}
+from itertools import product
+
+import numpy as np
+from scipy.optimize import linprog
+
+from adm.problems.crying_baby import crying_baby
+
+p = crying_baby()
+nS, nA, nO = p.T.shape[0], p.T.shape[1], p.O.shape[2]
+
+
+def maximal_belief(alpha, Gamma):
+    """eq. 20.16 with SciPy's LP solver: variables (b, delta); maximize delta."""
+    if not Gamma:
+        return np.full(len(alpha), 1 / len(alpha))
+    m = len(alpha)
+    # (alpha' - alpha) . b + delta <= 0 for each alpha' in Gamma, written as A_ub x <= 0.
+    A_ub = np.array([np.r_[g - alpha, 1.0] for g in Gamma])
+    res = linprog(c=np.r_[np.zeros(m), -1.0], A_ub=A_ub, b_ub=np.zeros(len(Gamma)),
+                  A_eq=[np.r_[np.ones(m), 0.0]], b_eq=[1.0],
+                  bounds=[(0, None)] * m + [(None, None)])
+    return res.x[:m] if -res.fun > 1e-9 else None
+
+
+def prune(Gamma, actions):
+    """Keep the vectors that are best somewhere (algorithm 20.7)."""
+    candidates, keep = set(range(len(Gamma))), []
+    while candidates:
+        i = min(candidates)
+        b = maximal_belief(Gamma[i], [Gamma[k] for k in keep])
+        if b is None:
+            candidates.discard(i)
+        else:
+            k = max(candidates, key=lambda j: Gamma[j] @ b)
+            candidates.discard(k)
+            keep.append(k)
+    return [Gamma[k] for k in keep], [actions[k] for k in keep]
+
+
+def backup(a, subalphas):
+    """eq. 20.17: alpha(s) = R(s, a) + gamma sum_s2 T sum_o O alpha_o(s2)."""
+    # sum over o of O[a, s2, o] * alpha_o[s2], for every s2:
+    future = sum(p.O[a, :, o] * subalphas[o] for o in range(nO))
+    return p.R[:, a] + p.gamma * p.T[:, a, :] @ future
+
+
+Gamma, actions = prune([p.R[:, a] for a in range(nA)], list(range(nA)))
+for h in range(2, 31):
+    new = [(backup(a, [Gamma[i] for i in pick]), a)
+           for a in range(nA) for pick in product(range(len(Gamma)), repeat=nO)]
+    Gamma, actions = prune([g for g, _ in new], [a for _, a in new])
+
+x = np.linspace(0, 1, 1001)
+best = [actions[int(np.argmax([g @ [1 - xi, xi] for g in Gamma]))] for xi in x]
+switch = x[best.index(0)]                                # first belief where feeding is best
+print(f"30 steps: {len(Gamma)} alpha vectors; feed once P(hungry) >= {switch:.3f}")
+assert abs(switch - 0.283) < 0.002 and 1 not in best     # never sing
+```
+:::
+
+::: {.callout-note collapse="true" title="Reading the Julia code (for Python programmers)"}
+- **`struct ConditionalPlan ... end`** with a second constructor `ConditionalPlan(a::Int) = ...` is how Julia gives a type a convenience constructor; `ConditionalPlan[]` is an empty vector of plans.
+- **`sum(f(x, y) for x in 1:n, y in 1:m)`** sums over both loops, like a nested generator in Python.
+- **`Iterators.product(fill(eachindex(plans), nO)...)`** is `itertools.product(range(len(plans)), repeat=nO)`: `fill(x, n)` makes `n` copies, and `...` splats them as arguments.
+- **`[A Matrix(1.0I, m, m) rhs; -c' zeros(1, m) 0.0]`** builds a block matrix: spaces put blocks side by side, `;` stacks rows. `I` is the identity from `LinearAlgebra`.
+- **`argmin(i -> basis[i], rows)`** returns the element of `rows` that minimizes the function, like `min(rows, key=lambda i: basis[i])`.
+- **`k == i || (...)`** runs the right side only when `k != i`: short-circuit evaluation used as a one-line `if`.
+:::
+
+### Run them
+
+```{julia}
+#| echo: true
+p = crying_baby()
+history, counts = value_iteration_pomdp(p, 30)
+plans, Γ = history[end]
+decide(b) = p.actions[plans[argmax([α ⋅ b for α in Γ])].a]
+```
+
+```{julia}
+println("30-step plans kept: ", length(Γ), "; at P(hungry) = 0.2: ", decide([0.8, 0.2]),
+        ", at P(hungry) = 0.4: ", decide([0.6, 0.4]))
+```
+
+### Results
+
+#### Plans as lines
+
+```{julia}
+#| label: fig-plan-values
+#| fig-cap: "Utility against the belief P(hungry) of three 3-step plans: always feed, always ignore, and the plan \"ignore; feed after a cry, else ignore; then feed only after a cry\". The black curve is the best achievable 3-step value, the upper surface of the pruned alpha vectors."
+#| fig-alt: "Line chart with P(hungry) from 0 to 1 across and utility from about minus 30 to 0 up the side. Always ignore falls steeply from about minus 2.7 at 0 to about minus 27 at 1. Always feed falls gently, from about minus 13.5 to about minus 23.5. The conditional plan runs from about minus 3.2 to about minus 25.2. The black optimal curve lies on or above all of them: it follows the ignore-first plans at low P(hungry) and a feed-first plan at high P(hungry), bending at about 0.28."
+let fig = Figure(size = (640, 380))
+    ax = Axis(fig[1, 1], xlabel = "P(hungry)", ylabel = "utility (3 steps)")
+    for (α, name, color, style) in ((α_FEED3, "always feed", ACOLOR[1], :solid),
+                                    (α_IGNORE3, "always ignore", ACOLOR[3], :solid),
+                                    (α_PLAN3, "ignore; feed after a cry", C[7], :dash))
+        lines!(ax, [0, 1], [α[1], α[2]], color = color, linewidth = 2, linestyle = style, label = name)
+    end
+    lines!(ax, GRID, best3.(GRID), color = :black, linewidth = 2.5, label = "best 3-step value")
+    axislegend(ax, position = :lb, labelsize = 11)
+    fig
+end
+```
+
+The conditional plan beats both fixed plans over a middle range of beliefs, but not everywhere: it is itself only one of the lines. The best 3-step value is higher still, because a different plan is best at each end.
+
+#### Pruning keeps the problem small
+
+```{julia}
+#| label: fig-counts
+#| fig-cap: "Number of plans by horizon (log scale): all possible h-step plans, the plans created by each expansion step (from the pruned plans of the previous horizon), and the plans kept after pruning."
+#| fig-alt: "Line chart with horizon 1 to 8 across and number of plans on a log scale up the side. All possible plans grow from 3 to about 10 to the 121 at horizon 8, off the top of any practical scale. The plans created by expansion stay between 3 and 27. The plans kept after pruning are between 1 and 3."
+let fig = Figure(size = (640, 360)), hs = 1:8
+    ax = Axis(fig[1, 1], xlabel = "horizon h", ylabel = "number of plans", yscale = log10, xticks = hs)
+    lines!(ax, hs, [Float64(n_plans(h)) for h in hs], color = C[5], linewidth = 2, label = "all h-step plans")
+    scatterlines!(ax, hs, Float64.(COUNTS[hs]), color = C[4], linewidth = 2, label = "created by expansion")
+    scatterlines!(ax, hs, [Float64(length(HIST[h][2])) for h in hs], color = C[1], linewidth = 2, label = "kept after pruning")
+    axislegend(ax, position = :lt, labelsize = 11)
+    fig
+end
+```
+
+#### Value iteration step by step
+
+```{julia}
+#| label: fig-vi
+#| fig-cap: "POMDP value iteration on the crying baby: the alpha vectors kept at horizons 1–6, colored by the plan's first action. The upper surface is the optimal value for that horizon."
+#| fig-alt: "Six small line charts with P(hungry) from 0 to 1 across and utility up the side. Horizon 1: one blue ignore line from 0 to minus 10. Horizon 2: a blue ignore line and an orange feed line crossing near 0.5. Horizons 3 to 6: two or three lines, blue best at low P(hungry) and orange at high, crossing near 0.28, with the whole surface moving lower as the horizon grows."
+let fig = Figure(size = (900, 470))
+    for h in 1:6
+        ax = Axis(fig[(h - 1) ÷ 3 + 1, (h - 1) % 3 + 1], title = "$h-step plans", xlabel = h > 3 ? "P(hungry)" : "",
+                  ylabel = h in (1, 4) ? "utility" : "", limits = (0, 1, -45, 2))
+        plans, Γ = HIST[h]
+        for (plan, α) in zip(plans, Γ)
+            lines!(ax, [0, 1], [α[1], α[2]], color = ACOLOR[plan.a], linewidth = 2)
+        end
+    end
+    Legend(fig[3, 1:3], [LineElement(color = ACOLOR[a], linewidth = 3) for a in (3, 2, 1)],
+           ["ignore", "sing", "feed"], orientation = :horizontal, framevisible = false)
+    fig
+end
+```
+
+- **Horizon 1:** ignoring beats feeding and singing at every belief, because feeding and singing only add cost now: $(0, -10)$ is componentwise better than $(-5, -15)$ and $(-0.5, -10.5)$.
+- **Horizon 2:** feeding now pays off at the next step, and wins once $P(\text{hungry})$ exceeds `{julia} fmt(SWITCH[2])`.
+- **From horizon 3 on:** the threshold settles near `{julia} fmt(SWITCH[H_MAX])`, and only 2 or 3 plans survive each round.
+- **Singing is never optimal here,** at any horizon from 1 to `{julia} H_MAX`. The page checks every belief on a grid of 1,001 points, and the test suite checks that at horizon 3 the pruned surface matches the one from all 2,187 plans exactly. Ignoring is nearly as informative (a hungry baby cries 80% of the time, a sated one 10%), so singing's sharper evidence isn't worth its cost. The book's appendix remarks that singing is optimal at some finite horizons. With the problem as written there, and also with the hunger cost charged after the transition instead of before, we found no such horizon.
+
+#### The policy in action
+
+```{julia}
+#| label: fig-policy
+#| fig-cap: "Left: the 30-step optimal value and policy over the belief (ignore below the threshold, feed above). Right: 30 hours of care under this policy (acting on the belief, one seed): the belief P(hungry) (line), the true state (shaded when hungry), feeds (orange ticks) and cries (dots)."
+#| fig-alt: "Left: the optimal value over P(hungry), falling from about minus 15.5 at 0 to about minus 28.9 at 1, colored blue (ignore) up to about 0.28 and orange (feed) beyond. Right: a time series over 30 hours. The belief line stays low, leveling off near 0.03, while the baby is quiet and ignored; after each cry it jumps to about 0.53, above the dashed threshold, and after each feed it drops to 0. Shaded bands mark the three spells when the baby was actually hungry. Five feeds appear as ticks: the three later ones follow cries during hungry spells, the first two follow cries from a sated baby."
+let fig = Figure(size = (980, 380))
+    plans, Γ = HIST[H_MAX]
+    ax1 = Axis(fig[1, 1], xlabel = "P(hungry)", ylabel = "optimal value (30 steps)")
+    act = [root_action(H_MAX, x) for x in GRID]
+    for a in (3, 1)
+        idx = findall(==(a), act)
+        lines!(ax1, GRID[idx], [utility(Γ, bel(x)) for x in GRID[idx]], color = ACOLOR[a], linewidth = 3,
+               label = P.actions[a])
+    end
+    vlines!(ax1, [SWITCH[H_MAX]], color = :gray, linestyle = :dash)
+    axislegend(ax1, position = :rt, labelsize = 11)
+    xs, states, feeds, cries = SIM.xs, SIM.states, SIM.feeds, SIM.cries
+    ax2 = Axis(fig[1, 2], xlabel = "hour", ylabel = "P(hungry)", limits = (0.5, 30.5, -0.05, 1.05))
+    for t in findall(==(2), states)
+        poly!(ax2, Point2f[(t - 0.5, 0), (t + 0.5, 0), (t + 0.5, 1), (t - 0.5, 1)], color = (C[8], 0.15))
+    end
+    stairs!(ax2, 1:30, xs, step = :center, color = :black, linewidth = 2)
+    scatter!(ax2, feeds, fill(1.0, length(feeds)), marker = :vline, markersize = 18, color = ACOLOR[1])
+    scatter!(ax2, cries, fill(0.93, length(cries)), marker = :circle, markersize = 7, color = C[7])
+    hlines!(ax2, [SWITCH[H_MAX]], color = :gray, linestyle = :dash)
+    fig
+end
+```
+
+The caregiver never sees the true state (the shaded hours).
+
+- **Quiet hours barely move the belief.** The 10% chance of becoming hungry is mostly cancelled by the quiet, since a hungry baby would probably have cried. The belief levels off near `{julia} fmt(QUIET_LEVEL; d = 3)`.
+- **A cry pushes it past the threshold,** and the policy feeds. Feeding always sates the baby, so the belief drops to 0.
+- **Some feeds are false alarms.** In this run, `{julia} FALSE_ALARMS` of the `{julia} length(SIM.feeds)` feeds followed a cry from a baby that wasn't hungry. The policy accepts that: a hungry hour costs 10, a feed only 5.
+
+## Solved problems
+
+**Problem 1: counting plans.** How many 3-step conditional plans are there with 2 actions and 3 observations? How many nodes does each plan have?
+
+::: {.callout-tip collapse="true" title="Solution"}
+A 3-step plan has $1 + 3 + 9 = 13$ nodes, which is $(3^3 - 1)/(3 - 1)$. Each node takes one of 2 actions, so there are $2^{13} = 8{,}192$ plans. With 4 steps: $40$ nodes and $2^{40} \approx 10^{12}$ plans. Enumerating plans is hopeless beyond tiny horizons; pruning is what makes exact solution possible.
+:::
+
+**Problem 2: a belief update.** The caregiver believes $P(\text{hungry}) = 0.2$, ignores the baby, and hears crying. What is the new belief?
+
+::: {.callout-tip collapse="true" title="Solution"}
+Predict: $P(\text{hungry}') = 0.2 + 0.8 \times 0.1 = 0.28$. Weight by the cry's likelihood: hungry $0.28 \times 0.8 = 0.224$, sated $0.72 \times 0.1 = 0.072$. Normalize: $0.224/0.296 \approx 0.757$. One cry moves the belief from 0.2 to about 0.76, past the feeding threshold of about 0.28.
+:::
+
+**Problem 3: dominance by hand.** Over (sated, hungry), is $\alpha = (-4, -14)$ dominated by $\{(-2, -20), (-7, -11)\}$?
+
+::: {.callout-tip collapse="true" title="Solution"}
+With $x = P(\text{hungry})$: the lines are $-2 - 18x$, $-7 - 4x$, and $\alpha$'s $-4 - 10x$. The first two cross at $x = 5/14 \approx 0.357$, where both are worth $-8.43$. There $\alpha$ is worth $-7.57$, higher. So $\alpha$ is best near $x = 0.357$, and not dominated. Its lead is largest at that crossing: 0.86.
+:::
+
+**Problem 4: is singing worth it?** At $P(\text{hungry}) = 0.3$, compare what one hour of singing versus ignoring tells you: the probability of hearing a cry, and the belief after each observation.
+
+::: {.callout-tip collapse="true" title="Solution"}
+Predicted $P(\text{hungry}') = 0.3 + 0.7 \times 0.1 = 0.37$ for both. Ignoring: cry probability $0.37 \times 0.8 + 0.63 \times 0.1 = 0.359$; after a cry, $0.296/0.359 = 0.82$; after quiet, $0.074/0.641 = 0.12$. Singing: cry probability $0.37 \times 0.9 = 0.333$; after a cry the belief is 1 (a sated baby never cries when sung to); after quiet, $0.037/0.667 = 0.055$. Singing sharpens the evidence, but ignoring already separates the cases well (0.82 versus 0.12). The value of that extra sharpness is less than singing's 0.5 cost, which is why value iteration never chooses to sing.
+:::
+
+**Problem 5: certainty equivalence.** A robot's position is tracked by a Kalman filter with mean $\mu_b = 2$ and variance $\Sigma_b = 0.5$. The fully observed optimal controller is $a = -0.8x$. What action does the LQG policy take? Would a larger variance change it?
+
+::: {.callout-tip collapse="true" title="Solution"}
+$a = -0.8 \times 2 = -1.6$. A larger variance wouldn't change the action. It would raise the expected cost, but by a term the action can't influence. That separation holds only for linear dynamics, Gaussian noise and quadratic costs. With a cliff near the robot, say, uncertainty would call for caution, and certainty equivalence would fail.
+:::
+
+## Recap
+
+1. **A POMDP is an MDP over beliefs (@eq-belief-mdp).**
+   *Why it matters:* every method in Part IV plans on beliefs; the price is a continuous state space, handled exactly here and approximately in Chapters 21–22.
+2. **Finite-horizon policies are conditional plans, and each plan's value is linear in the belief (@eq-plan, @eq-alpha).**
+   *Why it matters:* the optimal value is the upper surface of those lines: piecewise linear and convex. That structure is what makes POMDPs tractable at all.
+3. **One-step lookahead turns any value function over beliefs into a policy (@eq-lookahead).**
+   *Why it matters:* it needs only a way to value beliefs, so it reappears with the approximate value functions of Chapter 21 and the online planners of Chapter 22.
+4. **Pruning with a linear program keeps value iteration small (@eq-prune, @eq-expand).**
+   *Why it matters:* the number of 3-step plans is `{julia} n_plans(3)`, but only `{julia} length(Γ3)` matter. In larger problems the surviving sets still grow quickly, motivating point-based methods (Chapter 21).
+5. **In the linear-quadratic-Gaussian case, acting on the belief's mean is optimal (@eq-lqg).**
+   *Why it matters:* it justifies the common practice of estimating then controlling, and marks its limits: in general, the uncertainty itself should shape the action.
+
+## Cheat sheet & connections
+
+| Name | Formula | Ref |
+|---|---|---|
+| ★ Belief-state MDP | $R(b, a) = \sum_s R(s, a)b(s)$; $b' = \text{Update}(b, a, o)$ w.p. $P(o \mid b, a)$ | @eq-belief-mdp |
+| Conditional plan utility | $U^\pi(s) = R(s, \pi()) + \gamma\sum_{s'}T\sum_o O\,U^{\pi(o)}(s')$ | @eq-plan |
+| ★ Alpha vectors | $U^\pi(b) = \alpha_\pi^\top b$; $U^*(b) = \max_\pi \alpha_\pi^\top b$ | @eq-alpha |
+| One-step lookahead | $\arg\max_a R(b, a) + \gamma\sum_o P(o \mid b, a)U^\Gamma(\text{Update}(b, a, o))$ | @eq-lookahead |
+| Dominance LP | $\max\delta$ s.t. $\alpha^\top b \ge \alpha'^\top b + \delta$, $b$ a distribution | @eq-prune |
+| ★ POMDP value iteration backup | $\alpha(s) = R(s, a) + \gamma\sum_{s'}T(s' \mid s, a)\sum_o O(o \mid a, s')\alpha_o(s')$ | @eq-expand |
+| Certainty equivalence | $a = -K\mu_b$ | @eq-lqg |
+
+: Key equations from this page (★ = well-known by name). {#tbl-cheatsheet}
+
+**Common pitfalls**
+
+- **Planning on the most likely state.** Acting as if the likeliest state were certain ignores both risk and the value of information. It's optimal only in special cases like LQG.
+- **Mixing up O's arguments.** Here the observation depends on the action and the *next* state, $O(o \mid a, s')$. Using the current state instead gives different beliefs and plans.
+- **Forgetting impossible observations.** An observation with $P(o \mid b, a) = 0$ can't be used to update the belief (division by zero); it contributes nothing to the lookahead.
+- **Expanding unpruned sets.** Without pruning, the number of plans explodes after two or three steps even for two states.
+- **Reading alpha vectors as probabilities.** Their entries are utilities per state; only the belief is a distribution.
+
+**Connections**
+
+- [Ch 19 · Beliefs](ch19-beliefs.qmd): the belief update used by every step of planning.
+- [Ch 7 · Exact Solution Methods](../part2/ch07-exact-solution-methods.qmd): value iteration and the Bellman backup, here applied to whole plans; the linear quadratic regulator behind certainty equivalence.
+- [Ch 15 · Exploration and Exploitation](../part3/ch15-exploration-and-exploitation.qmd): the Bayes-optimal bandit, a POMDP whose hidden state is the arms' payoff probabilities.
+- [Ch 21 · Offline Belief State Planning](ch21-offline-belief-state-planning.qmd): approximate value functions over beliefs, including point-based value iteration.
+- [Ch 22 · Online Belief State Planning](ch22-online-belief-state-planning.qmd): planning from the current belief only, with lookahead and tree search.

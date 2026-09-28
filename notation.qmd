@@ -138,6 +138,14 @@ This site uses the book's notation. Symbols are added here as chapters are writt
 | $\beta$ (SMILe) | Mixing rate in SMILe (not the features) | Ch 18 |
 | $P_\phi(\tau)$, $Z(\phi)$ | Maximum entropy trajectory distribution and its normalizer | Ch 18 |
 | $C_\phi(s, a)$ | GAIL discriminator: probability a pair came from the learner | Ch 18 |
+| $\text{Update}(b, a, o)$ | The belief after acting and observing (the Ch 19 filter) | Ch 20 |
+| $R(b, a)$, $T(b' \mid b, a)$ | Reward and transition of the belief-state MDP | Ch 20 |
+| $P(o \mid b, a)$ | Probability of observing $o$ after taking $a$ from belief $b$ | Ch 20 |
+| $\pi()$, $\pi(o)$ | A conditional plan's root action, and its subplan after observation $o$ | Ch 20 |
+| $\alpha_\pi$, $\Gamma$ | Alpha vector of a plan (utility per state), and a set of them | Ch 20 |
+| $U^\Gamma(b)$ | $\max_{\alpha \in \Gamma} \alpha^\top b$, the value represented by $\Gamma$ | Ch 20 |
+| $\delta$ (pruning) | Largest lead of an alpha vector over a set, over all beliefs | Ch 20 |
+| $\mu_b$, $K$ | Belief mean and linear feedback gain in LQG control | Ch 20 |
 | $o$ | An observation | Ch 19 |
 | $O(o \mid a, s')$ | Observation model: probability of observing $o$ after taking $a$ and landing in $s'$ | Ch 19 |
 | $b(s)$ | Belief: probability that the current state is $s$, given the history | Ch 19 |

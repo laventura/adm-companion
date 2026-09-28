@@ -1,8 +1,712 @@
 ---
 title: "23 · Controller Abstractions"
 subtitle: "Part IV — State Uncertainty"
+engine: julia
+execute:
+  echo: false
 ---
 
 ::: {.callout-note appearance="minimal"}
-**In progress.** This page will cover ADM Ch. 23, *Controller Abstractions*.
+**Executed in:** Julia · **Book:** ADM Ch. 23 · **Lecture:** to be added
 :::
+<!-- TODO(video): link the official Stanford AA228 lecture on controller abstractions / finite state controllers. -->
+
+```{julia}
+#| include: false
+using ADM, CairoMakie, LinearAlgebra, Random, Statistics
+import Distributions   # qualified use only: Makie also exports a `Categorical`
+include("../julia/src/makie_theme.jl")
+set_theme!(adm_theme())
+CairoMakie.activate!(type = "png", px_per_unit = 2)
+C = ADM.CATEGORICAL
+fmt(x; d = 2) = d == 0 ? string(round(Int, x)) : string(round(x; digits = d))
+bel(x) = [1 - x, x]
+const XS = collect(0:0.01:1)
+const GRID = bel.(XS)
+const B0 = [0.5, 0.5]
+curve(f) = [f(b) for b in GRID]
+# next[x][o] from best_deterministic_controller's flat layout next[(x - 1) * |O| + o].
+unflat(next, n, nO) = [[next[(x - 1) * nO + o] for o in 1:nO] for x in 1:n]
+
+# --- Crying baby: exact reference (200 steps: within 1e-7 of the infinite horizon) ----------
+const CB = crying_baby()
+const Γ_OPT = value_iteration_pomdp(CB, 200)[1][end][2]
+opt(b) = utility(Γ_OPT, b)
+const OPT = curve(opt)
+# Nodes: 1 = ignore, 2 = feed. Observations: 1 = crying, 2 = quiet.
+const REACT = deterministic_controller(CB, [3, 1], [[2, 1], [2, 1]])   # feed whenever crying
+const WISE = deterministic_controller(CB, [3, 1], [[2, 1], [1, 1]])    # ...but never twice in a row
+const U_REACT, U_WISE = evaluate_controller(CB, REACT), evaluate_controller(CB, WISE)
+const V_REACT, V_WISE = controller_value(CB, REACT, B0), controller_value(CB, WISE, B0)
+@assert abs(V_WISE.u - opt(B0)) < 1e-6 && V_WISE.x == 2              # optimal, starting by feeding
+const WISE_GAP = maximum(opt(b) - controller_value(CB, WISE, b).u for b in GRID)
+const BD_CB = Dict(n => best_deterministic_controller(CB, n, B0) for n in 1:3)
+
+# Policy iteration from one uniform node.
+const PI_CB, PI_CB_H = controller_policy_iteration(CB, B0; k_max = 10)
+const PI_CB_IT = Dict(k => controller_policy_iteration(CB, B0; k_max = k)[1] for k in 0:2)
+const PI_CB_OPT_AT = findfirst(h -> h[2] >= opt(B0) - 1e-6, PI_CB_H) - 1      # iterations needed
+const PI_CB_REACH = reachable_nodes(PI_CB, controller_value(CB, PI_CB, B0).x)
+
+# Gradient ascent from 30 random starts, 1-3 nodes.
+const GA_CB = Dict(n => [controller_gradient_ascent(CB, B0, n, MersenneTwister(i); α = 0.003, k_max = 3000)
+                         for i in 1:30] for n in 1:3)
+ga_hits(n) = count(r -> r[2][end] > opt(B0) - 0.01, GA_CB[n])
+const GA1 = GA_CB[1][1][1]                       # the 1-node stochastic controller
+@assert all(abs(r[2][end] - GA_CB[1][1][2][end]) < 1e-6 for r in GA_CB[1])    # every start agrees
+
+# --- The fork -------------------------------------------------------------------------------
+const FK = fork()
+const FK_OPT = utility(pbvi(FK, bel.(range(0, 1, length = 21)); k_max = 300), B0)   # Ch 21: within 6e-6
+# Nodes: 1 = ask (even), 2 = ask (one more "right"), 3 = ask (one more "left"), 4 = go right, 5 = go left.
+# Observations: 1 = "left", 2 = "right".
+const COUNTER = deterministic_controller(FK, [2, 2, 2, 4, 3], [[3, 2], [1, 4], [5, 1], [1, 1], [1, 1]])
+const ONCE = deterministic_controller(FK, [2, 3, 4], [[2, 3], [1, 1], [1, 1]])        # ask once, then go
+const V_COUNTER, V_ONCE = controller_value(FK, COUNTER, B0), controller_value(FK, ONCE, B0)
+@assert abs(V_COUNTER.u - FK_OPT) < 1e-4
+const BD_FK = Dict(n => best_deterministic_controller(FK, n, B0) for n in 1:4)
+const BD4 = deterministic_controller(FK, BD_FK[4].acts, unflat(BD_FK[4].next, 4, 2))
+const BD4_START = controller_value(FK, BD4, B0).x
+@assert all(abs(BD_FK[n].u) < 1e-9 for n in 1:3)                       # 1-3 nodes: wait forever
+const PI_FK, PI_FK_H = controller_policy_iteration(FK, B0; k_max = 8)
+const PI_FK_OPT_AT = findfirst(h -> h[2] >= FK_OPT - 1e-4, PI_FK_H) - 1
+const PI_FK_REACH = reachable_nodes(PI_FK, controller_value(FK, PI_FK, B0).x)
+
+# Gradient ascent on the fork: random starts, and starts blended with the counter.
+const GA_FK = [controller_gradient_ascent(FK, B0, 5, MersenneTwister(i); α = 0.003, k_max = 3000) for i in 1:30]
+const STUCK = controller_gradient(FK, GA_FK[1][1], B0)
+const BLEND = Dict(w => [let r = random_controller(FK, 5, MersenneTwister(100 + i))
+                             c0 = Controller(w .* COUNTER.ψ .+ (1 - w) .* r.ψ, w .* COUNTER.η .+ (1 - w) .* r.η)
+                             controller_gradient_ascent(FK, B0, 5, MersenneTwister(i); α = 0.003, k_max = 3000, c = c0)[2]
+                         end for i in 1:10] for w in (0.3, 0.5, 0.7))
+blend_hits(w) = count(J -> J[end] > FK_OPT - 0.01, BLEND[w])
+
+# --- Nodes as belief regions: run each controller with the belief filter alongside ----------
+function node_beliefs(p, c, x0, steps, seed)
+    rng = MersenneTwister(seed)
+    x, s, b = x0, rand(rng, 1:2), copy(B0)
+    rows = NamedTuple[]
+    for t in 1:steps
+        a = rand(rng, Distributions.Categorical(c.ψ[x, :]))
+        s′, r, o = pomdp_step(p, s, a, rng)
+        push!(rows, (t = t, x = x, s = s, a = a, o = o, b = b[2], r = r))
+        b = update_discrete(b, p.T, p.O, a, o)
+        x, s = rand(rng, Distributions.Categorical(c.η[x, a, o, :])), s′
+    end
+    return rows
+end
+const LONG_WISE = node_beliefs(CB, WISE, 2, 20_000, 1)
+const LONG_COUNTER = node_beliefs(FK, COUNTER, 1, 20_000, 1)
+belief_range(rows, x) = extrema(r.b for r in rows if r.x == x)
+optact(b) = greedy_belief(CB, opt, b).a
+# The 2-node rule takes the exact policy's action at every belief it visits.
+@assert all(CB.actions[optact(bel(r.b))] == CB.actions[r.a] for r in LONG_WISE)
+distinct_beliefs(rows, x) = length(unique(round(r.b; digits = 9) for r in rows if r.x == x))
+@assert all(distinct_beliefs(LONG_COUNTER, x) == 1 for x in 1:5)       # one belief per counting node
+const COUNTER_B = [first(r.b for r in LONG_COUNTER if r.x == x) for x in 1:5]
+@assert WISE_GAP < 1e-6                                                  # the 2-node rule is optimal everywhere
+commas(n) = replace(string(n), r"(?<=\d)(?=(\d{3})+$)" => ",")
+# The 1-node stochastic controller mixes feed and ignore only.
+@assert GA1.ψ[1, 2] < 1e-6
+# The best 4-node controller: go right, go left, ask, ask; ask → ("left" → go left, "right" → ask again).
+@assert BD_FK[4].acts == [4, 3, 2, 2] && BD_FK[4].next == [3, 3, 3, 3, 2, 4, 3, 1] && BD4_START == 3
+# Where gradient ascent gets stuck: waiting's gradient (0) beats asking and going at every visited node.
+const STUCK_NODES = [x for x in 1:5 if any(!=(0), STUCK.ψ[x, :])]
+@assert all(STUCK.ψ[x, 1] >= maximum(STUCK.ψ[x, 2:4]) for x in 1:5) && all(GA_FK[1][1].ψ[x, 1] > 0.99 for x in STUCK_NODES)
+const ASK_G = maximum(STUCK.ψ[x, 2] for x in STUCK_NODES)
+const GO_G = maximum(max(STUCK.ψ[x, 3], STUCK.ψ[x, 4]) for x in STUCK_NODES)
+```
+
+## Big picture
+
+### Where this chapter fits
+
+Chapters [20](ch20-exact-belief-state-planning.qmd)–[22](ch22-online-belief-state-planning.qmd) planned over **beliefs**: to act, the agent kept a probability distribution over states and updated it after every observation. This chapter represents a policy differently, as a **finite state controller**: a small graph whose nodes each prescribe an action, and whose edges say which node to move to after each observation. The node is the agent's entire memory. There's no belief to update, and a controller with a handful of nodes can run forever.
+
+**The question:** how much memory does a good policy need, and how do we find the best policy with a fixed amount of it?
+
+The short answer: **evaluate a controller by solving linear equations, then improve it by adding nodes or by climbing a gradient.**
+
+- **Evaluation** is exact and cheap: a controller and a POMDP together form a Markov chain on (node, state) pairs.
+- **Policy iteration** adds nodes that improve on the current ones, and prunes nodes that are no better than others.
+- **Nonlinear programming** and **gradient ascent** fix the number of nodes and optimize the action and transition probabilities directly.
+
+```{dot}
+//| label: fig-ch23-map
+//| fig-width: 6.81
+//| fig-height: 5.17
+//| fig-cap: "Map of this chapter. A controller is evaluated exactly on the chain of (node, state) pairs; its nodes' values are alpha vectors. Policy iteration grows the controller; nonlinear programming and gradient ascent optimize one of fixed size."
+//| fig-alt: "Diagram, top to bottom. A blue box, Controller (nodes, actions ψ, successors η), points, labeled with the POMDP, to Evaluation (linear equations on node-state pairs), which points to Alpha vectors (one per node). Three boxes use them: Policy iteration (add and prune nodes), Nonlinear programming (fixed size) and Gradient ascent (fixed size). They point, labeled grow, solve and climb, to a blue box, Better controller (evaluate again, repeat)."
+digraph ch23 {
+  rankdir=TB; bgcolor="#fcfcfb"; pad=0.25; nodesep=0.35; ranksep=0.45;
+  node [shape=box, style="rounded,filled", fillcolor="white", color="#c3c2b7", penwidth=1.2,
+        fontname="Helvetica", fontsize=13, fontcolor="#0b0b0b", margin="0.12,0.07"];
+  edge [color="#52514e", penwidth=1.2, arrowsize=0.7, fontname="Helvetica", fontsize=11, fontcolor="#52514e"];
+  ctrl [label=<<B>Controller</B><BR/><FONT POINT-SIZE="11">nodes, actions ψ, successors η</FONT>>, fillcolor="#cde2fb", color="#2a78d6"];
+  eval [label=<<B>Evaluation</B><BR/><FONT POINT-SIZE="11">linear equations on (node, state)</FONT>>];
+  alpha [label=<<B>Alpha vectors</B><BR/><FONT POINT-SIZE="11">one per node</FONT>>, fillcolor="#f0efec"];
+  pi [label=<<B>Policy iteration</B><BR/><FONT POINT-SIZE="11">add and prune nodes</FONT>>];
+  nlp [label=<<B>Nonlinear programming</B><BR/><FONT POINT-SIZE="11">fixed size</FONT>>];
+  grad [label=<<B>Gradient ascent</B><BR/><FONT POINT-SIZE="11">fixed size</FONT>>];
+  ctrl -> eval [label="with the POMDP"]; eval -> alpha;
+  better [label=<<B>Better controller</B><BR/><FONT POINT-SIZE="11">evaluate again, repeat</FONT>>, fillcolor="#cde2fb", color="#2a78d6"];
+  { rank=same; pi; nlp; grad; }
+  alpha -> pi; alpha -> nlp; alpha -> grad;
+  pi -> better [label="grow"]; nlp -> better [label="solve"]; grad -> better [label="climb"];
+}
+```
+
+### The key ideas at a glance
+
+1. **A controller is a policy with a finite memory.** Each node $x$ has an action distribution $\psi(a \mid x)$ and, for each action and observation, a successor distribution $\eta(x' \mid x, a, o)$. Conditional plans (Chapter 20) are controllers shaped like trees; a controller can loop back, so it can act forever with a few nodes.
+
+2. **Evaluation is a linear system.** Pair the controller's node with the hidden state. The pair $(x, s)$ moves as a Markov chain, so the value $U(x, s)$ solves one set of linear equations. Each node's values over states form an **alpha vector**, so a controller's value over beliefs is piecewise linear and convex, just as in Chapter 20.
+
+3. **Policy iteration grows the controller.** Try every deterministic node "take $a$, then go to these nodes": keep the ones that are better somewhere, and let a new node replace any old node it beats in every state. Replacing a node reroutes every link into it, which is how loops form.
+
+4. **Or fix the size and optimize.** With $n$ nodes, the best controller solves a **nonlinear program** over $\psi$ and $\eta$. **Gradient ascent** climbs the same objective, projecting back onto probability distributions after each step. Both can stop at local optima.
+
+5. **Memory is the limiting resource.** How many nodes a good policy needs depends on the problem. For the crying baby, 2 nodes are optimal. For the fork, anything under 4 nodes can do no better than waiting.
+
+### Vocabulary
+
+| Term | Plain meaning |
+|:---|:---|
+| Finite state controller | A policy given by a graph of nodes, with actions at nodes and observation-labeled edges |
+| Node $x$ | The controller's memory state (not the environment's state) |
+| Action distribution $\psi(a \mid x)$ | How the controller chooses its action at node $x$ |
+| Successor distribution $\eta(x' \mid x, a, o)$ | Which node comes next, after action $a$ and observation $o$ |
+| Deterministic controller | One action per node and one successor per observation |
+| Dominated node | A node whose value is no better than another node's in every state |
+| Projection onto the simplex | The closest probability distribution to a vector |
+
+: Terms used on this page. {#tbl-vocab}
+
+### After this chapter you can
+
+- Read a controller as a policy, run it, and evaluate it exactly by solving linear equations.
+- Explain how each node's value is an alpha vector, and choose the best starting node for a belief.
+- Run policy iteration for controllers, and explain why pruning with pointwise dominance can leave many nodes.
+- Set up the fixed-size problem as a nonlinear program, and optimize it by projected gradient ascent.
+- Recognize when a controller needs more memory, and when an optimizer is stuck at a local optimum.
+
+## Intuition
+
+::: {.callout-tip title="Analogy"}
+A night nurse doesn't compute the probability that the baby is hungry. They follow a rule on a card: "If the baby cries, feed it. After a feed, ignore the next cry, it's probably just fussing." The card has two states of mind, *watching* and *just fed*, and a rule for moving between them. That card is a finite state controller. It's easy to follow, needs no arithmetic, and, for this problem, it is exactly optimal.
+:::
+
+We use the two problems of [Chapter 21](ch21-offline-belief-state-planning.qmd). The **crying baby** has an exact solution to compare against. The **fork** ([problem gallery](../appendices/f-problems.qmd#the-fork)) asks a hiker to pay for directions: its optimal value from 50–50 is `{julia} fmt(FK_OPT; d = 3)`.
+
+### A policy that remembers just enough
+
+The two-node rule above, "feed on crying, but not right after a feed", is worth `{julia} fmt(V_WISE.u; d = 3)` from the 50–50 belief, starting with a feed: the exact optimum. The simpler rule "feed whenever the baby cries" is worth `{julia} fmt(V_REACT.u; d = 3)`, `{julia} fmt(opt(B0) - V_REACT.u)` less. It wastes feeds on the false cries that follow a feed, since a sated baby still cries 10% of the time. See @fig-controllers.
+
+### Values are alpha vectors again
+
+Each node's values in each state form an alpha vector. A controller started at the best node for a belief earns the upper surface of these lines, as in Chapter 20. For the two-node rule, that surface *is* the optimal value, to within $10^{-6}$ at every belief: the exact solution of Chapter 20 has two alpha vectors, and they are this rule's two nodes. See @eq-eval.
+
+### Count what you've heard
+
+At the fork, the optimal policy asks until the answers lead by two, then goes. A controller does that by **counting**: 3 asking nodes (even, one ahead "right", one ahead "left") and 2 going nodes. With fewer than 4 nodes, no deterministic controller does better than waiting forever, because it can't remember enough answers to act on them safely. The best 4-node controller, found by trying all `{julia} commas(4^4 * 4^8)` of them, earns `{julia} fmt(BD_FK[4].u)`; 5 nodes reach the optimum. See @fig-memory.
+
+### Growing a controller
+
+Policy iteration starts with one node and keeps adding nodes that improve on the current ones. For the crying baby, it reached the optimal value at 50–50 after `{julia} PI_CB_OPT_AT` iterations. For the fork, after `{julia} PI_FK_OPT_AT`. See @eq-dominance.
+
+### Climbing, and getting stuck
+
+Gradient ascent adjusts the probabilities of a fixed-size controller. For the crying baby with 2 nodes, `{julia} ga_hits(2)` of 30 random starts reached the optimum. At the fork it failed every time: all 30 five-node starts ended by waiting forever. Asking only pays if a *later* node goes the right way, and a small step can't change both at once. See @eq-gradient.
+
+## Formalism
+
+### Controllers and their value
+
+A controller has nodes $X$, an action distribution $\psi(a \mid x)$ and a successor distribution $\eta(x' \mid x, a, o)$ (ADM §23.1). At node $x$ it draws $a \sim \psi(\cdot \mid x)$; the world moves to $s'$ and emits $o$; the controller moves to $x' \sim \eta(\cdot \mid x, a, o)$. The value of being at node $x$ in state $s$ is
+
+::: {.key-equation data-name="Controller evaluation"}
+$$
+\begin{aligned}
+U(x, s) = \sum_a \psi(a \mid x)\Big[ R(s, a) &+ \gamma \sum_{s'} T(s' \mid s, a) \\
+&\times \sum_o O(o \mid a, s') \sum_{x'} \eta(x' \mid x, a, o)\, U(x', s') \Big]
+\end{aligned}
+$$ {#eq-eval}
+:::
+
+**In words.** A node's value in a state is the expected reward of its action, plus the discounted value of wherever the world and the controller go next.
+
+**Term by term.**
+
+- $\psi(a \mid x)$ averages over the node's actions; $R(s, a)$ is the reward.
+- $T(s' \mid s, a)\,O(o \mid a, s')$ is the chance of the next state and observation.
+- $\eta(x' \mid x, a, o)$ is the chance of the next node, which depends on what was observed, never on the hidden state.
+- There are $|X||\mathcal{S}|$ equations and unknowns: `{julia} 2 * 2` for a 2-node crying baby controller.
+
+**Why it holds.** The pair (node, state) evolves as a Markov chain: its next value depends only on the current pair. @eq-eval is that chain's Bellman expectation equation, the same as MDP policy evaluation (Chapter 7) on $|X||\mathcal{S}|$ states. So it has a unique solution for $\gamma < 1$, found by one linear solve.
+
+From a belief $b$, the value of starting at node $x$, and the best starting node, are (ADM eqs. 23.2–23.3)
+
+::: {.key-equation data-name="Node values over beliefs"}
+$$
+U(x, b) = \sum_s b(s)\, U(x, s) = \alpha_x^\top b, \qquad x^* = \arg\max_x \alpha_x^\top b
+$$ {#eq-node-value}
+:::
+
+**In words.** Each node is an alpha vector; start at the one that is best for your belief.
+
+**Term by term.**
+
+- $\alpha_x(s) = U(x, s)$ is node $x$'s alpha vector.
+- $\max_x \alpha_x^\top b$ is piecewise linear and convex in $b$, like Chapter 20's value functions.
+
+**Why it holds.** The controller's future doesn't depend on the belief, only on the hidden state, so the value from a belief is the belief-weighted average over states.
+
+### Policy iteration
+
+Policy iteration (ADM §23.2; E. A. Hansen, *UAI*, 1998) alternates evaluation with improvement. Improvement considers every deterministic node "take $a$, then after $o$ go to node $\nu(o)$", whose alpha vector is a one-step backup of the current ones:
+
+$$
+\alpha_{a,\nu}(s) = R(s, a) + \gamma \sum_{s'} T(s' \mid s, a) \sum_o O(o \mid a, s')\, U(\nu(o), s')
+$$
+
+There are $|\mathcal{A}||X|^{|\mathcal{O}|}$ such nodes. Pruning compares nodes state by state:
+
+::: {.key-equation data-name="Pointwise dominance"}
+$$
+x \text{ is dominated by } x' \quad\text{if}\quad U(x, s) \le U(x', s) \text{ for every state } s
+$$ {#eq-dominance}
+:::
+
+**In words.** A node that is never better than another, whatever the state, can be removed.
+
+**Term by term.**
+
+- A new node dominated by an existing node (or by another new one) is dropped.
+- A new node that dominates an **existing** node replaces it in place: every link into the old node now reaches the new one. That can create loops.
+- New nodes that are neither dominated nor dominating are added.
+
+**Why it holds.** Replacing a node by one that is at least as good in every state can't lower any node's value, since every path through it does at least as well. The candidates are exactly the alpha vectors of a Bellman backup of the current value function. If every one of them is dominated by an existing node, the backup can't raise the value at any belief, so the controller's value already satisfies the Bellman optimality equation: it is optimal. The catch: pointwise dominance is weaker than Chapter 20's belief-space pruning, so nodes that are never best at any belief can survive. For the crying baby, the controller grew to `{julia} nnodes(PI_CB)` nodes in `{julia} length(PI_CB_H) - 1` iterations, although only `{julia} length(PI_CB_REACH)` are reachable from the best starting node.
+
+### Nonlinear programming
+
+Fix the number of nodes and optimize everything at once (ADM §23.3; C. Amato, D. S. Bernstein and S. Zilberstein, *Autonomous Agents and Multi-Agent Systems*, 2010). Starting at node $x_1$ from belief $b$:
+
+::: {.key-equation data-name="The fixed-size controller program"}
+$$
+\begin{aligned}
+\max_{U,\,\psi,\,\eta}\quad & \textstyle\sum_s b(s)\, U(x_1, s) \\
+\text{subject to}\quad & U \text{ satisfies @eq-eval for every } x, s \\
+& \psi(\cdot \mid x) \text{ and } \eta(\cdot \mid x, a, o) \text{ are probability distributions}
+\end{aligned}
+$$ {#eq-nlp}
+:::
+
+**In words.** Choose the controller's probabilities, and the values that go with them, to maximize the value at the start.
+
+**Term by term.**
+
+- The unknowns are $U$ ($|X||\mathcal{S}|$ numbers), $\psi$ and $\eta$.
+- The evaluation constraints multiply $\psi$ and $\eta$ by $U$, so they are quadratic: a quadratically constrained linear program.
+- The remaining constraints say each row is nonnegative and sums to 1.
+
+**Why it holds.** Any feasible point is a real controller and its exact value, so the program's optimum is the best $n$-node controller. But the constraints are not convex, so a local solver can stop at a local optimum. The Python tab solves it with SciPy's SLSQP after substituting $U$ from the linear solve.
+
+### Gradient ascent
+
+Write the evaluation as a matrix equation on (node, state) pairs (ADM §23.4; N. Meuleau, K.-E. Kim, L. P. Kaelbling and A. R. Cassandra, *UAI*, 1999):
+
+$$
+\begin{aligned}
+u_\theta &= r_\theta + \gamma T_\theta u_\theta, \qquad r_\theta(x, s) = \sum_a \psi(a \mid x) R(s, a), \\
+T_\theta\big((x, s), (x', s')\big) &= \sum_a \psi(a \mid x)\, T(s' \mid s, a) \sum_o O(o \mid a, s')\, \eta(x' \mid x, a, o)
+\end{aligned}
+$$
+
+The objective is $J(\theta) = \beta^\top u_\theta$, where $\beta$ puts belief $b$ on node $x_1$ and zero elsewhere. Its gradient is
+
+::: {.key-equation data-name="Controller gradient"}
+$$
+\frac{\partial J}{\partial \theta} = v^\top \Big( \frac{\partial r_\theta}{\partial \theta} + \gamma \frac{\partial T_\theta}{\partial \theta}\, u_\theta \Big),
+\qquad u_\theta = (I - \gamma T_\theta)^{-1} r_\theta, \quad v = (I - \gamma T_\theta)^{-\top} \beta
+$$ {#eq-gradient}
+:::
+
+**In words.** Changing a probability matters in proportion to how often the controller is at that node (the weights $v$), times how much the change alters the reward and the value of what comes next.
+
+**Term by term.**
+
+- $u_\theta$ is the value of every (node, state) pair; $v$ is the expected discounted time spent in each pair, starting from $\beta$.
+- For $\psi(a \mid x)$: the derivative of $r_\theta$ is $R(s, a)$ in node $x$'s rows; the derivative of $T_\theta$ is the transition that action $a$ would make from node $x$.
+- For $\eta(x' \mid x, a, o)$: only $T_\theta$ depends on it, through $\psi(a \mid x)\,T(s' \mid s, a)\,O(o \mid a, s')$.
+- A node that is never visited ($v = 0$ in its rows) gets no gradient.
+
+**Why it holds.** Differentiate $(I - \gamma T_\theta)u_\theta = r_\theta$: $(I - \gamma T_\theta)\,\partial u = \partial r + \gamma\,(\partial T)\,u$. Multiply by $\beta^\top (I - \gamma T_\theta)^{-1} = v^\top$. This is the book's eq. 23.18 multiplied by $\beta$, arranged so that one linear solve gives $v$ for every parameter at once. The code checks it against finite differences.
+
+After each step, every distribution is projected back onto the probability simplex:
+
+::: {.key-equation data-name="Projection onto the simplex"}
+$$
+\text{proj}(y) = \arg\min_{z \ge 0,\ \mathbf{1}^\top z = 1} \|y - z\|_2 = \max(y - \tau, 0)
+$$ {#eq-proj}
+:::
+
+with the shift $\tau$ chosen so that the result sums to 1.
+
+**In words.** Shift every entry down by the same amount, clip at zero, and choose the shift so the result is a distribution.
+
+**Term by term.**
+
+- $\tau$: sort $y$ in decreasing order, find the largest $k$ with $y_{(k)} > (\sum_{i \le k} y_{(i)} - 1)/k$, and set $\tau = (\sum_{i \le k} y_{(i)} - 1)/k$ (J. Duchi, S. Shalev-Shwartz, Y. Singer and T. Chandra, *ICML*, 2008).
+- Entries below $\tau$ become exactly 0: projection can switch actions off completely.
+
+**Why it holds.** The optimality conditions for the least-squares problem give $z_i = \max(y_i - \tau, 0)$ with one multiplier $\tau$ for the sum constraint; the sort finds which entries stay positive.
+
+## Worked example
+
+### Evaluating the two-node rule
+
+```{julia}
+#| include: false
+const WE = let U = U_WISE   # rows: node 1 = ignore, node 2 = feed; columns: sated, hungry
+    (Is = U[1, 1], Ih = U[1, 2], Fs = U[2, 1], Fh = U[2, 2])
+end
+@assert WE.Fs ≈ -5 + 0.9 * WE.Is && WE.Fh ≈ -15 + 0.9 * WE.Is
+```
+
+The rule "feed on crying, but not right after a feed" has nodes **I** (ignore; crying → F, quiet → I) and **F** (feed; then → I). Feeding always sates the baby, so a feed's value is its reward plus the value of ignoring a sated baby:
+
+- $U(F, \text{sated}) = -5 + 0.9\,U(I, \text{sated})$ and $U(F, \text{hungry}) = -15 + 0.9\,U(I, \text{sated})$.
+
+Ignoring a sated baby: it stays sated with probability 0.9 (then cries with probability 0.1) or turns hungry (then cries with probability 0.8):
+
+- $U(I, \text{sated}) = 0 + 0.9\,\big[0.9\,(0.1\,U(F, \text{sated}) + 0.9\,U(I, \text{sated})) + 0.1\,(0.8\,U(F, \text{hungry}) + 0.2\,U(I, \text{hungry}))\big]$.
+- $U(I, \text{hungry}) = -10 + 0.9\,\big[0.8\,U(F, \text{hungry}) + 0.2\,U(I, \text{hungry})\big]$, since a hungry baby stays hungry.
+
+Four linear equations, four unknowns. The solution:
+
+| Node | Sated | Hungry |
+|---|---:|---:|
+| I (ignore) | `{julia} fmt(WE.Is)` | `{julia} fmt(WE.Ih)` |
+| F (feed) | `{julia} fmt(WE.Fs)` | `{julia} fmt(WE.Fh)` |
+
+: The two-node rule's values (alpha vectors). {#tbl-wise}
+
+At 50–50, starting at I gives the average of its two values, `{julia} fmt((WE.Is + WE.Ih) / 2)`, and starting at F gives `{julia} fmt((WE.Fs + WE.Fh) / 2)`. Feed first: that's the exact optimal value, `{julia} fmt(opt(B0))`.
+
+### A projection by hand
+
+A gradient step turns an action distribution into $y = (0.7, 0.5, -0.1)$, which isn't a distribution. Sorted, it's the same order; the running sums are 0.7, 1.2, 1.1.
+
+- $k = 1$: $0.7 > (0.7 - 1)/1 = -0.3$. Yes.
+- $k = 2$: $0.5 > (1.2 - 1)/2 = 0.1$. Yes.
+- $k = 3$: $-0.1 > (1.1 - 1)/3 = 0.033$? No.
+
+So $\tau = 0.1$, and the projection is $(0.6, 0.4, 0)$: the third action is switched off.
+
+```{julia}
+#| output: asis
+println("The code: project_simplex([0.7, 0.5, -0.1]) = ", round.(project_simplex([0.7, 0.5, -0.1]); digits = 4), ".")
+```
+
+## Interactive
+
+### Nodes as belief regions
+
+Choose a controller and step through a simulated run. The chart shows the belief a Chapter 19 filter would hold (black), which the controller never computes. The colored band shows the node the controller is in. Each node ends up standing for a range of beliefs.
+
+```{julia}
+#| include: false
+let data = Dict{String,Any}()
+    pack(p, c, x0, names, ylabel) = let rows = node_beliefs(p, c, x0, 60, 3)
+        Dict("t" => [r.t for r in rows], "x" => [r.x for r in rows], "s" => [p.states[r.s] for r in rows],
+             "a" => [p.actions[r.a] for r in rows], "o" => [p.observations[r.o] for r in rows],
+             "b" => [round(r.b; digits = 4) for r in rows], "r" => [r.r for r in rows],
+             "nodes" => names, "ylabel" => ylabel)
+    end
+    data["crying baby: feed on crying, not twice in a row"] = pack(CB, WISE, 2, ["I: ignore", "F: feed"], "P(hungry)")
+    data["crying baby: feed whenever crying"] = pack(CB, REACT, 2, ["I: ignore", "F: feed"], "P(hungry)")
+    data["fork: count the answers (5 nodes)"] = pack(FK, COUNTER, 1,
+        ["ask (even)", "ask (right +1)", "ask (left +1)", "go right", "go left"], "P(home right)")
+    data["fork: ask once, then go (3 nodes)"] = pack(FK, ONCE, 1, ["ask", "go left", "go right"], "P(home right)")
+    write_json(data, "data/ch23-runs.json")
+end
+```
+
+```{ojs}
+runData = FileAttachment("data/ch23-runs.json").json()
+viewof runName = Inputs.select(Object.keys(runData).sort(), {label: "Controller", value: "fork: count the answers (5 nodes)"})
+viewof runT = Inputs.range([1, 60], {step: 1, value: 12, label: "Step"})
+```
+
+```{ojs}
+runNow = {
+  const R = runData[runName], i = runT - 1;
+  const pts = R.t.slice(0, runT).map((t, k) => ({t, b: R.b[k], node: R.nodes[R.x[k] - 1], a: R.a[k], o: R.o[k], s: R.s[k]}));
+  const total = R.r.slice(0, runT).reduce((acc, r) => acc + r, 0);
+  return {R, pts, now: pts[i], total};
+}
+md`Step **${runNow.now.t}**: node **${runNow.now.node}**, action **${runNow.now.a}**, observation **${runNow.now.o}**; true state **${runNow.now.s}**; the filter's belief ${runNow.R.ylabel} = **${runNow.now.b.toFixed(3)}**. Undiscounted reward so far: **${runNow.total}**.`
+```
+
+```{ojs}
+//| label: fig-run-explorer
+//| fig-cap: "One simulated run of the chosen controller: the belief a filter would hold (black line) and the controller's node at each step (colored band)."
+//| fig-alt: "Interactive chart with steps 1 to 60 across and the belief from 0 to 1 up the side. A black step line shows the filter's belief; beneath it a band of colored cells shows the controller's node at each step. For the counting controller, the belief jumps to about 0.85 or 0.15 after each answer and the node follows the count; going nodes occur only when the belief is about 0.97 or 0.03."
+{
+  const colors = ["#2a78d6", "#eb6834", "#1baf7a", "#4a3aa7", "#e87ba4"];
+  return Plot.plot({width: 640, height: 300, style: {background: "#fcfcfb"},
+    x: {domain: [0.5, 60.5], label: "step"}, y: {domain: [-0.12, 1], label: runNow.R.ylabel, grid: true},
+    color: {domain: runNow.R.nodes, range: colors.slice(0, runNow.R.nodes.length), legend: true},
+    marks: [
+      Plot.rect(runNow.pts, {x1: d => d.t - 0.5, x2: d => d.t + 0.5, y1: -0.12, y2: -0.03, fill: "node"}),
+      Plot.line(runNow.pts, {x: "t", y: "b", stroke: "#0b0b0b", strokeWidth: 2, curve: "step-after"}),
+      Plot.dot([runNow.now], {x: "t", y: "b", r: 5, fill: "#eb6834"})
+    ]});
+}
+```
+
+Over 20,000 steps, the two-node rule was in node I at beliefs $P(\text{hungry})$ from `{julia} fmt(belief_range(LONG_WISE, 1)[1]; d = 3)` to `{julia} fmt(belief_range(LONG_WISE, 1)[2]; d = 3)`, and in node F from `{julia} fmt(belief_range(LONG_WISE, 2)[1]; d = 3)` to `{julia} fmt(belief_range(LONG_WISE, 2)[2]; d = 3)`. At every step, the rule took the action the exact policy takes at the filter's belief, which is why it is optimal. For the counter, each node always had the same belief: $P(\text{home right}) =$ `{julia} fmt(COUNTER_B[1]; d = 3)` in the even asking node, `{julia} fmt(COUNTER_B[2]; d = 3)` and `{julia} fmt(COUNTER_B[3]; d = 3)` one answer ahead, and `{julia} fmt(COUNTER_B[4]; d = 3)` and `{julia} fmt(COUNTER_B[5]; d = 3)` when going. The belief depends only on the answers heard since the hike began, and that's exactly what the nodes count.
+
+## Algorithms & code
+
+### Controllers: evaluation, policy iteration, brute force, gradient ascent
+
+::: {.panel-tabset group="lang"}
+## Julia
+```{julia}
+#| output: asis
+show_source("pomdp/controllers.jl")
+```
+## Python
+```{.python .snippet}
+import numpy as np
+from scipy.optimize import minimize
+
+from adm.problems.crying_baby import crying_baby
+
+p = crying_baby()                     # 0 = sated / feed / crying
+nS, nA, nO = p.T.shape[0], p.T.shape[1], p.O.shape[2]
+n = 2                                 # controller nodes
+b0 = np.array([0.5, 0.5])
+
+
+def unpack(theta):
+    """Split the parameters into psi[x, a] and eta[x, a, o, x2]."""
+    psi = theta[: n * nA].reshape(n, nA)
+    eta = theta[n * nA:].reshape(n, nA, nO, n)
+    return psi, eta
+
+
+def evaluate(psi, eta):
+    """eq. 23.1 as one linear system on (node, state) pairs; returns U[x, s]."""
+    # Tt[x, s, y, t] = sum over a, o of psi[x,a] T[s,a,t] O[a,t,o] eta[x,a,o,y]
+    Tt = np.einsum("xa,sat,ato,xaoy->xsyt", psi, p.T, p.O, eta)
+    Tt = Tt.reshape(n * nS, n * nS)       # row x*nS + s, column y*nS + t
+    r = np.einsum("xa,sa->xs", psi, p.R).reshape(n * nS)
+    U = np.linalg.solve(np.eye(n * nS) - p.gamma * Tt, r)
+    return U.reshape(n, nS)
+
+
+def negative_value(theta):
+    psi, eta = unpack(theta)
+    return -evaluate(psi, eta)[0] @ b0    # start in node 0
+
+
+# eq. 23.5 with U substituted: every psi and eta row must sum to 1.
+rows = [slice(x * nA, (x + 1) * nA) for x in range(n)]
+rows += [slice(n * nA + k * n, n * nA + (k + 1) * n) for k in range(n * nA * nO)]
+cons = [{"type": "eq", "fun": lambda th, sl=sl: th[sl].sum() - 1} for sl in rows]
+
+best = None
+for seed in range(5):                 # a local solver: try several starts
+    rng = np.random.default_rng(seed)
+    theta0 = np.concatenate([rng.dirichlet(np.ones(nA), n).ravel(),
+                             rng.dirichlet(np.ones(n), n * nA * nO).ravel()])
+    res = minimize(negative_value, theta0, method="SLSQP",
+                   bounds=[(0, 1)] * len(theta0), constraints=cons)
+    if best is None or res.fun < best.fun:
+        best = res
+
+psi, eta = unpack(best.x)
+print(f"best 2-node value at b0: {-best.fun:.3f}")
+print("most likely action per node:", [p.actions[a] for a in psi.argmax(axis=1)])
+assert abs(-best.fun - (-24.6749)) < 0.01             # the exact optimum
+```
+:::
+
+::: {.callout-note collapse="true" title="Reading the Julia code (for Python programmers)"}
+- **`Array{Float64,4}`** is a 4-dimensional array; `η[x, a, o, :]` is a view of its last axis, like `eta[x, a, o, :]` in NumPy (but 1-based).
+- **`permutedims(reshape(u, nS, n))`**: Julia reshapes column-major, filling the first index fastest, so the vector indexed `(x - 1) * nS + s` becomes an `nS × n` matrix whose columns are nodes; `permutedims` transposes it to `U[x, s]`.
+- **`Z' \ β`** solves the transposed system $Z^\top v = \beta$; `\` is `np.linalg.solve`.
+- **`Iterators.product(fill(1:n, nO)...)`** is `itertools.product(range(n), repeat=nO)`: every successor table.
+- **`increment!(v, base)`** counts through all digit vectors, like an odometer, without building the whole list.
+- **`v[i] < base && (v[i] += 1; return true)`** runs the parenthesized block only if the test is true: a one-line `if`.
+:::
+
+### Run it
+
+```{julia}
+#| echo: true
+p = crying_baby()
+# Node 1 ignores (crying → node 2, quiet → node 1); node 2 feeds (then → node 1).
+c = deterministic_controller(p, [3, 1], [[2, 1], [1, 1]])
+U = evaluate_controller(p, c)          # U[x, s]: rows are alpha vectors
+controller_value(p, c, [0.5, 0.5])     # best starting node and its value
+```
+
+### Results
+
+#### Controllers for the crying baby
+
+```{julia}
+#| label: fig-controllers
+#| fig-cap: "Crying baby. Left: the alpha vectors of two 2-node controllers (dashed: feed whenever crying; solid: never feed twice in a row), against the exact value (black). Right: the value of the controller built by policy iteration, from its best starting node, after 0, 1 and 2 iterations."
+#| fig-alt: "Two line charts with P(hungry) from 0 to 1 across. Left: the solid rule's ignore line falls from about minus 16.3 to minus 38.2 and its feed line from about minus 19.7 to minus 29.6; their upper surface, crossing near 0.28, coincides with the black exact curve. The dashed rule's lines lie slightly lower, from about minus 17 to minus 39 and minus 20.4 to minus 30.4. Right: after 0 iterations the value is a straight line from about minus 31 to minus 53; after 1 iteration a bent line from about minus 30 to minus 43; after 2 iterations it lies on the dashed exact curve."
+let fig = Figure(size = (980, 360))
+    ax1 = Axis(fig[1, 1], xlabel = "P(hungry)", ylabel = "value", title = "Two 2-node rules")
+    for (U, style, name) in ((U_REACT, :dash, "feed whenever crying"), (U_WISE, :solid, "not twice in a row"))
+        lines!(ax1, XS, curve(b -> U[1, :] ⋅ b), color = C[1], linestyle = style, linewidth = 2, label = "$name: ignore")
+        lines!(ax1, XS, curve(b -> U[2, :] ⋅ b), color = C[2], linestyle = style, linewidth = 2, label = "$name: feed")
+    end
+    lines!(ax1, XS, OPT, color = :black, linewidth = 2.5, label = "exact")
+    Legend(fig[2, 1], ax1, orientation = :horizontal, nbanks = 3, framevisible = false, labelsize = 10)
+    ax2 = Axis(fig[1, 2], xlabel = "P(hungry)", title = "Policy iteration")
+    for (k, shade) in zip(0:2, (0.35, 0.65, 1.0))
+        lines!(ax2, XS, curve(b -> controller_value(CB, PI_CB_IT[k], b).u), color = (C[3], shade), linewidth = 2,
+               label = "$k iteration$(k == 1 ? "" : "s") ($(nnodes(PI_CB_IT[k])) node$(nnodes(PI_CB_IT[k]) == 1 ? "" : "s"))")
+    end
+    lines!(ax2, XS, OPT, color = :black, linewidth = 1.5, linestyle = :dash, label = "exact")
+    Legend(fig[2, 2], ax2, orientation = :horizontal, nbanks = 2, framevisible = false, labelsize = 10)
+    fig
+end
+```
+
+- **Two nodes are enough.** The rule that never feeds twice in a row is optimal at 50–50 (starting at F), and from its best node at every belief. Brute force over all 2-node and 3-node deterministic controllers agrees: the best value at 50–50 is `{julia} fmt(BD_CB[2].u; d = 3)` with 2 nodes and `{julia} fmt(BD_CB[3].u; d = 3)` with 3. The best 1-node controller always feeds: `{julia} fmt(BD_CB[1].u; d = 0)`.
+- **Randomness helps a tiny controller.** A 1-node controller that feeds with probability `{julia} fmt(GA1.ψ[1, 1]; d = 3)` and otherwise ignores (found by gradient ascent from all 30 starts) earns `{julia} fmt(GA_CB[1][1][2][end])`. It can't remember when it last fed, so it spreads its feeds out at random.
+- **Policy iteration finds the optimum, then keeps growing.** It reached the optimal value at 50–50 after `{julia} PI_CB_OPT_AT` iterations, with `{julia} PI_CB_H[PI_CB_OPT_AT + 1][1]` nodes. After `{julia} length(PI_CB_H) - 1` iterations it had `{julia} nnodes(PI_CB)` nodes, of which `{julia} length(PI_CB_REACH)` are reachable from the best starting node. Pointwise pruning can't remove nodes that are better in some state but never best at any belief.
+
+#### How much memory does the fork need?
+
+```{julia}
+#| label: fig-memory
+#| fig-cap: "The fork: the best value at 50–50 achievable by a deterministic controller with 1 to 5 nodes (brute force for 1 to 4; the counting controller for 5), against the optimal value (dashed). Left of the dashed line's reach, the controller can only wait."
+#| fig-alt: "Bar chart with 1 to 5 nodes across and value up the side. Nodes 1, 2 and 3 have value 0; 4 nodes about 15.3; 5 nodes about 27.1, level with the dashed optimum line."
+let fig = Figure(size = (640, 320))
+    vals = [[BD_FK[n].u for n in 1:4]; V_COUNTER.u]
+    ax = Axis(fig[1, 1], xlabel = "controller nodes", ylabel = "best value at 50–50", xticks = 1:5,
+              limits = (0.4, 5.6, -1, 30))
+    barplot!(ax, 1:5, vals, color = [n < 5 ? C[1] : C[2] for n in 1:5], strokewidth = 0)
+    hlines!(ax, [FK_OPT], color = :black, linestyle = :dash)
+    text!(ax, 1:5, vals, text = [fmt(v; d = 2) for v in vals], align = (:center, :bottom), offset = (0, 4), fontsize = 12)
+    fig
+end
+```
+
+- **Below 4 nodes, waiting is best.** With 3 nodes, the natural policy "ask once, then go where told" is worth `{julia} fmt(V_ONCE.u; d = 2)`: an 85%-reliable answer isn't worth acting on at these stakes, so it loses a little each hike.
+- **4 nodes get part of the way.** The best 4-node controller asks, goes left after a single "left", but asks again after a "right" and goes right only after two in a row. It earns `{julia} fmt(BD_FK[4].u)`, from its best starting node.
+- **5 nodes are optimal.** The counting controller earns `{julia} fmt(V_COUNTER.u; d = 3)`, which matches Chapter 21's bounds on the optimum (`{julia} fmt(FK_OPT; d = 3)` from below).
+- **Policy iteration finds it too.** Starting from one node, it reached the optimum after `{julia} PI_FK_OPT_AT` iterations, with `{julia} PI_FK_H[PI_FK_OPT_AT + 1][1]` nodes. It stopped after `{julia} length(PI_FK_H) - 1` iterations with `{julia} nnodes(PI_FK)` nodes, of which `{julia} length(PI_FK_REACH)` are reachable from its best starting node.
+
+#### Gradient ascent: local optima
+
+```{julia}
+#| label: fig-gradient
+#| fig-cap: "Controller gradient ascent (step size 0.003, 3000 steps). Left: crying baby, 2 nodes, 30 random starts; the exact optimum is dashed. Right: fork, 5 nodes, 30 random starts (gray) and 10 starts blended 50/50 with the counting controller (blue); the optimum is dashed."
+#| fig-alt: "Two line charts of value against steps (log scale). Left: 30 curves start between about minus 50 and minus 37; most reach the dashed optimum near minus 24.7 within a few hundred steps, and a few level off lower, near minus 25.9 or minus 27.3. Right: 30 gray curves start far below the chart's lower edge of minus 60, rise to about minus 10 within 10 steps, and then to 0, where they stay; 10 blue curves from blended starts rise past 0 to the dashed optimum near 27.1 within about 100 steps."
+let fig = Figure(size = (980, 360))
+    ax1 = Axis(fig[1, 1], xlabel = "step", ylabel = "value at 50–50", xscale = log10, title = "Crying baby, 2 nodes")
+    for r in GA_CB[2]
+        lines!(ax1, 1:length(r[2]), r[2], color = (C[1], 0.45), linewidth = 1.2)
+    end
+    hlines!(ax1, [opt(B0)], color = :black, linestyle = :dash)
+    ylims!(ax1, -50, -20)
+    ax2 = Axis(fig[1, 2], xlabel = "step", xscale = log10, title = "Fork, 5 nodes")
+    for r in GA_FK
+        lines!(ax2, 1:length(r[2]), r[2], color = (:gray, 0.5), linewidth = 1.2)
+    end
+    for J in BLEND[0.5]
+        lines!(ax2, 1:length(J), J, color = (C[1], 0.8), linewidth = 1.5)
+    end
+    hlines!(ax2, [FK_OPT], color = :black, linestyle = :dash)
+    ylims!(ax2, -60, 35)
+    fig
+end
+```
+
+- **The crying baby is easy.** With 2 nodes, `{julia} ga_hits(2)` of 30 starts reached the optimum (within 0.01); with 3 nodes, `{julia} ga_hits(3)`. The others stopped at local optima.
+- **The fork has a trap.** From random 5-node starts, all `{julia} count(r -> abs(r[2][end]) < 1e-3, GA_FK)` of 30 runs ended by waiting forever, with value 0. In the first run's final controller, `{julia} length(STUCK_NODES)` nodes are ever visited, and each waits. At those nodes the gradient for waiting is 0, for asking at most `{julia} fmt(ASK_G; d = 1)`, and for going at most `{julia} fmt(GO_G; d = 1)`. Asking alone only costs; it pays only together with a later node that goes the right way.
+- **A good start escapes it.** Blending the counting controller 50/50 with a random one, `{julia} blend_hits(0.5)` of 10 runs climbed to the optimum; at 70/30, `{julia} blend_hits(0.7)`; at 30/70, `{julia} blend_hits(0.3)`.
+
+## Solved problems
+
+**Problem 1: counting controllers.** For the fork ($|\mathcal{A}| = 4$, $|\mathcal{O}| = 2$), how many candidate nodes does one policy-iteration step try on a 5-node controller? How many deterministic 4-node controllers are there?
+
+::: {.callout-tip collapse="true" title="Solution"}
+Each candidate is an action and a successor for each observation: $|\mathcal{A}||X|^{|\mathcal{O}|} = 4 \times 5^2 = 100$. A deterministic $n$-node controller chooses an action per node ($4^n$) and a successor per node and observation ($n^{2n}$): for $n = 4$, $256 \times 65{,}536 = 16{,}777{,}216$. That is why brute force stops at 4 nodes here; for $n = 5$ it would be about $10^{10}$.
+:::
+
+**Problem 2: a 1-node controller by hand.** A crying baby controller has one node, which always feeds. Find its values and its value at 50–50.
+
+::: {.callout-tip collapse="true" title="Solution"}
+Feeding always leads to a sated baby, and the controller stays in its one node: $U(\text{sated}) = -5 + 0.9\,U(\text{sated})$, so $U(\text{sated}) = -50$. $U(\text{hungry}) = -15 + 0.9\,U(\text{sated}) = -60$. At 50–50: $-55$, the brute-force result for one node above. Always ignoring is far worse, since the baby stays hungry forever: $U(\text{hungry}) = -10/(1 - 0.9) = -100$.
+:::
+
+**Problem 3: why randomize?** Why can a 1-node controller that feeds at random beat both "always feed" and "always ignore"? Would randomness help a controller with enough nodes?
+
+::: {.callout-tip collapse="true" title="Solution"}
+With one node, the controller can't tell a quiet baby from a crying one, or remember its last feed; a deterministic node must do the same thing forever. Random feeding with a moderate probability feeds roughly as often as the baby gets hungry, without paying for a feed every step. It's a substitute for memory. With enough nodes, a deterministic controller can match the optimal belief-based policy, which is itself deterministic; here 2 nodes did. Randomness helps when memory is scarce.
+:::
+
+**Problem 4: project a distribution.** Project $y = (0.9, 0.4, -0.2)$ onto the simplex.
+
+::: {.callout-tip collapse="true" title="Solution"}
+Running sums: 0.9, 1.3, 1.1. $k = 1$: $0.9 > -0.1$; $k = 2$: $0.4 > 0.15$; $k = 3$: $-0.2 > 0.033$? No. So $\tau = (1.3 - 1)/2 = 0.15$ and the projection is $(0.75, 0.25, 0)$.
+:::
+
+**Problem 5: why does "ask once, then go" lose?** Compute the value of the 3-node fork controller that asks once and goes where told, and explain the result.
+
+::: {.callout-tip collapse="true" title="Solution"}
+Let $V$ be the value at the asking node. Going after one answer is right with probability 0.85: expected reward $0.85 \times 10 + 0.15 \times (-50) = 1$, then a new hike starts at the asking node. So $V = -1 + 0.95\,(1 + 0.95\,V)$, which gives $V(1 - 0.9025) = -0.05$ and $V \approx -0.513$. Each hike costs 1 to ask and earns only 1 on average, a step later, so the controller loses slowly and waiting (0) is better. A second answer that agrees raises the chance of being right to about 0.97, which is worth the extra cost: that's why the optimal controller counts to two.
+:::
+
+## Recap
+
+1. **A controller is a policy with a finite memory (@eq-eval).**
+   *Why it matters:* it runs without belief updates, which is useful when the model is too big to filter, or when the policy must run on simple hardware.
+2. **Evaluation is exact: one linear solve on (node, state) pairs, giving an alpha vector per node (@eq-node-value).**
+   *Why it matters:* controllers slot into the value-function picture of Chapters 20–21; their value over beliefs is a lower bound on the optimal one.
+3. **Policy iteration adds and replaces nodes, and reaches the optimum on small problems (@eq-dominance).**
+   *Why it matters:* replacing dominated nodes creates the loops that make controllers compact, but pointwise pruning can leave many useless nodes.
+4. **Fixed-size controllers can be optimized as a nonlinear program or by gradient ascent (@eq-nlp, @eq-gradient, @eq-proj).**
+   *Why it matters:* the objective is not concave, and at the fork every random start fell into the same trap. Information-gathering behavior needs coordinated changes that local search can't make one step at a time.
+5. **The number of nodes is the real design decision.**
+   *Why it matters:* the crying baby needs 2, the fork needs 5 (with fewer than 4 it can only wait). Too few nodes caps the value; too many makes optimization harder.
+
+## Cheat sheet & connections
+
+| Name | Formula | Ref |
+|---|---|---|
+| Controller evaluation | $U(x, s) = \sum_a \psi(a \mid x)[R(s, a) + \gamma\sum_{s'} T \sum_o O \sum_{x'} \eta\, U(x', s')]$ | @eq-eval |
+| Node values over beliefs | $U(x, b) = \alpha_x^\top b$; start at $\arg\max_x \alpha_x^\top b$ | @eq-node-value |
+| Pointwise dominance | $U(x, s) \le U(x', s)$ for all $s$ | @eq-dominance |
+| Fixed-size program | $\max \sum_s b(s) U(x_1, s)$ s.t. @eq-eval, $\psi$ and $\eta$ distributions | @eq-nlp |
+| Controller gradient | $v^\top(\partial r_\theta + \gamma\,\partial T_\theta\, u_\theta)$, $v = (I - \gamma T_\theta)^{-\top}\beta$ | @eq-gradient |
+| Simplex projection | $\max(y - \tau, 0)$, $\tau$ so it sums to 1 | @eq-proj |
+
+: Key equations from this page. {#tbl-cheatsheet}
+
+**Common pitfalls**
+
+- **Confusing nodes with states.** A node is the controller's memory; the environment's state stays hidden. $\eta$ may depend on the observation, never on the state.
+- **Starting at the wrong node.** A controller's value at a belief depends on the starting node; choose it with @eq-node-value.
+- **Trusting a local optimum.** Gradient ascent and local nonlinear solvers need several starts, or a start from a known good controller.
+- **Too few nodes.** If the value plateaus at something simple (like waiting), the controller may lack the memory to do better. Brute force on small sizes, or policy iteration, can tell you.
+- **Counting nodes that are never used.** Report the nodes reachable from the starting node, not the total.
+
+**Connections**
+
+- [Ch 20 · Exact Belief State Planning](ch20-exact-belief-state-planning.qmd): conditional plans are tree-shaped controllers, and alpha vectors come from there.
+- [Ch 7 · Exact Solution Methods](../part2/ch07-exact-solution-methods.qmd): policy evaluation by a linear solve, and policy iteration, for MDPs.
+- [Ch 11 · Policy Gradient Estimation](../part2/ch11-policy-gradient-estimation.qmd): gradients of a policy's value; here computed exactly from the model.
+- [Ch 21 · Offline Belief State Planning](ch21-offline-belief-state-planning.qmd): the fork's optimal value, which the counting controller reaches.
+- [Ch 22 · Online Belief State Planning](ch22-online-belief-state-planning.qmd): the opposite trade-off: no stored policy, a search at every step.

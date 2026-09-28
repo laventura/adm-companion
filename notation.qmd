@@ -159,6 +159,13 @@ This site uses the book's notation. Symbols are added here as chapters are writt
 | $N(h, a)$, $Q(h, a)$ | Visit count and value estimate of action $a$ after history $h$ (MCTS) | Ch 22 |
 | $\Phi$, $\phi = (s, i, j)$ | Determinizing matrix of uniform numbers; a particle's state, scenario and depth | Ch 22 |
 | $\delta$ (gap) | Gap below which heuristic search stops refining a belief | Ch 21 |
+| $X$, $x$ | A controller's nodes, and one node (its memory state, not the environment's state) | Ch 23 |
+| $\psi(a \mid x)$ | A controller's action distribution at node $x$ | Ch 23 |
+| $\eta(x' \mid x, a, o)$ | A controller's successor distribution after action $a$ and observation $o$ | Ch 23 |
+| $U(x, s)$, $\alpha_x$ | Value of node $x$ in state $s$; node $x$'s alpha vector | Ch 23 |
+| $T_\theta$, $r_\theta$, $u_\theta$ | Transition matrix, rewards and values on (node, state) pairs for controller parameters $\theta = (\psi, \eta)$ | Ch 23 |
+| $\beta$, $v$ | Start distribution on (node, state) pairs; expected discounted time spent in each pair | Ch 23 |
+| $\tau$ | Shift in the projection onto the probability simplex | Ch 23 |
 | $o$ | An observation | Ch 19 |
 | $O(o \mid a, s')$ | Observation model: probability of observing $o$ after taking $a$ and landing in $s'$ | Ch 19 |
 | $b(s)$ | Belief: probability that the current state is $s$, given the history | Ch 19 |

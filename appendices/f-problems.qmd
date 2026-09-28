@@ -470,6 +470,37 @@ using ADM
 
 **Where it's used.** [Ch 3](../part1/ch03-inference.qmd): Gaussian conditioning.
 
+### Mountain trail {#mountain-trail}
+
+**The story.** A hiker is somewhere on a six-position trail, from the trailhead (0) to the summit (5). Resting at the trailhead earns a small, sure reward: a snack from the car. The view at the summit is worth twenty times as much, but the climb is unreliable. Each attempt to climb gains ground only 35% of the time, and occasionally slips back. It is a small test of exploration. An agent that grabs the nearby reward and trusts its early experience never learns that the long climb pays. The structure follows the RiverSwim benchmark (A. L. Strehl and M. L. Littman, *J. Comput. Syst. Sci.*, 2008), with this site's own numbers.
+
+| Part | Definition |
+|---|---|
+| States | positions 0 (trailhead) to 5 (summit) |
+| back | down one position, surely; at the trailhead, rest (reward 0.05) |
+| climb | up one w.p. 0.35, stay w.p. 0.6, slip down one w.p. 0.05; at the summit, stay (w.p. 0.95) and enjoy the view (reward 1) |
+| Discount | 0.95 |
+| Optimal policy | climb everywhere: worth 8.13 from the trailhead against 1.0 for resting forever; 0.857 reward per step in the long run |
+
+: The mountain trail. {#tbl-trail}
+
+::: {.panel-tabset group="lang"}
+## Python
+```{python}
+#| echo: true
+from adm.problems.trail import trail
+mdp = trail()                                     # actions: 0 = back, 1 = climb
+```
+## Julia
+```{.julia .snippet}
+using ADM
+mdp = trail()                                      # 1-based: positions 1..6; actions 1 = back, 2 = climb
+@assert mdp.T[1, 2, 2] ≈ 0.35 && mdp.R[6, 2] == 1.0
+```
+:::
+
+**Where it's used.** [Ch 16](../part3/ch16-model-based-methods.qmd): ε-greedy exploration on a maximum likelihood model rarely learns to climb; R-MAX (with a well-chosen threshold) and posterior sampling do.
+
 ### Other problems on this site
 
 | Problem | Kind | Page | Code |

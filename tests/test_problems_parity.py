@@ -8,7 +8,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from adm.problems import collision_avoidance, mountain_car, simple_regulator, trail
+from adm.problems import collision_avoidance, mountain_car, park, simple_regulator, trail
 from adm.problems.coffee import COFFEE
 from adm.problems.commute import (
     COMMUTE, COMMUTE_DECISION, COMMUTE_TIMES_COV, COMMUTE_TIMES_MEAN, COMMUTE_UTILITY,
@@ -39,6 +39,10 @@ print(JSON.json(Dict(
     end,
     "regulator_exact" => [regulator_exact_value(θ) for θ in ([0.0, 1.0], [-0.5, 0.3], [-1.0, 0.0])],
     "regulator_gradient" => [regulator_exact_gradient(θ) for θ in ([0.0, 1.0], [-0.5, 0.3], [-1.0, 0.2])],
+    "park" => Dict(layout => let (p, β) = park(layout)
+            Dict("T" => rowmajor(p.T), "R" => rowmajor(p.R), "beta" => rowmajor(β),
+                 "b" => park_left_starts(layout))
+        end for layout in ("A", "B")),
     "trail" => let p = trail()
         Dict("T" => rowmajor(p.T), "R" => rowmajor(p.R), "gamma" => p.γ)
     end,
@@ -130,3 +134,12 @@ def test_trail_matches(julia_problems):
     theirs, ours = julia_problems["trail"], trail.trail()
     assert np.allclose(theirs["T"], ours.T.ravel()) and np.allclose(theirs["R"], ours.R.ravel())
     assert theirs["gamma"] == ours.gamma
+
+
+@pytest.mark.parametrize("layout", ["A", "B"])
+def test_park_matches(julia_problems, layout):
+    theirs = julia_problems["park"][layout]
+    mdp, beta = park.park(layout)
+    assert np.allclose(theirs["T"], mdp.T.ravel()) and np.allclose(theirs["R"], mdp.R.ravel())
+    assert np.allclose(theirs["beta"], beta.ravel())
+    assert np.allclose(theirs["b"], park.left_edge_starts(layout))

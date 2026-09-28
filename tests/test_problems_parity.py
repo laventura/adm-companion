@@ -8,7 +8,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from adm.problems import mountain_car, simple_regulator
+from adm.problems import collision_avoidance, mountain_car, simple_regulator
 from adm.problems.coffee import COFFEE
 from adm.problems.commute import (
     COMMUTE, COMMUTE_DECISION, COMMUTE_TIMES_COV, COMMUTE_TIMES_MEAN, COMMUTE_UTILITY,
@@ -39,6 +39,20 @@ print(JSON.json(Dict(
     end,
     "regulator_exact" => [regulator_exact_value(θ) for θ in ([0.0, 1.0], [-0.5, 0.3], [-1.0, 0.0])],
     "regulator_gradient" => [regulator_exact_gradient(θ) for θ in ([0.0, 1.0], [-0.5, 0.3], [-1.0, 0.2])],
+    "collision" => let m = CAModel(), (pol, U) = ca_optimal_policy(m), simple = ca_simple_policy(m)
+        starts(W) = maximum(W[1, (-200:200) .+ 501, (-10:10) .+ 31])
+        robust = ca_optimal_policy(m; models = [m, CAModel(compliance = 0.8)])[2]
+        Dict("values" => [
+                ca_start_average(m, U),
+                ca_start_average(m, ca_evaluate(m, pol)),
+                ca_start_average(m, ca_evaluate(m, simple)),
+                ca_start_average(m, ca_evaluate(m, pol; step_metric = (p, a) -> p != a,
+                                                 final = zeros(1001, 61))),
+                ca_start_average(m, robust),
+                starts(ca_most_likely_failure(m, pol))],
+             # Julia advisories are 1-based; Python subtracts 1 before comparing.
+             "policy" => [rowmajor(pol[t][1, :, :]) for t in (10, 30)])
+    end,
 )))
 """
 
@@ -88,3 +102,22 @@ def test_regulator_exact_values_match(julia_problems):
 def test_commute_times_match(julia_problems):
     ours = np.concatenate([COMMUTE_TIMES_MEAN, COMMUTE_TIMES_COV.ravel()])
     assert np.allclose(julia_problems["commute_times"], ours)
+
+
+def test_collision_avoidance_matches(julia_problems):
+    theirs = julia_problems["collision"]
+    m = collision_avoidance.Model()
+    policy, cost = collision_avoidance.optimal_policy(m)
+    simple = collision_avoidance.simple_policy(m)
+    avg = lambda V: collision_avoidance.start_average(m, V)  # noqa: E731
+    changes = collision_avoidance.evaluate(
+        m, policy, lambda p, a: (a != p).astype(float), np.zeros((1001, 61)))
+    robust = collision_avoidance.optimal_policy(
+        m, models=[m, collision_avoidance.Model(compliance=0.8)])[1]
+    W = collision_avoidance.adversary(m, policy)[0]
+    ours = [avg(cost), avg(collision_avoidance.evaluate(m, policy)),
+            avg(collision_avoidance.evaluate(m, simple)), avg(changes), avg(robust),
+            W[0, 300:701, 20:41].max()]
+    assert np.allclose(theirs["values"], ours, rtol=1e-12)
+    for k, t in enumerate((10, 30)):
+        assert np.array_equal(np.array(theirs["policy"][k]) - 1, policy[t][0].ravel())

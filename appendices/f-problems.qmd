@@ -501,6 +501,39 @@ mdp = trail()                                      # 1-based: positions 1..6; ac
 
 **Where it's used.** [Ch 16](../part3/ch16-model-based-methods.qmd): ε-greedy exploration on a maximum likelihood model rarely learns to climb; R-MAX (with a well-chosen threshold) and posterior sampling do. [Ch 17](../part3/ch17-model-free-methods.qmd): Q-learning with ε-greedy exploration gets stuck too; optimistic initial values and potential-based shaping fix it, while a naive "+5 per step up" bonus makes walking back down optimal.
 
+### The park {#the-park}
+
+**The story.** Walkers cross an 8 × 8 park from its left edge to the gate in the top-right corner. Paths are pleasant, grass is slower, and mud is miserable; the ground is slippery, so a step sometimes goes sideways or back. The reward is a weighted sum of terrain features, which makes the park a clean test for imitation learning. An expert's walks can be copied cell by cell, or explained by the weights they imply. Two layouts share the terrain types, so a learned reward can be tried in a park it has never seen.
+
+| Part | Definition |
+|---|---|
+| States | 64 cells (row-major) and an end state; the gate is at row 0, column 7 |
+| Actions and moves | N, E, S, W; intended w.p. 0.8, else one of the other three (0.2/3 each); walls: stay put |
+| Features $\beta(s, a)$ | one-hot terrain of the current cell: path, grass, mud, gate |
+| True reward | $\phi = (-1, -2, -6, 10)$: $R(s, a) = \phi^\top\beta(s, a)$; from the gate, any action ends the walk |
+| Discount, starts | 0.95; demonstrations and evaluations start uniformly on the left edge (or every cell, for IRL) |
+| Layouts | A (demonstrations) and B (transfer test); same terrain types, different arrangement |
+
+: The park. {#tbl-park}
+
+::: {.panel-tabset group="lang"}
+## Python
+```{python}
+#| echo: true
+from adm.problems.park import left_edge_starts, park
+mdp, beta = park("A")                              # beta[s, a, k]: path, grass, mud, gate
+starts = left_edge_starts("A")
+```
+## Julia
+```{.julia .snippet}
+using ADM
+mdp, β = park("A")                                 # 1-based: cell (r, c) is index 8r + c + 1
+@assert mdp.R ≈ dropdims(sum(β .* reshape(PARK_PHI_TRUE, 1, 1, :); dims = 3); dims = 3)
+```
+:::
+
+**Where it's used.** [Ch 18](../part3/ch18-imitation-learning.qmd): behavioral cloning, DAgger and SMILe, maximum margin and maximum entropy inverse reinforcement learning, and the transfer of a learned reward from layout A to layout B.
+
 ### Other problems on this site
 
 | Problem | Kind | Page | Code |

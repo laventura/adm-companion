@@ -109,6 +109,12 @@ This site uses the book's notation. Symbols are added here as chapters are writt
 | $w = P(\tau)/P'(\tau)$ | Importance weight of a trajectory sampled from the proposal | Ch 14 |
 | $T_i$, $R_i$ | The $i$-th of several candidate models in robust dynamic programming | Ch 14 |
 | $R'$, $\lambda$ | Adversarial reward, and its weight on the log-likelihood of the adversary's choices | Ch 14 |
+| $\theta_a$, $\theta^*$ | Payoff probability of bandit arm $a$; the best arm's | Ch 15 |
+| $w_a$, $\ell_a$ | Wins and losses observed on arm $a$ | Ch 15 |
+| $\rho_a$ | Posterior probability that the next pull of arm $a$ wins, $(w_a + 1)/(w_a + \ell_a + 2)$ | Ch 15 |
+| $\varepsilon$, $\lambda$, $\alpha$, $c$ | Exploration parameters: ε-greedy rate, softmax precision, quantile level, UCB1 constant | Ch 15 |
+| $N(a)$, $N$ | Pulls of arm $a$ (here Beta pseudocounts), and their total | Ch 15 |
+| $U^*_r$, $Q^*_r$ | Bayes-optimal bandit values with $r$ pulls remaining | Ch 15 |
 | $o$ | An observation | Ch 19 |
 | $O(o \mid a, s')$ | Observation model: probability of observing $o$ after taking $a$ and landing in $s'$ | Ch 19 |
 | $b(s)$ | Belief: probability that the current state is $s$, given the history | Ch 19 |

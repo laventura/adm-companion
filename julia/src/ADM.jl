@@ -24,6 +24,7 @@ include("pomdp/conditional_plans.jl")
 include("pomdp/value_iteration.jl")
 include("problems/fork.jl")
 include("pomdp/offline.jl")
+include("pomdp/online.jl")
 
 export write_json, show_source
 export predict_discrete, correct_discrete, update_discrete
@@ -48,6 +49,9 @@ export find_maximal_belief, simplex_max, find_dominating, prune, expand, value_i
 export fork, qmdp, fast_informed_bound, baws_lowerbound, blind_lowerbound, belief_backup, pbvi, perseus
 export sawtooth, sawtooth_iteration, randstep, exploratory_belief_expansion, sawtooth_heuristic_search
 export freudenthal, triangulated_iteration
+export pomdp_step, belief_rollout, forward_search_belief, branch_and_bound_belief, sparse_sampling_belief
+export HistoryMCTS, mcts_explore, mcts_simulate!, DeterminizedParticle, successor, determinized_belief
+export particle_belief, determinized_search, gap_heuristic_search, run_pomdp
 
 """
     write_json(obj, path) -> path

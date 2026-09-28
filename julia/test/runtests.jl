@@ -1,6 +1,6 @@
 # Run with: julia --project=julia -e 'using Pkg; Pkg.test()'
 # Also pins the numbers quoted in the Ch 19 page.
-using ADM, LinearAlgebra, Random, Test
+using ADM, LinearAlgebra, Random, Statistics, Test
 
 @testset "discrete filter: tram, first observation" begin
     n, tunnels = 12, [3, 4, 5, 9, 11]
@@ -149,4 +149,52 @@ end
     @test greedy_belief(fk, b -> utility(Γf, b), b0).a == 2              # ask
     _, Uf = triangulated_iteration(fk, 20; k_max = 400)
     @test 0 <= Uf(b0) - utility(Γf, b0) < 1e-4                          # the bounds pinch
+end
+
+@testset "online belief state planning (Ch 22)" begin
+    p = crying_baby()
+    b0 = [0.5, 0.5]
+    grid = [[1 - x, x] for x in 0:0.05:1]
+    Γ_opt = value_iteration_pomdp(p, 200)[1][end][2]
+    opt(b) = utility(Γ_opt, b)
+    f = fast_informed_bound(p; k_max = 300)
+    Uf(b) = utility(f, b)
+    # Forward search: the error shrinks at least as fast as γ^d times the leaf's error.
+    leaf_err = maximum(abs(Uf(b) - opt(b)) for b in grid)
+    for d in 0:3
+        c = Ref(0)
+        @test all(abs(forward_search_belief(p, b, d, Uf; count = c).u - opt(b)) <= p.γ^d * leaf_err + 1e-9
+                  for b in grid)
+        @test c[] == length(grid) * (6^(d + 1) - 1) ÷ 5        # 3 actions × 2 observations per level
+    end
+    # Branch and bound returns forward search's answer; tight bounds prune.
+    lo = pbvi(p, [[1 - x, x] for x in 0:0.25:1]; k_max = 100)
+    Ulo(b) = utility(lo, b)
+    Qhi(b, a) = lookahead_belief(p, Uf, b, a)
+    c1, c2 = Ref(0), Ref(0)
+    for b in grid
+        r1, r2 = forward_search_belief(p, b, 3, Ulo; count = c1), branch_and_bound_belief(p, b, 3, Ulo, Qhi; count = c2)
+        @test r1.a == r2.a && r1.u ≈ r2.u
+    end
+    @test c2[] < c1[] / 5
+    # Sparse sampling averages toward forward search, from above (max of noisy means).
+    fs = forward_search_belief(p, b0, 2, Uf).u
+    us = [sparse_sampling_belief(p, b0, 2, 16, Uf, MersenneTwister(i)).u for i in 1:200]
+    @test 0 < mean(us) - fs < 1.5
+    # Determinized particles: inverse-CDF on P(s′, o | sated, ignore) = (0.09, 0.81, 0.08, 0.02).
+    Φ = [0.05 0.62 0.95 0.999]
+    @test [successor(p, Φ, DeterminizedParticle(1, 1, j), 3) for j in 1:4] == [(1, 1), (1, 2), (2, 1), (2, 2)]
+    ds = [determinized_search(p, rand(MersenneTwister(i), 256, 4), determinized_belief(b0, 256, MersenneTwister(i)), 4,
+                               ps -> Uf(particle_belief(p, ps))).u for i in 1:20]
+    @test abs(mean(ds) - forward_search_belief(p, b0, 4, Uf).u) < 0.5
+    # Gap heuristic search with true bounds keeps them and closes the gap at b0.
+    g = gap_heuristic_search(p, b0, b -> utility(blind_lowerbound(p; k_max = 300), b), Uf; k_max = 300, d_max = 20)
+    @test g.a == 1 && g.history[end][2] - g.history[end][1] < 0.1
+    @test all(g.lo[b] <= opt(b) + 1e-9 && opt(b) <= g.hi[b] + 1e-9 for b in keys(g.lo))
+    # The fork: two steps of search on QMDP fix its waiting; MCTS asks.
+    fk = fork()
+    uq(b) = utility(qmdp(fk; k_max = 300), b)
+    @test forward_search_belief(fk, b0, 1, uq).a == 1 && forward_search_belief(fk, b0, 2, uq).a == 2
+    @test forward_search_belief(fk, b0, 2, b -> 0.0).a == 1 && forward_search_belief(fk, b0, 3, b -> 0.0).a == 2
+    @test count(i -> HistoryMCTS(fk; d = 20, c = 50.0)(b0, 1000, MersenneTwister(i)) == 2, 1:20) >= 18
 end

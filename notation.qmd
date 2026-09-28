@@ -115,6 +115,12 @@ This site uses the book's notation. Symbols are added here as chapters are writt
 | $\varepsilon$, $\lambda$, $\alpha$, $c$ | Exploration parameters: ε-greedy rate, softmax precision, quantile level, UCB1 constant | Ch 15 |
 | $N(a)$, $N$ | Pulls of arm $a$ (here Beta pseudocounts), and their total | Ch 15 |
 | $U^*_r$, $Q^*_r$ | Bayes-optimal bandit values with $r$ pulls remaining | Ch 15 |
+| $N(s, a, s')$, $N(s, a)$ | Transition counts, and how often $a$ was tried in $s$ | Ch 16 |
+| $\rho(s, a)$ | Sum of rewards received for $a$ in $s$ | Ch 16 |
+| $\hat T$, $\hat R$ | Estimated (maximum likelihood) transition and reward functions | Ch 16 |
+| $m$, $r_{\max}$ | R-MAX's visit threshold and the largest possible reward | Ch 16 |
+| $\mathrm{Dir}(\theta \mid \boldsymbol\alpha)$ | Dirichlet distribution over probability vectors, with pseudocounts $\boldsymbol\alpha$ | Ch 16 |
+| $b$, $\tau(s, b, a, s')$ | Belief over models, and its Bayes update in a Bayes-adaptive MDP | Ch 16 |
 | $o$ | An observation | Ch 19 |
 | $O(o \mid a, s')$ | Observation model: probability of observing $o$ after taking $a$ and landing in $s'$ | Ch 19 |
 | $b(s)$ | Belief: probability that the current state is $s$, given the history | Ch 19 |

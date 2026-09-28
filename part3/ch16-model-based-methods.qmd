@@ -1,8 +1,874 @@
 ---
 title: "16 · Model-Based Methods"
 subtitle: "Part III — Model Uncertainty"
+jupyter: python3
+execute:
+  echo: false
 ---
 
 ::: {.callout-note appearance="minimal"}
-**In progress.** This page will cover ADM Ch. 16, *Model-Based Methods*.
+**Executed in:** Python · **Book:** ADM Ch. 16 · **Lecture:** to be added
 :::
+<!-- TODO(video): link the official Stanford AA228 lecture on model-based reinforcement learning. -->
+
+```{python}
+#| include: false
+import numpy as np
+import matplotlib.pyplot as plt
+from IPython.display import Markdown
+
+from adm import style
+from adm import model_based as mb
+from adm.io import write_json
+from adm.mdp import policy_evaluation_exact, policy_iteration
+from adm.page import show_source
+from adm.problems.hex_world import STANDARD_REWARDS, STANDARD_TILES, hex_world
+from adm.problems.trail import trail
+
+style.apply()
+blue, orange, green, yellow, pink, dkgreen, purple, red = style.CATEGORICAL
+
+# --- The trail: exact facts ------------------------------------------------------------------
+TRAIL = trail()
+G = TRAIL.gamma
+N_POS = len(TRAIL.R)
+PI_T, U_T, _ = policy_iteration(TRAIL.T, TRAIL.R, G, np.zeros(N_POS, int))
+REST_VALUE = TRAIL.R[0, 0] / (1 - G)                   # rest at the trailhead forever
+T_pi = TRAIL.T[np.arange(N_POS), PI_T]
+R_pi = TRAIL.R[np.arange(N_POS), PI_T]
+d = np.eye(N_POS)[0]
+opt_rewards = []                                       # expected reward per step, optimal policy from 0
+for _ in range(2000):
+    opt_rewards.append(d @ R_pi)
+    d = d @ T_pi
+opt_rewards = np.array(opt_rewards)
+LONG_RUN = float(np.linalg.matrix_power(T_pi, 5000)[0] @ R_pi)
+
+# --- Exploration on the trail: 20 runs of 2,000 steps ----------------------------------------
+STEPS, SEEDS = 2000, 20
+METHODS = [
+    ("ε-greedy (ε = 0.1), maximum likelihood", lambda: mb.MaximumLikelihoodModel(N_POS, 2, G), lambda: mb.full_update, 0.1, orange),
+    ("R-MAX, m = 3", lambda: mb.RmaxModel(N_POS, 2, G, 3, 1.0), lambda: mb.full_update, 0.0, yellow),
+    ("R-MAX, m = 10", lambda: mb.RmaxModel(N_POS, 2, G, 10, 1.0), lambda: mb.full_update, 0.0, green),
+    ("posterior sampling", lambda: mb.BayesianModel(N_POS, 2, G), lambda: mb.posterior_sampling_update, 0.0, blue),
+]
+explore = {}
+for name, make_model, make_planner, eps, _ in METHODS:
+    runs = [mb.learn(TRAIL, make_model(), make_planner(), STEPS, 0, np.random.default_rng(s), epsilon=eps)
+            for s in range(SEEDS)]
+    R_runs = np.array([r for r, _, _ in runs])
+    explore[name] = {"cum": R_runs.cumsum(axis=1).mean(axis=0), "total": R_runs.sum(axis=1),
+                     "learned": float(np.mean(R_runs[:, -500:].mean(axis=1) > 0.5)),
+                     "late": float(R_runs[:, -500:].mean()),
+                     "backups": float(np.mean([b.mean() for _, b, _ in runs]))}
+EPS_NAME, RM3, RM10, PS = (m[0] for m in METHODS)
+
+# R-MAX threshold sweep.
+M_SWEEP = (1, 2, 3, 5, 10, 20, 40)
+rmax_sweep = {}
+for m in M_SWEEP:
+    R_runs = np.array([mb.learn(TRAIL, mb.RmaxModel(N_POS, 2, G, m, 1.0), mb.full_update, STEPS, 0,
+                                np.random.default_rng(s))[0] for s in range(SEEDS)])
+    rmax_sweep[m] = (float(R_runs.sum(axis=1).mean()), float(np.mean(R_runs[:, -500:].mean(axis=1) > 0.5)))
+best_m = max(rmax_sweep, key=lambda m: rmax_sweep[m][0])
+
+# --- Hex World: learning the model from random experience ------------------------------------
+HEX = hex_world()
+S_HEX = len(HEX.R)
+TERM = S_HEX - 1
+DEC = [i for i, t in enumerate(STANDARD_TILES) if t not in STANDARD_REWARDS]
+_, U_HEX, _ = policy_iteration(HEX.T, HEX.R, HEX.gamma, np.zeros(S_HEX, int))
+OPT_HEX = float(U_HEX[DEC].mean())
+random_action = lambda s, rng: rng.integers(6)                                   # noqa: E731
+restart = lambda s, rng: rng.choice(DEC) if s == TERM else None                   # noqa: E731
+CHECK = np.unique(np.r_[np.round(np.geomspace(10, 3000, 20)), 100, 1000].astype(int))  # includes 100 and 1,000 exactly
+
+
+def policy_quality(model, U):
+    """Average true value over the decision tiles of the greedy policy on (model, U)."""
+    pol = np.array([model.q_values(U, s).argmax() for s in range(S_HEX)])
+    return float(policy_evaluation_exact(HEX.T, HEX.R, HEX.gamma, pol)[DEC].mean())
+
+
+def hex_run(planner, seed):
+    """Random-action experience on Hex World (identical for every planner with the same seed).
+    Records, at each checkpoint: the model's error, how much of the model has been tried,
+    the planner's value error against the model's own solution, and the policy's true value."""
+    rec = {"t_err": [], "tried": [], "u_err": [], "quality": [], "exact_quality": []}
+
+    def on_step(t, model, U):
+        if t + 1 in CHECK:
+            T, R = model.model()
+            exact = U.copy()
+            mb.solve(T, R, HEX.gamma, exact, tol=1e-9)
+            n = model.counts()[DEC]
+            rec["t_err"].append(float(np.abs(T - HEX.T).sum(axis=2)[DEC][n > 0].mean()))
+            rec["tried"].append(float((n > 0).mean()))
+            rec["u_err"].append(float(np.abs(U - exact)[DEC].mean()))
+            rec["quality"].append(policy_quality(model, U))
+            rec["exact_quality"].append(policy_quality(model, exact))
+
+    _, backups, _ = mb.learn(HEX, mb.MaximumLikelihoodModel(S_HEX, 6, HEX.gamma), planner, int(CHECK[-1]),
+                             DEC[0], np.random.default_rng(seed), behavior=random_action, reset=restart,
+                             world_rng=np.random.default_rng(100 + seed), on_step=on_step)
+    rec["backups"] = float(backups.mean())
+    return rec
+
+
+PLANNERS = [("full update", lambda: mb.full_update, style.INK),
+            ("randomized, m = 0", lambda: mb.randomized_update(0), orange),
+            ("randomized, m = 5", lambda: mb.randomized_update(5), yellow),
+            ("prioritized, m = 5", lambda: mb.prioritized_update(5), blue)]
+hex_runs = {name: [hex_run(make(), seed) for seed in range(10)] for name, make, _ in PLANNERS}
+hex_mean = {name: {k: np.mean([r[k] for r in runs], axis=0) for k in runs[0]} for name, runs in hex_runs.items()}
+k100 = int(np.searchsorted(CHECK, 100))
+```
+
+## Big picture
+
+### Where this chapter fits
+
+[Chapter 15](ch15-exploration-and-exploitation.qmd) handled a world with a single state: each action paid off with an unknown probability. Now the actions also move the agent between states, and we don't know how. **Model-based** reinforcement learning is the most direct answer: learn the model (the transition and reward functions) from experience, and plan on it with the methods of Chapter 7. This raises three questions. How do we estimate the model? How do we keep the plan up to date as the model changes after every step, without re-solving from scratch? And how do we explore, when the states worth exploring may be far away? [Chapter 17](ch17-model-free-methods.qmd) takes the other road: learning values directly, without a model.
+
+**The question:** how can an agent that doesn't know the dynamics learn a model, plan with it, and explore well enough to find what's worth finding?
+
+The short answer: **count what happens, and plan on the counts.** The **maximum likelihood** model uses the observed frequencies as probabilities. Planning can be redone in full after each step, or cheaply for a few states, best chosen by **prioritized sweeping**. Planning on the estimate alone doesn't explore, so add exploration: randomly (ε-greedy), by **optimism** about what hasn't been tried enough (**R-MAX**), or **Bayesian**: keep a posterior over models and act on a sample from it (**posterior sampling**). In principle, a Bayesian agent could plan over beliefs about the model (a **Bayes-adaptive MDP**), but that is rarely tractable.
+
+```{dot}
+//| label: fig-ch16-map
+//| fig-width: 6.6
+//| fig-height: 3.9
+//| fig-cap: "Map of this chapter. Experience updates a model; a planner turns the model into values; an exploration rule turns values into actions."
+//| fig-alt: "Diagram. A grey box, Experience (s, a, r, s′), points with the label count to two blue boxes: Maximum likelihood model (frequencies) and Bayesian model (Dirichlet posterior). The maximum likelihood model points to Planning (full, randomized, prioritized sweeping), which points to Exploration (epsilon-greedy, R-MAX). The Bayesian model points to Posterior sampling (solve a sampled MDP) and to Bayes-adaptive MDP (plan over beliefs; usually intractable). Exploration and posterior sampling point to Act, which points back to Experience."
+digraph ch16 {
+  rankdir=TB; bgcolor="#fcfcfb"; pad=0.25; nodesep=0.3; ranksep=0.45;
+  node [shape=box, style="rounded,filled", fillcolor="white", color="#c3c2b7", penwidth=1.2,
+        fontname="Helvetica", fontsize=13, fontcolor="#0b0b0b", margin="0.12,0.07"];
+  edge [color="#52514e", penwidth=1.2, arrowsize=0.7, fontname="Helvetica", fontsize=11, fontcolor="#52514e"];
+  exp [label=<<B>Experience</B><BR/><FONT POINT-SIZE="11">(s, a, r, s′)</FONT>>, fillcolor="#f0efec"];
+  ml [label=<<B>Maximum likelihood</B><BR/><FONT POINT-SIZE="11">frequencies</FONT>>, fillcolor="#cde2fb", color="#2a78d6"];
+  bayes [label=<<B>Bayesian model</B><BR/><FONT POINT-SIZE="11">Dirichlet posterior</FONT>>, fillcolor="#cde2fb", color="#2a78d6"];
+  plan [label=<<B>Planning</B><BR/><FONT POINT-SIZE="11">full, randomized,<BR/>prioritized sweeping</FONT>>];
+  explore [label=<<B>Exploration</B><BR/><FONT POINT-SIZE="11">ε-greedy, R-MAX</FONT>>];
+  ps [label=<<B>Posterior sampling</B><BR/><FONT POINT-SIZE="11">solve a sampled MDP</FONT>>];
+  bamdp [label=<<B>Bayes-adaptive MDP</B><BR/><FONT POINT-SIZE="11">plan over beliefs</FONT>>];
+  act [label=<<B>Act</B>>, fillcolor="#f0efec"];
+  exp -> ml [label="count"]; exp -> bayes [label="count"];
+  ml -> plan; plan -> explore; bayes -> ps; bayes -> bamdp [label="exact"];
+  explore -> act; ps -> act; act -> exp [constraint=false];
+}
+```
+
+### The key ideas at a glance
+
+1. **Learn the model by counting.** Record how often each action from each state led to each next state, and the rewards received. The **maximum likelihood** estimate of the transition probability is the observed fraction, and the reward estimate is the average reward. With enough data the estimate converges to the truth, but pairs never tried remain unknown.
+
+2. **Replanning as the model changes.** Every step changes the model a little. Solving the whole MDP again (**full update**) is exact but costly. A **randomized update** backs up the state just visited and a few random ones. **Prioritized sweeping** backs up the states whose values are most likely to have changed: the predecessors of states whose values just moved.
+
+3. **Planning on the estimate doesn't explore.** An agent that trusts its estimate never tries what it believes is worse, so it can stay stuck on a small, nearby reward. It needs an exploration strategy, as in Chapter 15, but now exploration may mean *traveling* to a poorly known part of the world.
+
+4. **Optimism: R-MAX.** Pretend every state-action pair tried fewer than $m$ times pays the maximum possible reward forever. The greedy policy then heads straight for whatever is still unknown, near or far, until it is known. The threshold $m$ trades the risk of trusting too few samples against the time spent exploring.
+
+5. **Bayesian models and posterior sampling.** Keep a **Dirichlet** posterior over each state-action pair's next-state distribution: counts plus prior pseudocounts. **Posterior sampling** draws one plausible MDP from the posterior, solves it, and acts on it. Plausibly good but unexplored options sometimes look good in the sample, so they get tried.
+
+6. **The Bayes-optimal answer.** The ideal Bayesian agent plans over (state, belief) pairs, a **Bayes-adaptive MDP**. It trades exploration against exploitation optimally, as the bandit dynamic program of Chapter 15 did, but its belief space is continuous and huge, so it is solved only approximately.
+
+### Vocabulary
+
+| Term | Plain meaning |
+|:---|:---|
+| Model-based reinforcement learning | Learn the transition and reward functions, then plan on them |
+| $N(s, a, s')$, $N(s, a)$ | How often $a$ in $s$ led to $s'$, and how often $a$ was tried in $s$ |
+| $\rho(s, a)$ | Sum of the rewards received for $a$ in $s$ |
+| Maximum likelihood model | Probabilities and rewards estimated as observed frequencies and averages |
+| Bellman backup | Recomputing one state's value from its successors' values |
+| Full, randomized, prioritized updates | Re-solve everything; back up a few random states; back up the most affected states |
+| R-MAX | Treat under-tried pairs as maximally rewarding, to drive exploration |
+| Dirichlet distribution | A distribution over probability vectors; the belief about a next-state distribution |
+| Posterior sampling | Act optimally in a model drawn from the posterior |
+| Bayes-adaptive MDP | An MDP whose states include the belief about the model |
+
+: Terms used on this page. {#tbl-vocab}
+
+### After this chapter you can
+
+- Estimate transition and reward functions from experience, by maximum likelihood or with a Dirichlet posterior.
+- Keep a value function up to date with full, randomized, or prioritized updates, and judge their cost.
+- Explain why exploiting a learned model can fail, and fix it with ε-greedy, R-MAX, or posterior sampling.
+- Tune R-MAX's threshold, and explain the trade-off it controls.
+- Describe the Bayes-adaptive MDP and why posterior sampling is a practical substitute.
+
+## Intuition
+
+::: {.callout-tip title="Analogy"}
+You've moved to a city with an unreliable bus network, and you don't have a map.
+
+- **Counting:** you keep a notebook. "Took the 12 from the station: 7 times it went downtown, 3 times it went to the harbor."
+- **Planning:** with the notebook, you can work out a good route to anywhere you've been. Each new trip changes the notebook, and it's silly to redo every route every day; update the routes the new entry affects.
+- **Exploring:** if you only ride buses you already know, you never find the fast line across town. You could ride a random bus now and then, assume every unridden route is wonderful until proven otherwise, or imagine one plausible map consistent with your notebook and follow it.
+:::
+
+Our running example for exploration is a **mountain trail** with six positions, 0 (the trailhead) to 5 (the summit). At the trailhead the hiker can rest, earning a small 0.05 per step (a snack from the car). **Climbing** moves up one position only 35% of the time; 60% of the time the hiker stays put, and 5% of the time slips back. Enjoying the view at the summit earns 1 per step. Walking back down is reliable. With discount 0.95, the best policy is to climb everywhere: worth `{python} f"{U_T[0]:.2f}"` from the trailhead, against `{python} f"{REST_VALUE:.2f}"` for resting forever. In the long run it earns `{python} f"{LONG_RUN:.3f}"` per step. The agent doesn't know any of this.
+
+### Counting builds the model
+
+Try "climb" at position 2 twenty times; if you moved up 7 times, the estimate of $T(3 \mid 2, \text{climb})$ is 7/20. On Hex World, from uniformly random actions, the estimated transition probabilities of the tried pairs are off by a total of `{python} f"{hex_mean['full update']['t_err'][k100]:.2f}"` per pair after 100 steps and `{python} f"{hex_mean['full update']['t_err'][-1]:.2f}"` after 3,000 (@fig-ml-hex). See @eq-ml.
+
+### Replan where it matters
+
+Solving Hex World's estimated model after every step took `{python} f"{hex_mean['full update']['backups']:.0f}"` Bellman backups per step. Backing up just the state visited and 5 others cost 6 per step. After 100 steps, the random picks left an average value error of `{python} f"{hex_mean['randomized, m = 5']['u_err'][k100]:.2f}"` (against the model's exact solution). Prioritized sweeping, choosing those backups by where values just changed, left `{python} f"{hex_mean['prioritized, m = 5']['u_err'][k100]:.3f}"` (@fig-planners). See @eq-priority.
+
+### Exploiting a guess gets stuck
+
+At first the agent knows nothing. It rests once, earns 0.05, and now resting has a known positive value while climbing looks worthless: it has never paid. An agent that follows its estimate, with 10% random actions, rarely strings together the dozens of lucky climbs needed to see the summit. Only `{python} f"{explore[EPS_NAME]['learned']:.0%}"` of `{python} SEEDS` such runs learned to climb within `{python} f"{STEPS:,}"` steps.
+
+### Be optimistic about the unknown
+
+R-MAX treats every action tried fewer than $m$ times as if it paid the maximum reward, 1, forever. From the trailhead, "climb" looks wonderful until it has been tried $m$ times; then position 1's actions look wonderful, and so on up the trail. With $m = 10$, `{python} f"{explore[RM10]['learned']:.0%}"` of runs learned to climb. With $m = 3$, only `{python} f"{explore[RM3]['learned']:.0%}"`: three tries of an action that succeeds 35% of the time often show no progress, and the agent concludes that climbing is hopeless (@fig-rmax-m). See @eq-rmax.
+
+### Sample a plausible world
+
+A Bayesian agent keeps, for every position and action, a Dirichlet belief about where it will end up. Posterior sampling draws one plausible trail from those beliefs, plans on it, and acts. An untried climb might, in the sample, lead straight up, so it gets tried. As evidence accumulates, the samples agree with reality. `{python} f"{explore[PS]['learned']:.0%}"` of runs learned to climb, with no exploration parameter to tune (@fig-exploration). See @eq-dirichlet.
+
+### The ideal is too expensive
+
+The perfectly Bayesian agent would plan over what it might *learn*: its state includes its belief. That is a **Bayes-adaptive MDP**, the multi-state version of Chapter 15's dynamic program over bandit counts. Its belief space is continuous, so exact solutions are out of reach even for this six-position trail. See @eq-bamdp.
+
+## Formalism
+
+### Maximum likelihood models
+
+Count the transitions $N(s, a, s')$ and the reward sums $\rho(s, a)$ (ADM §16.1). With $N(s, a) = \sum_{s'} N(s, a, s')$:
+
+::: {.key-equation data-name="Maximum likelihood model"}
+$$
+\hat T(s' \mid s, a) = \frac{N(s, a, s')}{N(s, a)},
+\qquad
+\hat R(s, a) = \frac{\rho(s, a)}{N(s, a)}
+$$ {#eq-ml}
+:::
+
+**In words.** The estimated probability of a transition is how often it happened; the estimated reward is the average reward received.
+
+**Term by term.**
+
+- $N(s, a)$ counts how often $a$ was taken in $s$.
+- If $N(s, a) = 0$ there is no data. Here the estimate is $\hat T = 0$ and $\hat R = 0$: the pair looks like a dead end with no reward. A uniform distribution is another common default.
+- Prior knowledge can be added by starting the counts at nonzero values.
+
+**Why it holds.** For the next state, the observations are draws from a categorical distribution. The likelihood $\prod_{s'} T(s')^{N(s, a, s')}$ is maximized, subject to $\sum_{s'} T(s') = 1$, at the observed fractions (a Lagrange multiplier argument). The sample mean is the maximum likelihood estimate of a mean reward.
+
+Planning on $(\hat T, \hat R)$ as if it were the truth is called **certainty equivalence**.
+
+### Keeping the plan up to date
+
+After each step the model changes, and the value function $U$ should follow (ADM §16.2). All three schemes use the Bellman backup on the estimated model, $U(s) \leftarrow \max_a \big(\hat R(s, a) + \gamma \sum_{s'} \hat T(s' \mid s, a) U(s')\big)$:
+
+- **Full update:** solve the estimated MDP, for example by value iteration from the current $U$.
+- **Randomized update:** back up the state just left and $m$ states chosen at random. This is related to R. S. Sutton's Dyna (1991).
+- **Prioritized sweeping** (A. W. Moore and C. G. Atkeson, *Machine Learning*, 1993): keep a priority queue of states. Back up the state just left, then repeatedly back up the highest-priority state. When a backup changes $U(s)$, raise the priority of every predecessor $s^-$:
+
+::: {.key-equation data-name="Prioritized sweeping priority"}
+$$
+\text{priority}(s^-) \leftarrow \max\Big(\text{priority}(s^-),\ \max_{a^-} \hat T(s \mid s^-, a^-)\, \big|U(s) - u\big|\Big)
+$$ {#eq-priority}
+:::
+
+**In words.** When a state's value changes, the states that lead to it probably need updating too, and more urgently if they lead to it often and the change was large.
+
+**Term by term.**
+
+- $u$ is the value of $U(s)$ before the backup.
+- $\hat T(s \mid s^-, a^-)$ is how likely the predecessor's action is to reach $s$.
+- The product bounds how much $s^-$'s backup could change through $s$: a change of $|U(s) - u|$ in one successor moves a lookahead by at most $\gamma \hat T(s \mid s^-, a^-)|U(s) - u|$.
+- The queue persists from step to step, so work that couldn't be done in one step's budget of $m$ backups is done later.
+
+**Why it holds.** Backups where nothing changed do nothing. Changes propagate backward from where the new information arrived, so ordering backups by the size of the incoming change propagates new information fastest per backup.
+
+### Exploration with a learned model
+
+Any Chapter 15 strategy works state by state. For example, ε-greedy takes a random action with probability $\varepsilon$, and otherwise $\arg\max_a \hat Q(s, a)$. But random actions explore only nearby. **R-MAX** (R. I. Brafman and M. Tennenholtz, *JMLR*, 2002) modifies the model instead (ADM §16.3):
+
+::: {.key-equation data-name="R-MAX model"}
+$$
+R(s, a) = \begin{cases} r_{\max} & N(s, a) < m \\ \rho(s, a)/N(s, a) & \text{otherwise} \end{cases}
+\qquad
+T(s' \mid s, a) = \begin{cases} \mathbb{1}[s' = s] & N(s, a) < m \\ N(s, a, s')/N(s, a) & \text{otherwise} \end{cases}
+$$ {#eq-rmax}
+:::
+
+**In words.** A pair not yet tried $m$ times is modeled as a paradise: it pays the most any action can pay and keeps you there forever. Act greedily on this model.
+
+**Term by term.**
+
+- $r_{\max}$ is the largest possible reward (1 on the trail). An under-tried pair is then worth $r_{\max}/(1 - \gamma)$, as much as anything can be worth: 20 on the trail.
+- The self-loop makes that value independent of the unknown dynamics.
+- Once a pair has $m$ samples, the maximum likelihood estimate replaces the fantasy.
+- $m$ trades off: too small, and noisy estimates get trusted; too large, and the agent explores long after it could exploit.
+
+**Why it holds.** Planning on this model steers the agent toward reachable unknown pairs, however far away, because their value exceeds anything known. Either the agent does near-optimally for the true MDP, or it reaches an unknown pair with substantial probability and learns something. Since there are finitely many pairs, each needing $m$ visits, learning stops after a bounded number of steps. That gives R-MAX its guarantee: near-optimal behavior after a number of mistakes polynomial in the problem size.
+
+### Bayesian models
+
+Put a prior on each next-state distribution $\theta_{(s, a)} = T(\cdot \mid s, a)$ (ADM §16.4). The Dirichlet distribution plays for categorical outcomes the role the Beta distribution played for wins and losses in Chapter 15:
+
+::: {.key-equation .famous data-name="Dirichlet posterior"}
+$$
+b(\theta) = \prod_s \prod_a \mathrm{Dir}\big(\theta_{(s,a)} \mid \boldsymbol\alpha(s, a)\big),
+\qquad
+\boldsymbol\alpha(s, a) = \boldsymbol\alpha_0 + \mathbf N(s, a),
+\qquad
+P(s' \mid s, b, a) = \frac{\alpha(s, a, s')}{\sum_{s''} \alpha(s, a, s'')}
+$$ {#eq-dirichlet}
+:::
+
+**In words.** The belief about where each action leads is a Dirichlet whose parameters are the prior pseudocounts plus the observed counts. The predicted probability of each next state is its share of those counts.
+
+**Term by term.**
+
+- $\mathrm{Dir}(\theta \mid \boldsymbol\alpha)$ has density proportional to $\prod_{s'} \theta_{s'}^{\alpha_{s'} - 1}$ over probability vectors $\theta$.
+- $\boldsymbol\alpha_0$ is the prior: all ones is uniform over probability vectors.
+- $\mathbf N(s, a)$ is the vector of observed counts. Observing $s'$ adds 1 to $\alpha(s, a, s')$.
+- Each component's marginal is a Beta: $\theta_{s'} \sim \text{Beta}(\alpha_{s'}, \sum \alpha - \alpha_{s'})$.
+- The beliefs for different $(s, a)$ are independent, so the belief factors into a product.
+
+**Why it holds.** The Dirichlet is conjugate to the categorical: prior $\prod \theta^{\alpha - 1}$ times likelihood $\prod \theta^{N}$ is $\prod \theta^{\alpha + N - 1}$, another Dirichlet. The predictive probability is the posterior mean of $\theta_{s'}$, which is its share of $\boldsymbol\alpha$ (as with the Beta, Chapter 4).
+
+In this page's code, rewards are unknown too. They lie in $[0, 1]$, so each mean reward gets a $\text{Beta}(1 + \rho, 1 + N - \rho)$ belief (fractional counts are fine). The book's version assumes known rewards.
+
+### Bayes-adaptive MDPs
+
+The optimal Bayesian agent solves an MDP over pairs $(s, b)$ of state and belief (ADM §16.5). The belief moves deterministically, by Bayes' rule, $b' = \tau(s, b, a, s')$:
+
+::: {.key-equation data-name="Bayes-adaptive Bellman equation"}
+$$
+U^*(s, b) = \max_a \Big(R(s, a) + \gamma \sum_{s'} P(s' \mid s, b, a)\, U^*\big(s', \tau(s, b, a, s')\big)\Big)
+$$ {#eq-bamdp}
+:::
+
+**In words.** Value a situation by what you can earn *and* what you will learn: each outcome both moves you and changes your belief, and later decisions use that better belief.
+
+**Term by term.**
+
+- $P(s' \mid s, b, a)$ is the predictive probability from @eq-dirichlet: the belief averages over models.
+- $\tau$ updates the counts: $\alpha(s, a, s') \leftarrow \alpha(s, a, s') + 1$.
+- With a single state this is exactly [the bandit dynamic program of Chapter 15](ch15-exploration-and-exploitation.qmd#bayes-optimal-exploration).
+- The belief is continuous in general, so exact solution is out of reach. Approximate methods (Chapters 8 and 9) and the POMDP methods of Part IV apply.
+
+**Why it holds.** It is the Bellman optimality equation of an MDP with state $(s, b)$ and known dynamics: $s'$ is drawn with the predictive probability, and $b'$ follows deterministically. The unknown model has been folded into the state.
+
+### Posterior sampling
+
+Instead of planning over beliefs, draw one model $\theta \sim b$, solve it, and act greedily on its values; update the belief after each step and draw again (ADM §16.6; M. Strens, *ICML*, 2000). There's no exploration parameter. Plausibly good actions are tried because they are optimal in some samples, and their samples stop looking good once data rules that out. It is the multi-state version of Thompson sampling. Drawing a new model after every step, as here and in the book, can make the agent switch plans often; a common variant keeps each sample for a whole episode.
+
+## Worked example
+
+### A hiker's first eight steps
+
+```{python}
+#| include: false
+LOG = [(0, 1, 0.0, 0), (0, 1, 0.0, 1), (1, 1, 0.0, 1), (1, 1, 0.0, 2),
+       (2, 0, 0.0, 1), (1, 0, 0.0, 0), (0, 0, 0.05, 0), (0, 1, 0.0, 1)]
+ml_ex, rmax_ex, bayes_ex = mb.MaximumLikelihoodModel(N_POS, 2, G), mb.RmaxModel(N_POS, 2, G, 3, 1.0), mb.BayesianModel(N_POS, 2, G)
+for step in LOG:
+    for mdl in (ml_ex, rmax_ex, bayes_ex):
+        mdl.update(*step)
+T_ml, R_ml = ml_ex.model()
+T_b, R_b = bayes_ex.model()
+U_rmax_ex = np.zeros(N_POS)
+mb.solve(*rmax_ex.model(), G, U_rmax_ex, tol=1e-10)
+Q_rmax_ex = rmax_ex.q_values(U_rmax_ex, 0)                 # at the trailhead: (back, climb)
+ACT = TRAIL.actions
+```
+
+The hiker's first eight steps, as (position, action, reward, next position):
+
+```{python}
+Markdown("| Step | $s$ | $a$ | $r$ | $s'$ |\n|---|---|---|---|---|\n" + "\n".join(
+    f"| {k + 1} | {s} | {ACT[a]} | {r:g} | {s2} |" for k, (s, a, r, s2) in enumerate(LOG))
+    + "\n\n: The hiker's log. {#tbl-log}")
+```
+
+**Maximum likelihood.** "Climb" was tried 3 times at position 0: it stayed once and went up twice. So $\hat T(1 \mid 0, \text{climb}) =$ `{python} f"{T_ml[0, 1, 1]:.3f}"` and $\hat T(0 \mid 0, \text{climb}) =$ `{python} f"{T_ml[0, 1, 0]:.3f}"`. At position 1, climbing went nowhere once and up once: `{python} f"{T_ml[1, 1, 1]:.1f}"` and `{python} f"{T_ml[1, 1, 2]:.1f}"`. Resting at the trailhead was tried once, paying 0.05, so $\hat R(0, \text{back}) =$ `{python} f"{R_ml[0, 0]:.2f}"`. Climbing at positions 2 to 5 was never tried: $\hat T = 0$, $\hat R = 0$. The true climbing probabilities are 0.35 up and 0.6 stay; eight steps can't tell us that.
+
+**R-MAX with $m = 3$.** Only (0, climb) has 3 tries, so only it uses the estimate. Every other pair is modeled as a self-loop paying 1 forever, worth $1/(1 - 0.95) = 20$. At the trailhead, resting is still "unknown", worth 20: $Q(0, \text{back}) =$ `{python} f"{Q_rmax_ex[0]:.2f}"`. Climbing uses the estimate: one step of discount, then a third of the time back at position 0 and two thirds at position 1, where everything is still unknown: $Q(0, \text{climb}) = 0.95 \times 20 =$ `{python} f"{Q_rmax_ex[1]:.2f}"`. So R-MAX rests, to finish learning about resting. It is not after the snack; it is after information.
+
+**Bayesian, with a uniform prior.** The Dirichlet for (1, climb) has parameters 1 + counts: `{python} bayes_ex.alpha[1, 1].astype(int).tolist()` over positions 0–5. Its predictive probability of moving up to 2 is `{python} f"{T_b[1, 1, 2]:.3f}"`, and of staying `{python} f"{T_b[1, 1, 1]:.3f}"`. With so little data, the prior's six pseudocounts dominate: every position, even the summit, still has predictive probability at least `{python} f"{T_b[1, 1].min():.3f}"`. A sample from this posterior can easily put a big jump up the trail, which is what makes posterior sampling explore.
+
+### One prioritized sweep
+
+Suppose a backup at position 3 raises $U(3)$ by 2.0. Its predecessors under the estimated model: position 2 with "climb" reaches 3 with estimated probability 0.4; position 4 with "back" always reaches 3; position 3 itself with "climb" stays with probability 0.5. Their priorities rise to $0.4 \times 2 = 0.8$ for position 2, $1.0 \times 2 = 2.0$ for position 4, and $0.5 \times 2 = 1.0$ for position 3. The next backups go to 4, then 3, then 2, each possibly pushing further predecessors onto the queue.
+
+## Interactive
+
+### The hiker's log
+
+Replay one run of each method on the trail. The circles are the six positions, each labeled with how often "climb" has been tried there. The arrow under each shows the action the agent currently prefers there, and the orange dot is the hiker. The trace below shows the hiker's position over time.
+
+```{python}
+#| include: false
+LOG_STEPS = 800
+log_data = {}
+for name, make_model, make_planner, eps, _ in METHODS:
+    snaps = []
+
+    def keep(t, model, U, snaps=snaps):
+        if t % 5 == 4:                                         # every 5 steps
+            prefer = [int(model.q_values(U, s).argmax()) for s in range(N_POS)]
+            n = model.counts() if hasattr(model, "counts") else model.n
+            snaps.append({"prefer": prefer, "climbs": n[:, 1].astype(int).tolist()})
+
+    positions = []
+    rng_log = np.random.default_rng(3)
+    model = make_model()
+    planner = make_planner()
+    U = np.zeros(N_POS)
+    s = 0
+    for t in range(LOG_STEPS):                                 # same loop as mb.learn, recording positions
+        positions.append(int(s))
+        if rng_log.random() < eps:
+            a = rng_log.integers(2)
+        else:
+            a = mb.greedy_action(model.q_values(U, s), rng_log)
+        s2 = rng_log.choice(N_POS, p=TRAIL.T[s, a])
+        model.update(s, a, TRAIL.R[s, a], s2)
+        planner(model, U, s, rng_log)
+        keep(t, model, U)
+        s = s2
+    log_data[name] = {"pos": positions, "snaps": snaps}
+write_json({"methods": [m[0] for m in METHODS], "log": log_data, "every": 5,
+            "style": {"blue": blue, "orange": orange, "ink": style.INK, "muted": style.MUTED,
+                      "surface": style.SURFACE, "fill": "#cde2fb"}}, "data/ch16-hiker.json")
+```
+
+```{ojs}
+hiker = FileAttachment("data/ch16-hiker.json").json()
+viewof hikerMethod = Inputs.select(hiker.methods, {label: "Method", value: "posterior sampling"})
+viewof hikerT = Inputs.range([5, hiker.log[hiker.methods[0]].pos.length], {step: 5, value: 100, label: "Step"})
+```
+
+```{ojs}
+hikerNow = {
+  const run = hiker.log[hikerMethod];
+  const snap = run.snaps[hikerT / hiker.every - 1];
+  const pos = run.pos.slice(0, hikerT);
+  return {snap, pos, here: pos[pos.length - 1], summit: pos.filter(p => p === 5).length};
+}
+md`Step ${hikerT}: the hiker is at position **${hikerNow.here}** and has spent **${hikerNow.summit}** steps at the summit so far. It currently prefers to climb at **${hikerNow.snap.prefer.filter(a => a === 1).length}** of 6 positions.`
+```
+
+```{ojs}
+//| label: fig-hiker
+//| fig-cap: "One run of the chosen method on the trail. Top: the six positions (trailhead left, summit right), each labeled with the number of climbs tried there, with the preferred action below (↑ climb, ← back) and the hiker as an orange dot. Bottom: the hiker's position over time."
+//| fig-alt: "Interactive diagram. Six circles rise from left to right like a trail, each with a count of climbs tried and an arrow below it, up for climb and left for back. An orange dot marks the hiker's position. Below, a line chart of position (0 to 5) against steps. With epsilon-greedy the hiker mostly stays at position 0 and prefers back almost everywhere; with R-MAX (m = 10) and posterior sampling, the counts grow up the trail, the arrows turn to climb, and the trace reaches the summit and stays near it."
+{
+  const W = 600, sx = i => 60 + i * 96, sy = i => 150 - i * 22;
+  const nodes = d3.range(6).map(i => svg`<g>
+      <circle cx="${sx(i)}" cy="${sy(i)}" r="20" fill="${hiker.style.fill}" stroke="${hiker.style.blue}"/>
+      <text x="${sx(i)}" y="${sy(i) + 4}" text-anchor="middle" font-size="12" font-family="Helvetica" fill="${hiker.style.ink}">${hikerNow.snap.climbs[i]}</text>
+      <text x="${sx(i)}" y="${sy(i) + 44}" text-anchor="middle" font-size="18" fill="${hiker.style.ink}">${hikerNow.snap.prefer[i] === 1 ? "↑" : "←"}</text>
+    </g>`);
+  // Labels sit below the lowest arrow (trailhead arrow at y = 194).
+  const top = svg`<svg width="${W}" height="225" style="background:${hiker.style.surface}">
+      ${nodes}
+      <circle cx="${sx(hikerNow.here)}" cy="${sy(hikerNow.here) - 30}" r="8" fill="${hiker.style.orange}"/>
+      <text x="${sx(0)}" y="218" text-anchor="middle" font-size="11" font-family="Helvetica" fill="${hiker.style.muted}">trailhead</text>
+      <text x="${sx(5)}" y="${sy(5) + 64}" text-anchor="middle" font-size="11" font-family="Helvetica" fill="${hiker.style.muted}">summit</text>
+    </svg>`;
+  const trace = Plot.plot({
+    width: W, height: 170, style: {background: hiker.style.surface, color: hiker.style.ink},
+    x: {domain: [0, hiker.log[hikerMethod].pos.length], label: "step"}, y: {domain: [0, 5], label: "position", ticks: 6},
+    marks: [Plot.line(hikerNow.pos.map((p, t) => ({t, p})), {x: "t", y: "p", stroke: hiker.style.blue, curve: "step-after"})]
+  });
+  return html`<div>${top}${trace}</div>`;
+}
+```
+
+### What does a Dirichlet belief look like?
+
+Set the counts observed for one state and action ("climb" at some position): how often it went up, stayed, or slipped. The chart shows the belief about each of the three probabilities (the Dirichlet's marginals, uniform prior), and five probability vectors sampled from it, as posterior sampling would draw them.
+
+```{ojs}
+viewof nUp = Inputs.range([0, 40], {step: 1, value: 2, label: "Went up"})
+viewof nStay = Inputs.range([0, 40], {step: 1, value: 3, label: "Stayed"})
+viewof nSlip = Inputs.range([0, 40], {step: 1, value: 0, label: "Slipped"})
+```
+
+```{ojs}
+dir = {
+  // Uniform prior: alpha = 1 + counts. Marginal of component i is Beta(alpha_i, sum - alpha_i).
+  const alpha = [1 + nUp, 1 + nStay, 1 + nSlip], total = d3.sum(alpha);
+  const logFact = k => d3.sum(d3.range(1, k + 1), Math.log);     // log (k!) for integers
+  const names = ["up", "stay", "slip"];
+  const xs = d3.range(0.0025, 1, 0.005);
+  const dens = names.flatMap((name, i) => {
+    const a = alpha[i], b = total - alpha[i];
+    const logB = logFact(a - 1) + logFact(b - 1) - logFact(a + b - 1);   // log Beta function
+    return xs.map(x => ({name, x, y: Math.exp((a - 1) * Math.log(x) + (b - 1) * Math.log(1 - x) - logB)}));
+  });
+  // Dirichlet samples: independent Gamma(alpha_i) draws, normalized (seeded, so the page is stable).
+  const rand = d3.randomLcg(42);
+  const draws = d3.range(5).map(k => {
+    const g = alpha.map(a => d3.randomGamma.source(rand)(a)());
+    return names.map((name, i) => ({k: `sample ${k + 1}`, name, p: g[i] / d3.sum(g)}));
+  }).flat();
+  return {alpha, total, dens, draws, names, means: alpha.map(a => a / total)};
+}
+md`Predictive probabilities (posterior means): up **${dir.means[0].toFixed(3)}**, stay **${dir.means[1].toFixed(3)}**, slip **${dir.means[2].toFixed(3)}**.`
+```
+
+```{ojs}
+//| label: fig-dirichlet
+//| fig-cap: "The Dirichlet belief about one action's next-state probabilities, from the chosen counts and a uniform prior. Left: the marginal belief about each probability. Right: five probability vectors sampled from the belief."
+//| fig-alt: "Interactive charts. Left: three density curves over probabilities from 0 to 1, for moving up, staying and slipping; with few counts they are wide, and they narrow around the observed fractions as counts grow. Right: five horizontal stacked bars, each a sampled probability vector split into up, stay and slip; with few counts the samples differ a lot, with many counts they look alike."
+{
+  const color = {domain: dir.names, range: ["#2a78d6", "#898781", "#eb6834"], legend: true};
+  const left = Plot.plot({width: 330, height: 240, color, x: {domain: [0, 1], label: "probability"},
+    y: {label: "belief density", grid: true}, style: {background: "#fcfcfb"},
+    marks: [Plot.line(dir.dens, {x: "x", y: "y", stroke: "name", strokeWidth: 2})]});
+  const right = Plot.plot({width: 300, height: 240, color, x: {domain: [0, 1], label: "sampled probabilities"},
+    y: {label: null}, style: {background: "#fcfcfb"}, marginLeft: 70,
+    marks: [Plot.barX(dir.draws, {x: "p", y: "k", fill: "name", order: dir.names})]});
+  return html`<div style="display:flex;flex-wrap:wrap;gap:12px">${left}${right}</div>`;
+}
+```
+
+## Algorithms & code
+
+### Models from counts
+
+::: {.panel-tabset group="lang"}
+## Python
+```{python}
+#| output: asis
+show_source(mb.MaximumLikelihoodModel, mb.RmaxModel, mb.BayesianModel)
+```
+## Julia
+```{.julia .snippet}
+using ADM, Random, Statistics
+import Distributions
+
+p = trail()                                   # positions 1..6, actions 1 = back, 2 = climb
+nS, nA, γ = size(p.R, 1), size(p.R, 2), p.γ
+
+# Counts: N[s, a, s′] transitions and ρ[s, a] reward sums.
+mutable struct Counts
+    N::Array{Float64,3}
+    ρ::Matrix{Float64}
+end
+Counts() = Counts(zeros(nS, nA, nS), zeros(nS, nA))
+observe!(c::Counts, s, a, r, s′) = (c.N[s, a, s′] += 1; c.ρ[s, a] += r; c)
+
+# Maximum likelihood (eqs. 16.1-16.2); untried pairs get T = 0 and R = 0.
+function ml_model(c::Counts)
+    n = max.(sum(c.N; dims = 3), 1)           # N(s, a), kept as an nS × nA × 1 array; max avoids 0/0
+    return c.N ./ n, c.ρ ./ dropdims(n; dims = 3)
+end
+
+# R-MAX (eqs. 16.3-16.4): pairs tried fewer than m times loop on themselves paying rmax.
+function rmax_model(c::Counts; m = 10, rmax = 1.0)
+    T, R = ml_model(c)
+    for s in 1:nS, a in 1:nA
+        if sum(c.N[s, a, :]) < m
+            T[s, a, :] .= 0.0
+            T[s, a, s] = 1.0
+            R[s, a] = rmax
+        end
+    end
+    return T, R
+end
+
+# Bayesian: Dirichlet(1 + counts) over next states, Beta(1 + ρ, 1 + N - ρ) over mean rewards.
+function sample_model(c::Counts, rng)
+    n = dropdims(sum(c.N; dims = 3); dims = 3)
+    T = zeros(nS, nA, nS)
+    for s in 1:nS, a in 1:nA
+        T[s, a, :] = rand(rng, Distributions.Dirichlet(1 .+ c.N[s, a, :]))
+    end
+    R = [rand(rng, Distributions.Beta(1 + c.ρ[s, a], 1 + n[s, a] - c.ρ[s, a])) for s in 1:nS, a in 1:nA]
+    return T, R
+end
+
+# Value iteration from a warm start U (the full update).
+function solve!(U, T, R; tol = 1e-6)
+    while true
+        # Q[s, a] = R[s, a] + γ Σ_s′ T[s, a, s′] U[s′]; the sum runs over T's third axis.
+        Q = R .+ γ .* dropdims(sum(T .* reshape(U, 1, 1, :); dims = 3); dims = 3)
+        Unew = vec(maximum(Q; dims = 2))
+        done = maximum(abs.(Unew .- U)) < tol
+        U .= Unew
+        done && return U
+    end
+end
+
+# Learn on the trail for `steps` steps: `make` builds the planning model from the counts.
+function run_trail(make, steps, rng; ε = 0.0)
+    c, U, s, rewards = Counts(), zeros(nS), 1, 0.0
+    for t in 1:steps
+        T, R = make(c, rng)
+        Q = [R[s, a] + γ * sum(T[s, a, :] .* U) for a in 1:nA]
+        a = rand(rng) < ε ? rand(rng, 1:nA) : rand(rng, findall(==(maximum(Q)), Q))  # random tie-break
+        s′ = rand(rng, Distributions.Categorical(p.T[s, a, :]))
+        observe!(c, s, a, p.R[s, a], s′)
+        solve!(U, make(c, rng)...)            # posterior sampling: solve a fresh sample
+        rewards, s = t > steps - 300 ? rewards + p.R[s, a] : rewards, s′
+    end
+    return rewards / 300                       # average reward over the last 300 steps
+end
+
+learned(make; ε = 0.0) = mean(run_trail(make, 1500, MersenneTwister(seed); ε) > 0.5 for seed in 1:6)
+println("share learning to climb: ε-greedy ", learned((c, rng) -> ml_model(c); ε = 0.1),
+        ", R-MAX ", learned((c, rng) -> rmax_model(c)),
+        ", posterior sampling ", learned(sample_model))
+@assert learned((c, rng) -> rmax_model(c)) > learned((c, rng) -> ml_model(c); ε = 0.1)
+```
+:::
+
+### Planners
+
+::: {.panel-tabset group="lang"}
+## Python
+```{python}
+#| output: asis
+show_source(mb.solve, mb.full_update, mb.randomized_update, mb.prioritized_update, mb.posterior_sampling_update)
+```
+## Julia
+```{.julia .snippet}
+using ADM, Random
+
+hw = hex_world()
+nS, nA, γ = size(hw.R, 1), size(hw.R, 2), hw.γ
+
+# One Bellman backup of state s on the model (T, R).
+backup!(U, T, R, s) = (U[s] = maximum(R[s, a] + γ * sum(T[s, a, :] .* U) for a in 1:nA); U)
+
+# Prioritized sweeping: pq maps states to priorities and persists across steps.
+function prioritized!(U, T, R, s, pq; m = 5)
+    pq[s] = Inf
+    for _ in 1:m+1
+        isempty(pq) && break
+        s_now = argmax(pq)                     # the key with the largest value
+        delete!(pq, s_now)
+        before = U[s_now]
+        backup!(U, T, R, s_now)
+        change = abs(U[s_now] - before)
+        change == 0 && continue
+        for s⁻ in 1:nS                          # predecessors: max over actions of T(s_now | s⁻, a⁻) × change
+            priority = maximum(T[s⁻, :, s_now]) * change
+            priority > 1e-12 && (pq[s⁻] = max(get(pq, s⁻, 0.0), priority))
+        end
+    end
+    return U
+end
+
+# Use the true model as a stand-in for a learned one: sweeping from the reward tiles
+# outward should reach the exact values with far fewer backups than full sweeps.
+U, pq = zeros(nS), Dict{Int,Float64}()
+for step in 1:400
+    prioritized!(U, hw.T, hw.R, rand(MersenneTwister(step), 1:nS), pq)
+end
+exact = copy(U)
+for _ in 1:2000
+    for s in 1:nS
+        backup!(exact, hw.T, hw.R, s)
+    end
+end
+println("mean error after 400 steps × 6 backups: ", round(sum(abs.(U .- exact)) / nS; digits = 4))
+@assert sum(abs.(U .- exact)) / nS < 0.05
+```
+:::
+
+::: {.callout-note collapse="true" title="Reading the Julia code (for Python programmers)"}
+- **`(c.N[s, a, s′] += 1; c.ρ[s, a] += r; c)`** is a one-line function body: expressions separated by `;`, the last one returned.
+- **`sum(A; dims = 3)`** keeps the summed axis with length 1 (NumPy's `keepdims=True`), so `c.N ./ n` broadcasts; `dropdims` removes it.
+- **`reshape(U, 1, 1, :)`** turns the vector into a 1 × 1 × nS array so it lines up with T's third axis, like `U[None, None, :]`.
+- **`solve!(U, make(c, rng)...)`** splats the returned `(T, R)` tuple into two arguments.
+- **`argmax(pq)`** on a `Dict` returns the *key* with the largest value, like `max(pq, key=pq.get)`.
+- **`mutable struct`** fields can be reassigned; the `!` in names like `observe!` is the convention for functions that modify their arguments.
+:::
+
+### Run them
+
+```{python}
+#| echo: true
+env = trail()
+model = mb.RmaxModel(6, 2, env.gamma, m=10, r_max=1.0)
+rewards, backups, U = mb.learn(env, model, mb.full_update, 2000, 0, np.random.default_rng(0))
+
+sampler = mb.BayesianModel(6, 2, env.gamma)
+rewards_ps, _, _ = mb.learn(env, sampler, mb.posterior_sampling_update, 2000, 0, np.random.default_rng(0))
+```
+
+```{python}
+print(f"R-MAX: last 500 steps average {rewards[-500:].mean():.3f}; "
+      f"posterior sampling: {rewards_ps[-500:].mean():.3f}; optimal long-run {LONG_RUN:.3f}")
+```
+
+### Results
+
+#### Learning Hex World's model from experience
+
+```{python}
+#| label: fig-ml-hex
+#| fig-cap: "Maximum likelihood estimation on Hex World from uniformly random actions (10 runs; episodes restart at a random tile). Left: the estimated transition probabilities' average error on the tried state-action pairs (total variation × 2), and the share of pairs tried at all. Right: the true value, averaged over the 21 decision tiles, of the greedy policy for the estimated model, against the optimum."
+#| fig-alt: "Two line charts with steps from 10 to 3,000 on a log scale across. Left: the model error on tried pairs stays near 0.65 to 0.7 for the first hundred steps (each newly tried pair starts with a rough estimate), then falls to about 0.2 at 3,000 steps; the share of pairs tried rises from about 0.06 to 0.6 at 200 steps and 0.99 at 3,000. Right: the policy's true value starts near minus 5.4, rises steeply between 30 and 700 steps, and approaches the dotted optimum of about 4.5, reaching about 4.4 at 3,000 steps."
+fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(10.5, 3.4))
+full = hex_mean["full update"]
+ax1.plot(CHECK, full["t_err"], "o-", color=blue, ms=3, label="model error (tried pairs)")
+ax1.plot(CHECK, full["tried"], "o-", color=orange, ms=3, label="share of pairs tried")
+ax1.set(xscale="log", xlabel="steps of experience", ylim=(0, None))
+ax1.legend(fontsize=8)
+ax2.plot(CHECK, full["exact_quality"], "o-", color=blue, ms=3, label="greedy policy for the estimate")
+ax2.axhline(OPT_HEX, color=style.INK, ls=":", lw=1, label="optimal")
+ax2.set(xscale="log", xlabel="steps of experience", ylabel="true value (average over tiles)")
+ax2.legend(fontsize=8, loc="lower right")
+fig.tight_layout()
+plt.show()
+```
+
+After `{python} f"{int(CHECK[-1]):,}"` random steps, the greedy policy for the estimated model is worth `{python} f"{full['exact_quality'][-1]:.2f}"` on average, against the optimal `{python} f"{OPT_HEX:.2f}"`. The model is still rough, with an average error of `{python} f"{full['t_err'][-1]:.2f}"` per tried pair, yet the policy is nearly optimal: a policy only needs the model to rank actions correctly, not to get every probability right.
+
+#### Replanning cheaply
+
+```{python}
+#| label: fig-planners
+#| fig-cap: "How far each planner's values lag behind the exact solution of the current estimated model, on identical random experience in Hex World (average absolute error over the decision tiles, 10 runs, log scales). Labels give the average number of Bellman backups per step."
+#| fig-alt: "Line chart with steps from 10 to 3,000 on a log scale across and the value error on a log scale up the side. The randomized update with m = 0 has the largest error, rising from about 0.25 to about 1 between 40 and 400 steps, then falling to about 0.02 by 3,000. Randomized with m = 5 is roughly ten times lower, jagged between 0.02 and 0.3 early and falling to about 0.003. Prioritized sweeping with m = 5 is lower still: between 0.0001 and 0.01 up to about 400 steps, then about 0.001. The full update is exact and drawn along the bottom edge."
+fig, ax = plt.subplots(figsize=(7.4, 3.8))
+floor = 1e-4
+for name, _, color in PLANNERS:
+    err = np.maximum(hex_mean[name]["u_err"], floor)             # full updates are exact: draw at the floor
+    ax.plot(CHECK, err, "o-", color=color, ms=3,
+            label=f"{name} ({hex_mean[name]['backups']:.0f} backup{'' if round(hex_mean[name]['backups']) == 1 else 's'}/step)")
+ax.set(xscale="log", yscale="log", ylim=(floor * 0.7, None), xlabel="steps of experience",
+       ylabel="value error vs exact solution")
+ax.legend(fontsize=8)
+plt.show()
+```
+
+- **The full update** always has the exact solution of the current model, at `{python} f"{hex_mean['full update']['backups']:.0f}"` backups per step.
+- **Backing up only the state just left** ($m = 0$) costs 1 backup per step, and the values lag far behind: new information travels one state per visit.
+- **Five extra random backups** cut the lag about tenfold.
+- **Prioritized sweeping**, with the same budget, spends the backups where values just changed. After 100 steps its error is `{python} f"{hex_mean['prioritized, m = 5']['u_err'][k100]:.3f}"`, against `{python} f"{hex_mean['randomized, m = 5']['u_err'][k100]:.2f}"` for random picks, at `{python} f"{hex_mean['prioritized, m = 5']['backups']:.1f}"` backups per step.
+- **The greedy policies differ less than the values.** After 1,000 steps, the policies' true values were `{python} ", ".join(f"{hex_mean[n]['quality'][int(np.searchsorted(CHECK, 1000))]:.2f} ({n})" for n, _, _ in PLANNERS)`. Once values are roughly right, the greedy action rarely changes.
+
+#### Exploration on the trail
+
+```{python}
+#| label: fig-exploration
+#| fig-cap: "Cumulative reward on the trail from the trailhead (20 runs of 2,000 steps each, averaged), for four exploring learners, against the expected cumulative reward of the optimal policy (dotted) and of resting at the trailhead forever (dashed)."
+#| fig-alt: "Line chart with steps from 0 to 2,000 across and cumulative reward from 0 to about 1,700 up the side. The optimal policy's dotted line rises almost straight to about 1,690. Resting forever gives a dashed line to 100. Epsilon-greedy with maximum likelihood rises barely above the resting line. R-MAX with m = 3 ends near 490. R-MAX with m = 10 and posterior sampling start slowly while exploring, then rise almost parallel to the optimum, ending near 1,450 and 1,550."
+fig, ax = plt.subplots(figsize=(7.4, 4))
+t_axis = np.arange(1, STEPS + 1)
+ax.plot(t_axis, opt_rewards.cumsum(), color=style.INK, ls=":", lw=1.5, label="optimal policy (expected)")
+ax.plot(t_axis, TRAIL.R[0, 0] * t_axis, color=style.MUTED, ls="--", lw=1.2, label="rest forever")
+for name, *_, color in METHODS:
+    ax.plot(t_axis, explore[name]["cum"], color=color, lw=2, label=name)
+ax.set(xlabel="steps", ylabel="cumulative reward")
+ax.legend(fontsize=8, loc="upper left")
+plt.show()
+```
+
+```{python}
+Markdown("| Method | Total reward | Share that learned to climb | Last 500 steps, per step | Backups per step |\n|---|---|---|---|---|\n"
+         + "\n".join(f"| {n} | {e['total'].mean():.0f} ± {e['total'].std() / np.sqrt(SEEDS):.0f} | {e['learned']:.0%} | "
+                     f"{e['late']:.3f} | {e['backups']:.0f} |" for n, e in explore.items())
+         + f"\n| optimal policy (expected) | {opt_rewards.sum():.0f} | | {LONG_RUN:.3f} | |"
+         + f"\n\n: {SEEDS} runs of {STEPS:,} steps from the trailhead. \"Learned to climb\": earning more than 0.5 per step over the last 500 steps. {{#tbl-exploration}}")
+```
+
+- **ε-greedy on the maximum likelihood model** rarely leaves the trailhead for good. Its random climbs are undone by greedy steps back toward the known snack.
+- **R-MAX with $m = 10$** explores systematically: it walks up the trail trying each under-tried action, then exploits. Its early cost is visible as the flat start of its curve.
+- **Posterior sampling** learned to climb in every run, with no parameter to tune. It paid for it in computation: solving a freshly sampled MDP after every step took `{python} f"{explore[PS]['backups']:.0f}"` backups per step.
+
+#### Tuning R-MAX
+
+```{python}
+#| label: fig-rmax-m
+#| fig-cap: "R-MAX on the trail for different thresholds m (20 runs of 2,000 steps each). Left: average total reward. Right: share of runs that learned to climb."
+#| fig-alt: "Two charts with m from 1 to 40 on a log scale across. Left: total reward rises from about 100 at m = 1 to a peak of about 1,450 at m = 10, then falls to about 1,330 at m = 20 and about 950 at m = 40. Right: the share of runs that learned to climb is 0 at m = 1, low at m = 2 and 3, 0.4 at m = 5, 0.95 at m = 10 and 1 at m = 20 and 40."
+fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(10, 3.2))
+ax1.plot(M_SWEEP, [rmax_sweep[m][0] for m in M_SWEEP], "o-", color=green)
+ax1.set(xscale="log", xlabel="threshold m", ylabel="total reward")
+ax2.plot(M_SWEEP, [rmax_sweep[m][1] for m in M_SWEEP], "o-", color=green)
+ax2.set(xscale="log", xlabel="threshold m", ylabel="share that learned to climb", ylim=(-0.03, 1.03))
+for ax in (ax1, ax2):
+    ax.set_xticks(M_SWEEP, [str(m) for m in M_SWEEP])
+fig.tight_layout()
+plt.show()
+```
+
+Small $m$ trusts too few samples. Three tries of a climb that succeeds 35% of the time show no progress with probability $0.65^3 \approx 0.27$, and a learner that sees no progress at any one position concludes the summit is unreachable. Large $m$ is reliable but slow: with $m = 40$ every run learned to climb, but spent so long confirming what it already knew that its total reward dropped. The best total here came at $m =$ `{python} best_m`.
+
+## Solved problems
+
+**Problem 1: estimate a model.** A robot vacuum logs these transitions between rooms, with the reward for a clean pass: (kitchen, clean, 1, hall), (hall, clean, 0, hall), (kitchen, clean, 1, kitchen), (hall, move, 0, kitchen), (kitchen, clean, 0, hall). Give the maximum likelihood $\hat T(\cdot \mid \text{kitchen}, \text{clean})$ and $\hat R(\text{kitchen}, \text{clean})$. What does the model say about (kitchen, move)?
+
+::: {.callout-tip collapse="true" title="Solution"}
+(kitchen, clean) was tried 3 times: to the hall twice and to the kitchen once, so $\hat T(\text{hall} \mid \text{kitchen}, \text{clean}) = 2/3$ and $\hat T(\text{kitchen} \mid \cdot) = 1/3$. The rewards were 1, 1, 0, so $\hat R = 2/3$. (kitchen, move) was never tried: with this page's convention, $\hat T = 0$ and $\hat R = 0$, a dead end worth nothing. That's pessimistic. A uniform $\hat T$, or R-MAX's optimism, would give a reason to try it.
+:::
+
+**Problem 2: R-MAX's pull.** With $r_{\max} = 2$ and $\gamma = 0.9$, what is an under-tried pair worth? The agent knows a route that earns 1.5 per step forever from its current state. Where does R-MAX send it?
+
+::: {.callout-tip collapse="true" title="Solution"}
+An under-tried pair is modeled as paying 2 forever: $2/(1 - 0.9) = 20$. The known route is worth $1.5/(1 - 0.9) = 15$ from here. Any under-tried pair reachable soon enough, say in $k$ steps with discounted value $0.9^k \times 20 > 15$, that is $k \le 2$, beats the known route, so R-MAX goes to explore it. Farther unknowns lose to the sure 1.5 per step. Discounting limits how far optimism will travel.
+:::
+
+**Problem 3: a Dirichlet update.** A state-action pair has three possible next states and a uniform prior. You observe the next states A, A, C, A, B. What is the posterior, the predictive distribution, and the probability that $\theta_A > 0.5$ roughly? (Use the Beta marginal.)
+
+::: {.callout-tip collapse="true" title="Solution"}
+Posterior: $\mathrm{Dir}(1 + 3, 1 + 1, 1 + 1) = \mathrm{Dir}(4, 2, 2)$. Predictive: $4/8$, $2/8$, $2/8$. The marginal of $\theta_A$ is $\text{Beta}(4, 4)$, symmetric about 0.5, so $P(\theta_A > 0.5) = 0.5$. After many more observations at the same rates, the Beta would concentrate near 0.6 (the observed 3/5), and the probability would approach 1.
+:::
+
+**Problem 4: priorities.** A backup raises $U(s)$ from 2.0 to 3.5. Under the estimated model, $s$ is reached from $s_1$ by action $a$ with probability 0.8 and by action $b$ with probability 0.1, and from $s_2$ by action $a$ with probability 0.3. $s_1$ already has priority 0.5 in the queue. What are the new priorities?
+
+::: {.callout-tip collapse="true" title="Solution"}
+The change is 1.5. For $s_1$, the largest transition probability into $s$ is 0.8, so the candidate is $0.8 \times 1.5 = 1.2$, and its priority becomes $\max(0.5, 1.2) = 1.2$. For $s_2$: $0.3 \times 1.5 = 0.45$. $s_1$ is backed up next. Only the most likely route into $s$ counts for each predecessor, because a change in $U(s)$ moves $s_1$'s best lookahead by at most $\gamma \times 0.8 \times 1.5$.
+:::
+
+**Problem 5: why posterior sampling explores.** At the start, every pair on the trail has a uniform Dirichlet belief over the six positions. What is the predictive probability that "climb" at the trailhead leads straight to the summit? Why does that make posterior sampling explore, while the maximum likelihood agent doesn't?
+
+::: {.callout-tip collapse="true" title="Solution"}
+With a uniform prior over six outcomes, the predictive probability is $1/6$. A sample often puts substantial probability on jumping far up the trail, and the reward belief, $\text{Beta}(1, 1)$, often gives the summit a high reward. So in many sampled worlds, climbing looks excellent, and the agent climbs. The maximum likelihood agent, with no data, models climbing as a dead end worth 0, and the known snack beats it. The posterior sampler's optimism fades on its own: after real climbs, the posterior concentrates on the true dynamics.
+:::
+
+## Recap
+
+1. **Model-based learning estimates the dynamics and rewards from counts (@eq-ml, @eq-dirichlet).**
+   *Why it matters:* a model lets every observation inform planning everywhere, which makes these methods data-efficient. Chapter 17's model-free methods trade that for less computation.
+2. **The plan must follow the changing model, at a price (@eq-priority).**
+   *Why it matters:* full replanning cost `{python} f"{hex_mean['full update']['backups']:.0f}"` backups per step on 27 states. Prioritized sweeping kept nearly the same accuracy with a handful, and full replanning's cost grows with the size of the problem.
+3. **Certainty equivalence with random exploration can fail badly.**
+   *Why it matters:* on the trail, ε-greedy stayed at the snack in `{python} f"{1 - explore[EPS_NAME]['learned']:.0%}"` of runs. Rewards that require a long, deliberate trip are common in real problems, from robotics to games.
+4. **Optimism drives deliberate exploration (@eq-rmax).**
+   *Why it matters:* R-MAX travels to the unknown and has provable guarantees, but its threshold must fit the noise: too small and it trusts bad luck, too large and it explores forever.
+5. **Posterior sampling explores in proportion to plausibility; the Bayes-adaptive MDP is the unreachable ideal (@eq-bamdp).**
+   *Why it matters:* posterior sampling learned to climb in every run without tuning. The Bayes-adaptive view links learning to planning under uncertainty, the subject of Part IV.
+
+## Cheat sheet & connections
+
+| Name | Formula | Ref |
+|---|---|---|
+| Maximum likelihood model | $\hat T = N(s, a, s')/N(s, a)$, $\hat R = \rho(s, a)/N(s, a)$ | @eq-ml |
+| Prioritized sweeping priority | $\max_{a^-} \hat T(s \mid s^-, a^-)\,|U(s) - u|$ | @eq-priority |
+| R-MAX model | under-tried: reward $r_{\max}$, self-loop; else maximum likelihood | @eq-rmax |
+| ★ Dirichlet posterior | $\mathrm{Dir}(\boldsymbol\alpha_0 + \mathbf N(s, a))$; predictive $\alpha(s, a, s')/\sum_{s''}\alpha(s, a, s'')$ | @eq-dirichlet |
+| Bayes-adaptive Bellman equation | $U^*(s, b) = \max_a (R + \gamma \sum_{s'} P(s' \mid s, b, a) U^*(s', \tau(s, b, a, s')))$ | @eq-bamdp |
+
+: Key equations from this page (★ = well-known by name). {#tbl-cheatsheet}
+
+**Common pitfalls**
+
+- **Treating untried actions as bad.** A maximum likelihood model with $\hat T = 0$, $\hat R = 0$ for untried pairs makes them look worthless when rewards are positive, so they are never tried.
+- **Comparing planners on different data.** A planner changes the values, the values change the actions, and the actions change the data. To compare planning alone, feed every planner the same experience, as in @fig-planners.
+- **Resetting the priority queue.** Prioritized sweeping's leftover priorities are work still to do; discarding them each step wastes most of its advantage.
+- **An R-MAX threshold that is too small.** A stochastic action needs enough tries to be judged; on the trail, $m \le 3$ often gave up on the summit.
+- **Forgetting the cost of posterior sampling.** Solving a sampled MDP after every step is expensive in large problems; resample per episode, or plan approximately.
+
+**Connections**
+
+- [Ch 15 · Exploration and Exploitation](ch15-exploration-and-exploitation.qmd): the bandit case, Beta beliefs and Thompson sampling, which this chapter extends to many states.
+- [Ch 7 · Exact Solution Methods](../part2/ch07-exact-solution-methods.qmd): value iteration and Bellman backups, run here on estimated models.
+- [Ch 4 · Parameter Learning](../part1/ch04-parameter-learning.qmd): maximum likelihood and Dirichlet posteriors for categorical distributions.
+- [Ch 17 · Model-Free Methods](ch17-model-free-methods.qmd): learning values without a model, on the same trail.
+- [Part IV · Beliefs](../part4/ch19-beliefs.qmd): planning with beliefs, of which the Bayes-adaptive MDP is an instance.

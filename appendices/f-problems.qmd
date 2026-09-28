@@ -568,6 +568,38 @@ mdp, β = park("A")                                 # 1-based: cell (r, c) is in
 
 **Where it's used.** [Ch 18](../part3/ch18-imitation-learning.qmd): behavioral cloning, DAgger and SMILe, maximum margin and maximum entropy inverse reinforcement learning, and the transfer of a learned reward from layout A to layout B.
 
+### The fork {#the-fork}
+
+**The story.** A hiker reaches a fork and doesn't know which trail leads home. Taking the right trail is worth 10; the wrong one costs 50; either way a new hike then starts at a fresh fork. A passerby can be asked (cost 1), and answers correctly 85% of the time; or the hiker can wait, which is free and teaches nothing. The problem is built to show when information has to be *paid for*: methods that treat information as free (QMDP) conclude that waiting is best, forever. Its structure follows the classic tiger problem (L. P. Kaelbling, M. L. Littman and A. R. Cassandra, *Artificial Intelligence*, 1998), with the free wait action added.
+
+| Part | Definition |
+|---|---|
+| States | home is left, home is right |
+| Actions | wait (0), ask (−1), go left, go right |
+| Rewards | going: +10 on the right trail, −50 on the wrong one |
+| Transitions | waiting and asking keep the state; going starts a new hike, either trail equally likely |
+| Observations | "left" or "right": after asking, correct w.p. 0.85; otherwise 50–50 noise |
+| Discount | 0.95 |
+
+: The fork. {#tbl-fork}
+
+::: {.panel-tabset group="lang"}
+## Python
+```{python}
+#| echo: true
+from adm.problems.fork import fork
+pomdp = fork()                            # T[s, a, s2], R[s, a], O[a, s2, o]
+```
+## Julia
+```{.julia .snippet}
+using ADM
+p = fork()                                # 1-based: actions 1 wait, 2 ask, 3 go left, 4 go right
+@assert p.O[2, 1, 1] == 0.85 && p.R[1, 3] == 10.0
+```
+:::
+
+**Where it's used.** [Ch 21](../part4/ch21-offline-belief-state-planning.qmd): QMDP and the fast informed bound both wait forever; point-based value iteration asks until fairly sure, and its lower bound meets a triangulated upper bound at about 27.11.
+
 ### Other problems on this site
 
 | Problem | Kind | Page | Code |

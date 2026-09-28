@@ -180,6 +180,11 @@ This site uses the book's notation. Symbols are added here as chapters are writt
 | $U^{\boldsymbol{\pi}, i}(s)$ | Agent $i$'s value of state $s$ under the joint policy | Ch 25 |
 | $Q^i(s, \boldsymbol{a})$ | Agent $i$'s value of a joint action in state $s$ | Ch 25 |
 | $N(j, a^j, s)$ | Count of agent $j$ playing $a^j$ in state $s$ (fictitious play) | Ch 25 |
+| $\boldsymbol{o} = (o^1, \dots, o^k)$, $O(\boldsymbol{o} \mid \boldsymbol{a}, s')$ | A joint observation, and its probability after joint action $\boldsymbol{a}$ | Ch 26 |
+| $\boldsymbol{\pi}()$, $\boldsymbol{\pi}(\boldsymbol{o})$ | Joint conditional plan's root actions; each agent's subplan after its own observation | Ch 26 |
+| $\Pi^i_h$ | Agent $i$'s set of $h$-step conditional plans | Ch 26 |
+| $b(\boldsymbol{\pi}^{-i}, s)$ | Distribution over the other agents' plans and the state (pruning LP) | Ch 26 |
+| $\boldsymbol{x} = (x^1, \dots, x^k)$ | Joint controller node | Ch 26 |
 | $o$ | An observation | Ch 19 |
 | $O(o \mid a, s')$ | Observation model: probability of observing $o$ after taking $a$ and landing in $s'$ | Ch 19 |
 | $b(s)$ | Belief: probability that the current state is $s$, given the history | Ch 19 |

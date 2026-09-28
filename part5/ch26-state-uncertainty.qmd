@@ -1,8 +1,552 @@
 ---
 title: "26 · State Uncertainty"
 subtitle: "Part V — Multiagent Systems"
+jupyter: python3
+execute:
+  echo: false
 ---
 
 ::: {.callout-note appearance="minimal"}
-**In progress.** This page will cover ADM Ch. 26, *State Uncertainty*.
+**Executed in:** Python · **Book:** ADM Ch. 26 · **Lecture:** to be added
 :::
+<!-- TODO(video): link the official Stanford AA228 lecture on partially observable Markov games. -->
+
+```{python}
+#| include: false
+import itertools
+
+import numpy as np
+import matplotlib.pyplot as plt
+
+from adm import games as G
+from adm import pomg as P
+from adm import style
+from adm.io import write_json
+from adm.page import show_source
+from adm.problems.multicaregiver import multicaregiver
+
+style.apply()
+blue, orange, green, yellow, pink, dkgreen, purple, red = style.CATEGORICAL
+fmt = lambda x, d=2: f"{x:.{d}f}".replace("-", "−")
+
+MC = multicaregiver()
+B0 = np.array([0.5, 0.5])
+U = P.plan_evaluator(MC)
+LETTER = "FSI"                                      # feed, sing, ignore
+
+def words(plan):
+    """A compact description: F[cry: ...; quiet: ...]."""
+    if len(plan) == 1:
+        return LETTER[plan[0]]
+    return f"{LETTER[plan[0]]}[cry: {words(plan[1][0])}; quiet: {words(plan[1][1])}]"
+
+def eq_payoffs(plans):
+    sg = P.plan_game(MC, B0, plans[0], plans[1], U)
+    return sg, sorted({tuple(np.round(sg.R[:, a, c], 4)) for a, c in P.pure_equilibria(sg)})
+
+# --- One step, and all two-step plans -----------------------------------------------------------
+ONE = P.plan_game(MC, B0, P.all_plans(3, 2, 1), P.all_plans(3, 2, 1), U)
+FULL2 = P.all_plans(3, 2, 2)
+FULL2_GAME, FULL2_EQ = eq_payoffs([FULL2, FULL2])
+N_PURE2 = len(P.pure_equilibria(FULL2_GAME))
+assert FULL2_EQ == [(-7.5, -5.0), (-5.0, -10.0)]
+
+# --- Dynamic programming, horizons 1-4 -----------------------------------------------------------
+DP = {h: P.dynamic_programming(MC, h, np.random.default_rng(0), U) for h in (1, 2, 3, 4)}
+ALL = {1: 3, 2: 27, 3: 3 * 27 ** 2, 4: 3 * (3 * 27 ** 2) ** 2}     # |A| |plans|^|O| each step
+assert DP[2][1] == [((3, 3), (1, 1)), ((3, 3), (2, 2))]
+assert eq_payoffs(DP[2][0])[1] == FULL2_EQ                           # pruning kept the equilibria
+H3_GAME, H3_EQ = eq_payoffs(DP[3][0])
+H4_GAME, H4_EQ = eq_payoffs(DP[4][0])
+H3_MIXED = sorted({tuple(np.round([G.utility(H3_GAME, [x, y], i) for i in range(2)], 3))
+                   for x, y in G.support_enumeration(H3_GAME) if (x > 1e-9).sum() > 1})
+
+# --- Controllers (infinite horizon) ------------------------------------------------------------
+def ctrl(acts, nxt):
+    """A deterministic 2-node controller: action acts[x]; node nxt[x][o] after o."""
+    psi, eta = np.zeros((2, 3)), np.zeros((2, 3, 2, 2))
+    for x in range(2):
+        psi[x, acts[x]] = 1
+        eta[x, :, 0, nxt[x][0]] = eta[x, :, 1, nxt[x][1]] = 1
+    return psi, eta
+
+cval = lambda c1, c2: P.evaluate_controllers(MC, c1, c2)[:, 0, 0] @ B0
+IDLE = ctrl((2, 2), [[0, 0], [0, 0]])
+ON_CRY = ctrl((2, 0), [[1, 0], [0, 0]])          # ignore; after crying, feed once
+ALWAYS = ctrl((0, 0), [[0, 0], [0, 0]])
+PAIRS = {"both ignore": (IDLE, IDLE), "1 feeds on crying, 2 ignores": (ON_CRY, IDLE),
+         "2 feeds on crying, 1 ignores": (IDLE, ON_CRY), "both feed on crying": (ON_CRY, ON_CRY),
+         "1 always feeds, 2 ignores": (ALWAYS, IDLE)}
+PAIR_V = {k: cval(*v) for k, v in PAIRS.items()}
+CANDS = [ctrl(a, [n[:2], n[2:]]) for a in itertools.product(range(3), repeat=2)
+         for n in itertools.product(range(2), repeat=4)]
+def best(i, other):
+    vals = [cval(c, other)[0] if i == 0 else cval(other, c)[1] for c in CANDS]
+    return int(np.argmax(vals)), max(vals)
+BR1_IDLE = best(0, IDLE)[1]
+BR2_ALWAYS = best(1, ALWAYS)[1]
+BR1_ALWAYS_OK = np.isclose(best(0, IDLE)[1], PAIR_V["1 always feeds, 2 ignores"][0])
+assert BR1_ALWAYS_OK and np.isclose(BR2_ALWAYS, PAIR_V["1 always feeds, 2 ignores"][1])
+```
+
+## Big picture
+
+### Where this chapter fits
+
+[Chapter 25](ch25-sequential-problems.qmd)'s agents all saw the state. Here each agent sees only its own **observations**, as in a POMDP ([Chapter 19](../part4/ch19-beliefs.qmd)–[23](../part4/ch23-controller-abstractions.qmd)), while the others act on theirs. The result, a **partially observable Markov game** (POMG), is the most general model in the book: an MDP, a POMDP, a simple game and a Markov game are all special cases. [Chapter 27](ch27-collaborative-agents.qmd) specializes it to agents that share one reward.
+
+**The question:** how do we evaluate and find equilibrium policies when no agent sees the state, and no agent sees what the others see or do?
+
+The short answer: **give up on beliefs, and work with whole policies (conditional plans or controllers) as the objects that agents choose between.**
+
+- A single agent can't keep a useful belief: the state depends on the others' actions, which depend on *their* observations.
+- **Evaluation** of a joint policy is still exact: a recursion over conditional plans, or a linear solve for controllers.
+- A POMG with $h$-step plans is a **simple game whose actions are plans**: its Nash equilibria are the POMG's.
+- **Dynamic programming** grows plans one step at a time and **prunes** plans that are never a best response, which keeps the game small.
+
+```{dot}
+//| label: fig-ch26-map
+//| fig-width: 6.17
+//| fig-height: 4.72
+//| fig-cap: "Map of this chapter. With partial observability, agents choose among whole policies (conditional plans or controllers). Evaluating joint policies turns the POMG into a simple game over plans, whose equilibria are found as in Chapter 24; dynamic programming prunes plans to keep that game small."
+//| fig-alt: "Diagram. A blue box, POMG (hidden state, private observations), points to Policies (conditional plans, controllers), then to Joint evaluation (recursion or linear solve), then to Game over plans (actions = whole plans). That points to Equilibria (Chapter 24 methods). A gray box, Dynamic programming (expand and prune), points into Game over plans, labeled keeps it small."
+digraph ch26 {
+  rankdir=TB; bgcolor="#fcfcfb"; pad=0.25; nodesep=0.4; ranksep=0.4;
+  node [shape=box, style="rounded,filled", fillcolor="white", color="#c3c2b7", penwidth=1.2,
+        fontname="Helvetica", fontsize=13, fontcolor="#0b0b0b", margin="0.12,0.07"];
+  edge [color="#52514e", penwidth=1.2, arrowsize=0.7, fontname="Helvetica", fontsize=11, fontcolor="#52514e"];
+  pomg [label=<<B>POMG</B><BR/><FONT POINT-SIZE="11">hidden state, private observations</FONT>>, fillcolor="#cde2fb", color="#2a78d6"];
+  pol [label=<<B>Policies</B><BR/><FONT POINT-SIZE="11">conditional plans, controllers</FONT>>];
+  ev [label=<<B>Joint evaluation</B><BR/><FONT POINT-SIZE="11">recursion or linear solve</FONT>>];
+  game [label=<<B>Game over plans</B><BR/><FONT POINT-SIZE="11">actions = whole plans</FONT>>];
+  eq [label=<<B>Equilibria</B><BR/><FONT POINT-SIZE="11">Chapter 24 methods</FONT>>, fillcolor="#cde2fb", color="#2a78d6"];
+  dp [label=<<B>Dynamic programming</B><BR/><FONT POINT-SIZE="11">expand and prune</FONT>>, fillcolor="#f0efec"];
+  pomg -> pol -> ev -> game -> eq;
+  { rank=same; game; dp; }
+  dp -> game [label="keeps it small"];
+}
+```
+
+### The key ideas at a glance
+
+1. **A POMG** has a hidden state $s$, joint actions $\boldsymbol{a}$, transitions $T(s' \mid s, \boldsymbol{a})$, a joint observation $\boldsymbol{o} = (o^1, \dots, o^k)$ drawn with probability $O(\boldsymbol{o} \mid \boldsymbol{a}, s')$, and a reward $R^i(s, \boldsymbol{a})$ per agent. Agent $i$ sees only $o^i$.
+
+2. **No beliefs.** In a POMDP the agent updates a belief using its own action and observation. In a POMG the state also depends on the others' actions, which depend on observations it never sees. So policies are written as **conditional plans** (a tree of actions, branching on one's own observations) or **controllers** (a graph of nodes), as in Chapters 20 and 23.
+
+3. **Joint evaluation** is exact: follow every agent's plan together through every state and joint observation (a recursion), or solve linear equations over (joint node, state) pairs for controllers.
+
+4. **Equilibria via a game of plans.** Treat each agent's $h$-step plans as its actions and the joint plans' utilities as rewards: a simple game. Its Nash equilibria are the POMG's $h$-step equilibria. But the number of plans grows doubly exponentially with $h$.
+
+5. **Prune what's never a best response.** Build plans one step at a time, and after each step drop any plan that isn't a best response for *any* distribution over the other agent's plans and the state (a linear program). Equilibria survive; the game stays small.
+
+### Vocabulary
+
+| Term | Plain meaning |
+|:---|:---|
+| POMG (partially observable stochastic game) | A Markov game where each agent sees only its own observations |
+| Joint observation $\boldsymbol{o}$ | Everyone's observations together; agent $i$ receives $o^i$ |
+| Conditional plan | A tree: an action, then a subplan for each of one's own observations |
+| Controller | A finite graph of nodes with actions and observation-labeled edges |
+| Game over plans | A simple game whose actions are whole conditional plans |
+| Dominated plan | A plan that is never a best response, whatever the others do and whatever the state |
+| Volunteer's dilemma | Everyone wants the job done but would rather someone else did it |
+
+: Terms used on this page. {#tbl-vocab}
+
+### After this chapter you can
+
+- Write down a POMG, and explain why an agent can't simply keep a belief.
+- Evaluate joint conditional plans by recursion and joint controllers by a linear solve.
+- Turn $h$-step plans into a simple game, and find its equilibria.
+- Prune dominated plans with a linear program, and explain why pruning keeps every equilibrium.
+- Recognize coordination problems (who acts?) that partial observability makes harder.
+
+## Intuition
+
+::: {.callout-tip title="Analogy"}
+Two parents share night duty with a baby. Neither sees whether the baby is hungry; both hear it cry, but neither knows whether the other has already got up to feed it. Feeding costs parent 1 less effort than parent 2. The best rule for each depends on the other's rule, and each rule is a plan: "if I hear crying, get up; otherwise sleep".
+:::
+
+We use **the multicaregiver crying baby** (Appendix F.14; [problem gallery](../appendices/f-problems.qmd#multicaregiver)). A baby is sated or hungry; each of two caregivers can feed, sing or ignore it each hour. Either one feeding sates the baby; otherwise a sated baby turns hungry half the time. Both hear the same thing: a hungry baby cries 90% of the time, a sated one never. Both pay 10 per hour of hunger; feeding costs caregiver 1 an extra 2.5 and caregiver 2 an extra 5; singing costs 0.5 and 0.25. Both start believing the baby is hungry with probability 0.5.
+
+### One hour: nobody feeds
+
+With one hour to go, feeding can't help: this hour's hunger cost is already set, and there's no next hour. So both ignore, each paying the expected hunger cost of `{python} fmt(-ONE.R[0, 2, 2], 0)`. Planning ahead is what makes feeding worthwhile.
+
+### Plans are the actions
+
+With two hours, each caregiver has `{python} len(FULL2)` two-step plans: a first action, then an action for each thing they might hear. Every pair of plans has a value for each caregiver, so the whole problem becomes a `{python} len(FULL2)` × `{python} len(FULL2)` simple game. Its pure Nash equilibria (there are `{python} N_PURE2`, many of them differing only on branches that can't happen) give one of two outcomes: **caregiver 1 feeds first** (payoffs −7.5, −5) or **caregiver 2 does** (−5, −10). It's a volunteer's dilemma: each would rather the other get up. See @eq-plan-eval.
+
+### Throw away what's never best
+
+Plans grow fast: `{python} f"{ALL[3]:,}"` three-step plans per caregiver, and `{python} f"{ALL[4]:,}"` four-step ones. But most are never a best response. At the last step, feeding and singing only cost effort, so only "ignore" survives. Growing plans one step at a time and pruning at each step left `{python} DP[3][1][-1][1][0]` three-step and `{python} DP[4][1][-1][1][0]` four-step plans per caregiver. See @eq-dominance-lp.
+
+### Controllers run forever
+
+With no deadline, a caregiver can follow a small controller. If caregiver 2 never feeds, caregiver 1's best 2-node controller feeds **every** hour (worth `{python} fmt(PAIR_V["1 always feeds, 2 ignores"][0], 1)`): the baby turns hungry half the time, and an hour of hunger (10) costs more than a feed (2.5). Feeding only after crying is worth `{python} fmt(PAIR_V["1 feeds on crying, 2 ignores"][0], 1)`. Against that, caregiver 2's best response is to never feed, which earns `{python} fmt(BR2_ALWAYS, 1)`: the cost of the first hour's hunger, and nothing after. See @eq-controller-eval.
+
+## Formalism
+
+### Partially observable Markov games
+
+A POMG (ADM §26.1; E. A. Hansen, D. S. Bernstein and S. Zilberstein, *AAAI*, 2004) has agents $\mathcal{I}$, states $\mathcal{S}$ with initial distribution $b$, joint actions $\boldsymbol{a}$, transitions $T(s' \mid s, \boldsymbol{a})$, joint observations $\boldsymbol{o} \in \mathcal{O}^1 \times \dots \times \mathcal{O}^k$ with probability $O(\boldsymbol{o} \mid \boldsymbol{a}, s')$, and rewards $R^i(s, \boldsymbol{a})$. After acting, agent $i$ receives only $o^i$.
+
+It generalizes everything before it: one agent gives a POMDP; observations that reveal the state give a Markov game; a single state gives a repeated simple game. An agent can't maintain a belief, because updating it would need the other agents' actions and observations, which depend on what those agents believe, and so on. So policies are conditional plans or controllers.
+
+### Evaluating joint conditional plans
+
+Let $\boldsymbol{\pi} = (\pi^1, \dots, \pi^k)$ be conditional plans, with root actions $\boldsymbol{\pi}()$ and subplans $\boldsymbol{\pi}(\boldsymbol{o}) = (\pi^1(o^1), \dots, \pi^k(o^k))$. Their joint utility from state $s$ is (ADM eqs. 26.1–26.2)
+
+::: {.key-equation data-name="Joint plan evaluation"}
+$$
+U^{\boldsymbol{\pi}}(s) = R\big(s, \boldsymbol{\pi}()\big) + \gamma \sum_{s'} T\big(s' \mid s, \boldsymbol{\pi}()\big) \sum_{\boldsymbol{o}} O\big(\boldsymbol{o} \mid \boldsymbol{\pi}(), s'\big)\, U^{\boldsymbol{\pi}(\boldsymbol{o})}(s')
+$$ {#eq-plan-eval}
+:::
+
+and from the initial distribution, $U^{\boldsymbol{\pi}}(b) = \sum_s b(s)\, U^{\boldsymbol{\pi}}(s)$.
+
+**In words.** Take everyone's first action, collect the reward, then for each next state and joint observation, let each agent follow the branch for its own observation.
+
+**Term by term.**
+
+- $R(s, \boldsymbol{\pi}())$ is the vector of every agent's reward for the joint root action.
+- $\boldsymbol{\pi}(\boldsymbol{o})$: each agent moves down its own tree using only its own $o^i$. The sum over joint observations accounts for what the *others* see.
+- A plan with no subplans ends: its value is just the reward.
+- The recursion visits every joint path through the trees: $(|\mathcal{S}||\mathcal{O}|)^h$ paths for $h$ steps.
+
+**Why it holds.** It is Chapter 20's plan evaluation (eq. 20.8), with joint actions and joint observations: given the state and everyone's plan, the future is fully determined in distribution.
+
+### Evaluating joint controllers
+
+For controllers with action distributions $\psi^i(a^i \mid x^i)$ and successor distributions $\eta^i(x^{i\prime} \mid x^i, a^i, o^i)$, the value of joint node $\boldsymbol{x}$ in state $s$ is (ADM eq. 26.3)
+
+::: {.key-equation data-name="Joint controller evaluation"}
+$$
+\begin{aligned}
+U(\boldsymbol{x}, s) = \sum_{\boldsymbol{a}} \prod_i \psi^i(a^i \mid x^i) \Big[ R(s, \boldsymbol{a})
+&+ \gamma \sum_{s'} T(s' \mid s, \boldsymbol{a}) \sum_{\boldsymbol{o}} O(\boldsymbol{o} \mid \boldsymbol{a}, s') \\
+&\times \sum_{\boldsymbol{x}'} \prod_i \eta^i(x^{i\prime} \mid x^i, a^i, o^i)\, U(\boldsymbol{x}', s') \Big]
+\end{aligned}
+$$ {#eq-controller-eval}
+:::
+
+**In words.** Chapter 23's controller evaluation, with everyone's nodes moving together.
+
+**Term by term.**
+
+- The products over $i$ say that agents choose actions and move nodes independently, each on its own observation.
+- There are $|\mathcal{S}| \prod_i |X^i|$ unknowns: $2 \times 2 \times 2 = 8$ for two 2-node controllers here.
+- $U(\boldsymbol{x}, b) = \sum_s b(s) U(\boldsymbol{x}, s)$ gives the value from the initial distribution.
+
+**Why it holds.** The joint node and the state together form a Markov chain, as in Chapter 23, so this is its Bellman expectation equation: one linear solve.
+
+### Nash equilibria as a game over plans
+
+Build a simple game (ADM §26.3) whose actions for agent $i$ are its $h$-step plans $\Pi^i$ and whose rewards are $U^{\boldsymbol{\pi}, i}(b)$ from @eq-plan-eval. A Nash equilibrium of this game, in pure or mixed plans, is an $h$-step Nash equilibrium of the POMG. The catch is size: with $|\mathcal{A}|$ actions and $|\mathcal{O}|$ observations, $|\Pi_h| = |\mathcal{A}|\,|\Pi_{h-1}|^{|\mathcal{O}|}$. For the caregivers that is 3, 27, `{python} f"{ALL[3]:,}"` and `{python} f"{ALL[4]:,}"` plans for $h = 1, \dots, 4$.
+
+### Dynamic programming with pruning
+
+Grow plans one step at a time (ADM §26.4): the $h$-step plans are a first action followed by surviving $(h-1)$-step plans. After each step, drop any plan that is never a best response. Plan $\pi^i$ survives only if some distribution $b(\boldsymbol{\pi}^{-i}, s)$ over the other agents' plans and the state makes it at least as good as every alternative:
+
+::: {.key-equation data-name="Pruning linear program"}
+$$
+\begin{aligned}
+\max_{\delta,\, b \ge 0}\ \ & \delta \\
+\text{s.t.}\ \ & \textstyle\sum_{\boldsymbol{\pi}^{-i}, s} b(\boldsymbol{\pi}^{-i}, s) = 1 \\
+& \textstyle\sum_{\boldsymbol{\pi}^{-i}, s} b(\boldsymbol{\pi}^{-i}, s)\big(U^{\pi^i, \boldsymbol{\pi}^{-i}, i}(s) - U^{\pi^{i\prime}, \boldsymbol{\pi}^{-i}, i}(s)\big) \ge \delta \ \ \text{for all } \pi^{i\prime}
+\end{aligned}
+$$ {#eq-dominance-lp}
+:::
+
+**In words.** Look for a situation, meaning a mix of what the others might do and what the state might be, in which this plan is at least as good as every other. If there's none (the best $\delta$ is negative), prune it.
+
+**Term by term.**
+
+- $b(\boldsymbol{\pi}^{-i}, s)$: a distribution over the others' plans and the state, playing the role of a belief. No agent computes it; the LP searches over all of them.
+- $\delta$: the plan's smallest margin over the alternatives, under $b$. Maximizing it finds the most favorable situation.
+- It's Chapter 20's alpha-vector pruning LP (eq. 20.16), with "state" replaced by "state and the others' plan".
+
+**Why it holds.** A plan that is never a best response can't be used in any Nash equilibrium: an agent would switch away from it whatever the others do. Removing it never removes an equilibrium, and every equilibrium of the pruned game is one of the full game. Pruning is repeated over agents until nothing changes, since removing one agent's plans can make more of the other's prunable.
+
+## Worked example
+
+### Two hours with the baby
+
+Take caregiver 1's plan "feed now; then ignore whatever you hear" and caregiver 2's plan "ignore twice". Starting 50–50:
+
+- **Hour 1.** Caregiver 1 pays 2.5 for feeding; both pay 10 if the baby is hungry now (probability 0.5). Rewards: caregiver 1 $-2.5 - 5 = -7.5$, caregiver 2 $-5$.
+- **Hour 2.** The feed sated the baby, so it can't be hungry and never cries; both ignore, paying nothing.
+
+So the plan pair is worth $(-7.5, -5)$. Can caregiver 1 do better alone? Ignoring twice would leave the baby hungry in hour 2 with probability $0.5 + 0.5 \times 0.5 = 0.75$, costing $-5 + 0.9 \times 0.75 \times (-10) = -11.75$. Any plan that feeds in hour 2 only adds cost, since the game ends after hour 2 and feeding then helps no one. And caregiver 2 is paying nothing extra, so it can't gain either. It's an equilibrium, one of the two outcomes found by brute force above.
+
+```{python}
+#| output: asis
+p1 = (0, ((2,), (2,)))
+p2 = (2, ((2,), (2,)))
+p1_alt = (2, ((2,), (2,)))
+print(f"The code: ({', '.join(fmt(v, 3) for v in P.utility(U, B0, p1, p2))}) for the pair, and "
+      f"{fmt(P.utility(U, B0, p1_alt, p2)[0], 3)} for caregiver 1 if it ignores twice instead.")
+```
+
+### Is "sing, then ignore" ever worth it?
+
+For caregiver 1 at the last step, compare singing, feeding and ignoring for any belief over the state and the other's plan: singing costs 0.5 and feeding 2.5 more than ignoring, and none changes the reward of this hour. So in @eq-dominance-lp, $\delta$ for "sing" is at most $-0.5$ whatever $b$ is. Pruned. That's why the one-step plans shrink from 3 to 1 for each caregiver.
+
+## Interactive
+
+### The three-step game over plans
+
+After pruning, each caregiver has `{python} len(DP[3][0][0])` three-step plans. Pick one for each, and see what each earns and whether either would switch. Plans are written action[cry: …; quiet: …] with F = feed, S = sing, I = ignore.
+
+```{python}
+#| include: false
+p1s, p2s = DP[3][0]
+write_json({"plans1": [words(p) for p in p1s], "plans2": [words(p) for p in p2s],
+            "R1": H3_GAME.R[0].round(4).tolist(), "R2": H3_GAME.R[1].round(4).tolist()},
+           "data/ch26-plans.json")
+```
+
+```{ojs}
+planData = FileAttachment("data/ch26-plans.json").json()
+viewof plan1 = Inputs.select(planData.plans1.map((p, k) => k), {label: "Caregiver 1", format: k => planData.plans1[k]})
+viewof plan2 = Inputs.select(planData.plans2.map((p, k) => k), {label: "Caregiver 2", format: k => planData.plans2[k]})
+```
+
+```{ojs}
+planNow = {
+  const r1 = planData.R1[plan1][plan2], r2 = planData.R2[plan1][plan2];
+  const best1 = d3.max(planData.R1, row => row[plan2]), best2 = d3.max(planData.R2[plan1]);
+  return {r1, r2, gain1: best1 - r1, gain2: best2 - r2};
+}
+md`Caregiver 1 earns **${planNow.r1.toFixed(3)}**, caregiver 2 **${planNow.r2.toFixed(3)}**. ${planNow.gain1 < 1e-9 && planNow.gain2 < 1e-9 ? "**A Nash equilibrium:** neither can gain by switching plans." : `Caregiver 1 could gain **${planNow.gain1.toFixed(3)}** by switching, caregiver 2 **${planNow.gain2.toFixed(3)}**.`}`
+```
+
+```{ojs}
+//| label: fig-plan-explorer
+//| fig-cap: "The pruned three-step game: caregiver 1's expected reward (left) and caregiver 2's (right) for every pair of surviving plans. The chosen pair is outlined."
+//| fig-alt: "Two heatmaps, each with caregiver 1's four plans as rows and caregiver 2's four plans as columns; darker cells are worse. An outline marks the chosen pair of plans."
+{
+  const cells = (R) => R.flatMap((row, i) => row.map((v, j) => ({i, j, v})));
+  const panel = (R, title) => Plot.plot({
+    width: 300, height: 260, marginLeft: 40, style: {background: "#fcfcfb"}, title,
+    x: {label: "caregiver 2's plan", tickFormat: d => d + 1}, y: {label: "caregiver 1's plan", tickFormat: d => d + 1},
+    color: {scheme: "blues", reverse: false, legend: false},
+    marks: [Plot.cell(cells(R), {x: "j", y: "i", fill: "v"}),
+            Plot.text(cells(R), {x: "j", y: "i", text: d => d.v.toFixed(2), fill: "#0b0b0b", fontSize: 10}),
+            Plot.cell([{i: plan1, j: plan2}], {x: "j", y: "i", fill: "none", stroke: "#eb6834", strokeWidth: 3})]});
+  return html`<div style="display:flex;flex-wrap:wrap;gap:12px">${panel(planData.R1, "Caregiver 1")}${panel(planData.R2, "Caregiver 2")}</div>`;
+}
+```
+
+## Algorithms & code
+
+### Plans, evaluation, pruning and controllers
+
+::: {.panel-tabset group="lang"}
+## Python
+```{python}
+#| output: asis
+show_source(P.all_plans, P.expand, P.plan_evaluator, P.utility, P.plan_game, P.pure_equilibria,
+            P.is_dominated, P.prune_dominated, P.dynamic_programming, P.evaluate_controllers)
+```
+## Julia
+```{.julia .snippet}
+using ADM
+
+g = multicaregiver()          # T[s, a1, a2, s′], O[a1, a2, s′, o1, o2], R[i, s, a1, a2]
+b = [0.5, 0.5]
+
+# A plan is (a,) at the last step, or (a, (plan after crying, plan after quiet)).
+function plans(h)
+    h == 1 && return [(a,) for a in 1:3]
+    return [(a, (p, q)) for a in 1:3 for p in plans(h - 1) for q in plans(h - 1)]
+end
+
+# eq. 26.1: both agents' utilities when following plans p1 and p2 from state s.
+function evaluate(g, p1, p2, s)
+    a1, a2 = p1[1], p2[1]
+    u = g.R[:, s, a1, a2]
+    length(p1) == 1 && return u
+    for s′ in 1:2, o1 in 1:2, o2 in 1:2
+        w = g.T[s, a1, a2, s′] * g.O[a1, a2, s′, o1, o2]
+        # Each agent takes the branch for its own observation.
+        w > 0 && (u = u .+ g.γ * w .* evaluate(g, p1[2][o1], p2[2][o2], s′))
+    end
+    return u
+end
+utility(g, p1, p2) = sum(b[s] * evaluate(g, p1, p2, s) for s in 1:2)
+
+# The two-step game over plans, and its pure Nash equilibria by brute force.
+Π = plans(2)
+Ugame = [utility(g, p1, p2) for p1 in Π, p2 in Π]     # Ugame[k1, k2] = [u1, u2]
+isnash(k1, k2) = all(Ugame[j, k2][1] <= Ugame[k1, k2][1] + 1e-9 for j in eachindex(Π)) &&
+                 all(Ugame[k1, j][2] <= Ugame[k1, k2][2] + 1e-9 for j in eachindex(Π))
+payoffs = unique([round.(Ugame[k1, k2]; digits = 4) for k1 in eachindex(Π), k2 in eachindex(Π)
+                  if isnash(k1, k2)])
+println(length(Π), " plans each; equilibrium payoffs: ", payoffs)
+@assert sort(payoffs) == [[-7.5, -5.0], [-5.0, -10.0]]
+```
+:::
+
+::: {.callout-note collapse="true" title="Reading the Python code"}
+- **Plans as nested tuples.** `(0, ((2,), (2,)))` means "feed, then ignore after crying, ignore after quiet". Tuples are hashable, so `functools.lru_cache` can remember each (plan, plan, state) value and reuse it whenever the same subplans meet again.
+- **`product(plans, repeat=n_obs)`** gives every way to assign a subplan to each observation.
+- **The pruning LP** puts $\delta$ last among the variables; `linprog` minimizes, so the objective is $-\delta$, and the "at least $\delta$" constraints are rewritten as $\delta - (\dots) \le 0$.
+- **`evaluate_controllers`** flattens (node 1, node 2, state) into one index and fills the matrix $I - \gamma T$ entry by entry.
+:::
+
+### Run them
+
+```{python}
+#| echo: true
+game = multicaregiver()
+plans, counts = P.dynamic_programming(game, 3, np.random.default_rng(0))
+for h, (grown, kept) in enumerate(counts, start=1):
+    print(f"horizon {h}: {grown} candidate plans, {kept} kept")
+```
+
+### Results
+
+#### How many plans survive
+
+```{python}
+#| label: fig-counts
+#| fig-cap: "Plans per caregiver by horizon: all conditional plans (gray), the candidates dynamic programming builds from the previous step's survivors (light blue), and those that survive pruning (blue). Log scale."
+#| fig-alt: "Grouped bar chart on a log scale with horizons 1 to 4 across. All plans grow from 3 to 27, 2,187 and about 14 million. Candidates are 3, 3, 12 and 48. Survivors are 1, 2, 4 and 32."
+fig, ax = plt.subplots(figsize=(7.5, 3.4))
+hs = np.arange(1, 5)
+cand = [DP[h][1][-1][0][0] for h in hs]
+kept = [DP[h][1][-1][1][0] for h in hs]
+for k, (vals, c, lab) in enumerate(((list(ALL.values()), "#c8c7c2", "all plans"),
+                                     (cand, "#9fc5f0", "candidates after expanding"),
+                                     (kept, blue, "kept after pruning"))):
+    bars = ax.bar(hs + (k - 1) * 0.27, vals, width=0.27, color=c, label=lab)
+    ax.bar_label(bars, labels=[f"{v:,}" for v in vals], fontsize=7, padding=2)
+ax.set_yscale("log")
+ax.set_xticks(hs)
+ax.set_xlabel("horizon (steps)")
+ax.set_ylabel("plans per caregiver")
+ax.legend(fontsize=8, loc="upper left")
+plt.tight_layout()
+plt.show()
+```
+
+Pruning at each step keeps the candidate sets tiny: `{python} DP[4][1][-1][0][0]` four-step candidates instead of `{python} f"{ALL[4]:,}"`, and `{python} DP[4][1][-1][1][0]` of those survive. The last step is where most of the pruning happens: at the final hour only "ignore" is worth considering.
+
+#### The volunteer's dilemma
+
+```{python}
+#| label: fig-equilibria
+#| fig-cap: "Every pair of surviving plans, plotted by the two caregivers' expected rewards (gray), with pure Nash equilibria (black) and, for three steps, the mixed equilibria (orange). Left: three steps. Right: four steps."
+#| fig-alt: "Two scatter plots of caregiver 1's reward across and caregiver 2's up the side. Left, three steps: the 16 plan pairs fall on a few gray points, as low as (minus 18, minus 17); black points at about (minus 9.75, minus 5) and (minus 7.25, minus 10); an orange point at about (minus 9.75, minus 10). Right, four steps: many gray points; black points at about (minus 11.8, minus 5), (minus 9.5, minus 9.5), (minus 9.3, minus 10) and (minus 7.0, minus 14.5)."
+fig, axes = plt.subplots(1, 2, figsize=(10, 3.8))
+for ax, game, eqs, title in ((axes[0], H3_GAME, H3_EQ, "three steps"), (axes[1], H4_GAME, H4_EQ, "four steps")):
+    ax.scatter(game.R[0].ravel(), game.R[1].ravel(), color="#c8c7c2", s=14)
+    e = np.array(eqs)
+    ax.scatter(e[:, 0], e[:, 1], color=style.INK, s=40, zorder=3, label="pure Nash")
+    ax.set_title(title)
+    ax.set_xlabel("caregiver 1's expected reward")
+axes[0].scatter(*np.array(H3_MIXED).T, color=orange, s=50, zorder=4, label="mixed Nash")
+axes[0].set_ylabel("caregiver 2's expected reward")
+axes[0].legend(fontsize=8, loc="lower right")
+plt.tight_layout()
+plt.show()
+```
+
+- **Three steps.** The pure equilibria are (`{python} ", ".join(fmt(v, 2) for v in H3_EQ[0])`) and (`{python} ", ".join(fmt(v, 2) for v in H3_EQ[1])`): one caregiver does the feeding, the other free-rides. The mixed equilibria, where each sometimes feeds, are worth (`{python} ", ".join(fmt(v, 2) for v in H3_MIXED[0])`): no better than the worse pure outcome for either caregiver.
+- **Four steps.** Four kinds of pure equilibrium appear: `{python} "; ".join("(" + ", ".join(fmt(v, 2) for v in e) + ")" for e in H4_EQ)`. Besides the lopsided ones, one splits the cost almost evenly between the two caregivers.
+- **Pruning kept the equilibria.** For two steps, the full 27 × 27 game and the pruned one have exactly the same equilibrium payoffs.
+
+#### Controllers: who gets up?
+
+```{python}
+#| label: fig-controllers
+#| fig-cap: "Infinite-horizon values (from the 50–50 start) of five pairs of 2-node controllers for the caregivers."
+#| fig-alt: "Grouped horizontal bar chart with five pairs of controllers. Both ignoring: about minus 91 each. One feeding on crying while the other ignores: about minus 48 for the feeder if it is caregiver 1 (minus 55 if caregiver 2) and about minus 40 for the other. Both feeding on crying: about minus 48 and minus 55. Caregiver 1 always feeding: minus 30 for caregiver 1 and minus 5 for caregiver 2."
+fig, ax = plt.subplots(figsize=(8, 3.4))
+names = list(PAIR_V)
+y = np.arange(len(names))
+ax.barh(y - 0.2, [PAIR_V[n][0] for n in names], height=0.4, color=blue, label="caregiver 1")
+ax.barh(y + 0.2, [PAIR_V[n][1] for n in names], height=0.4, color=orange, label="caregiver 2")
+ax.set_yticks(y, names, fontsize=9)
+ax.invert_yaxis()
+ax.set_xlabel("expected discounted reward")
+ax.legend(fontsize=8, loc="lower left")
+plt.tight_layout()
+plt.show()
+```
+
+- **Somebody has to feed.** If nobody does, each pays `{python} fmt(PAIR_V["both ignore"][0], 1)`: the baby ends up hungry forever.
+- **Feeding on crying is a poor rule here.** A sated baby turns hungry half the time, so waiting for a cry lets hunger (10 per hour) pile up while a feed costs caregiver 1 only 2.5. Caregiver 1 does better feeding every hour: `{python} fmt(PAIR_V["1 always feeds, 2 ignores"][0], 1)` instead of `{python} fmt(PAIR_V["1 feeds on crying, 2 ignores"][0], 1)`. Brute force over all `{python} len(CANDS)` deterministic 2-node controllers confirms that "always feed" is caregiver 1's best response to an idle partner.
+- **Free-riding is the other's best response.** Against a caregiver who always feeds, caregiver 2's best controller never feeds and earns `{python} fmt(BR2_ALWAYS, 1)`. So (always feed, never feed) is an equilibrium among 2-node controllers, and a lopsided one.
+
+## Solved problems
+
+**Problem 1: special cases.** Show that a POMDP and a Markov game are both POMGs.
+
+::: {.callout-tip collapse="true" title="Solution"}
+A POMDP is a POMG with one agent: its observations are the joint observations. A Markov game is a POMG whose observations reveal the state: $\mathcal{O}^i = \mathcal{S}$ and $O(\boldsymbol{o} \mid \boldsymbol{a}, s') = 1$ when every $o^i = s'$. With both, and one agent, it's an MDP.
+:::
+
+**Problem 2: counting plans.** Each of two agents has 2 actions and 3 observations. How many 1-, 2- and 3-step conditional plans does each have? How many joint plans at 3 steps?
+
+::: {.callout-tip collapse="true" title="Solution"}
+$|\Pi_1| = 2$; $|\Pi_2| = 2 \times 2^3 = 16$; $|\Pi_3| = 2 \times 16^3 = 8192$. Joint plans at 3 steps: $8192^2 \approx 6.7 \times 10^7$, each needing an evaluation over every state and joint observation path. That is why pruning is essential.
+:::
+
+**Problem 3: evaluate a joint plan.** For the caregivers, starting 50–50: caregiver 1 ignores then ignores; caregiver 2 ignores then ignores. What does each earn over two hours?
+
+::: {.callout-tip collapse="true" title="Solution"}
+Hour 1: both pay 10 with probability 0.5: $-5$ each. With nobody feeding, the baby is hungry in hour 2 with probability $0.5 \times 1 + 0.5 \times 0.5 = 0.75$, costing $0.9 \times 0.75 \times 10 = 6.75$. Each earns $-11.75$. Either caregiver could improve by feeding in hour 1, which makes this plan pair not an equilibrium.
+:::
+
+**Problem 4: prune by hand.** At the last step, caregiver 2's options are feed (extra −5), sing (−0.25) and ignore (0), and none affects this step's hunger cost. Write the pruning LP for "sing", and solve it.
+
+::: {.callout-tip collapse="true" title="Solution"}
+For any distribution $b$ over caregiver 1's plan and the state, "sing" minus "ignore" is $-0.25$ exactly (hunger costs cancel). The constraint against "ignore" is $-0.25 \ge \delta$, so $\delta \le -0.25 < 0$: "sing" is dominated and pruned. "Feed" is pruned the same way, with $\delta \le -5$.
+:::
+
+**Problem 5: why can't caregiver 1 keep a belief?** Caregiver 1 hears "quiet" after ignoring. Why can't it update $P(\text{hungry})$ with the Chapter 19 filter?
+
+::: {.callout-tip collapse="true" title="Solution"}
+The filter needs the transition model for the action taken, and here the transition depends on the *joint* action: if caregiver 2 fed, the baby is certainly sated. Caregiver 1 doesn't see whether caregiver 2 fed. It could average over caregiver 2's policy, but that policy depends on what caregiver 2 heard and believes, which depends on caregiver 1's policy, and so on. Committing to whole plans or controllers sidesteps the regress: every agent's behavior is fixed in advance, and evaluation averages over everything.
+:::
+
+## Recap
+
+1. **A POMG is the most general model in the book (@eq-plan-eval).**
+   *Why it matters:* MDPs, POMDPs, simple games and Markov games are all special cases; the difficulty comes from each agent seeing only part of the picture.
+2. **Without shared information, agents choose whole policies instead of acting on beliefs.**
+   *Why it matters:* conditional plans and controllers (Chapters 20, 23) become the objects of the game, and their evaluation stays exact.
+3. **A POMG over $h$-step plans is a simple game over plans.**
+   *Why it matters:* Chapter 24's equilibrium methods apply directly, but the number of plans explodes: `{python} f"{ALL[4]:,}"` four-step plans per caregiver.
+4. **Pruning never-best plans keeps the game small without losing equilibria (@eq-dominance-lp).**
+   *Why it matters:* for the caregivers, 32 plans survive at four steps; the same idea drives Chapter 27's methods for cooperative teams.
+5. **Coordination is the hard part.**
+   *Why it matters:* the caregivers' equilibria are all "one works, the other free-rides" or worse; partial observability makes it harder to share the work, which is what shared rewards (Chapter 27) change.
+
+## Cheat sheet & connections
+
+| Name | Formula | Ref |
+|---|---|---|
+| Joint plan evaluation | $U^{\boldsymbol{\pi}}(s) = R(s, \boldsymbol{\pi}()) + \gamma \sum_{s'} T \sum_{\boldsymbol{o}} O\, U^{\boldsymbol{\pi}(\boldsymbol{o})}(s')$ | @eq-plan-eval |
+| Joint controller evaluation | $U(\boldsymbol{x}, s) = \sum_{\boldsymbol{a}} \prod_i \psi^i [R + \gamma \sum T \sum O \sum_{\boldsymbol{x}'} \prod_i \eta^i\, U(\boldsymbol{x}', s')]$ | @eq-controller-eval |
+| Game over plans | actions $\Pi^i_h$, rewards $U^{\boldsymbol{\pi}, i}(b)$ | §26.3 |
+| Pruning LP | $\max \delta$: some $b(\boldsymbol{\pi}^{-i}, s)$ makes $\pi^i$ beat every alternative by $\delta$ | @eq-dominance-lp |
+
+: Key equations from this page. {#tbl-cheatsheet}
+
+**Common pitfalls**
+
+- **Letting an agent use information it doesn't have.** Plans branch only on the agent's own observations, never on the others' or on the state.
+- **Enumerating plans naively.** Their number is doubly exponential in the horizon; grow and prune instead.
+- **Counting equivalent plans as different equilibria.** Plans that differ only on impossible branches earn the same; the page reports distinct payoffs.
+- **Forgetting that pruning must repeat.** Removing one agent's plans can make more of the other's prunable.
+
+**Connections**
+
+- [Ch 20 · Exact Belief State Planning](../part4/ch20-exact-belief-state-planning.qmd): conditional plans and the alpha-vector pruning LP.
+- [Ch 23 · Controller Abstractions](../part4/ch23-controller-abstractions.qmd): controllers and their evaluation.
+- [Ch 24 · Multiagent Reasoning](ch24-multiagent-reasoning.qmd): equilibria of the game over plans.
+- [Ch 25 · Sequential Problems](ch25-sequential-problems.qmd): the fully observed version.
+- [Ch 27 · Collaborative Agents](ch27-collaborative-agents.qmd): the same models when all agents share one reward.

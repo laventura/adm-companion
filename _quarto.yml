@@ -47,6 +47,9 @@ website:
       An independent, unofficial companion to *Algorithms for Decision Making*
       (MIT Press, 2022). The book is freely available at
       [algorithmsbook.com](https://algorithmsbook.com).
+      Site text and figures © Atul Acharya,
+      [CC BY-NC 4.0](https://creativecommons.org/licenses/by-nc/4.0/);
+      code [MIT](https://opensource.org/license/mit).
 
 format:
   html:

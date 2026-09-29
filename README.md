@@ -36,6 +36,13 @@ Always run Quarto through `uv run`, so it uses the project's Python.
 - `_freeze/`: cached execution results, committed so the site rebuilds without running code.
 - `index.qmd` (book map), `notation.qmd` (symbols by Part), `cheatsheets.qmd` (every chapter's cheat sheet, rebuilt on each render).
 
+## License
+
+- Prose, figures, diagrams and problems: [CC BY-NC 4.0](https://creativecommons.org/licenses/by-nc/4.0/); see [LICENSE-content.md](LICENSE-content.md).
+- Code (`adm/`, `julia/`, `tools/`, `tests/`, and the code shown on the pages): MIT; see [LICENSE](LICENSE).
+
+The book itself is licensed separately by its authors; this site does not reproduce its text, figures, exercises or code.
+
 ## Starting another companion site
 
 The site-agnostic parts (figure style in both languages, theme, chapter template, page helpers, snippet and freeze checkers, and their tests) can seed a new project:

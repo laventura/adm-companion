@@ -1,8 +1,405 @@
 ---
 title: "D · Neural Representations"
 subtitle: "Appendices"
+jupyter: python3
+execute:
+  echo: false
 ---
 
 ::: {.callout-note appearance="minimal"}
-**In progress.** This page will cover ADM Appendix D, *Neural Representations*.
+**Executed in:** Python · **Book:** ADM Appendix D
+:::
+
+```{python}
+#| include: false
+import numpy as np
+import matplotlib.pyplot as plt
+
+from adm import neural as N
+from adm import style
+from adm.page import show_source
+
+style.apply()
+blue, orange, green, yellow, pink, dkgreen, purple, red = style.CATEGORICAL
+fmt = lambda x, d=2: f"{x:.{d}f}".replace("-", "−")
+
+def mse(params, X, Y, act):
+    return float(np.mean((N.forward(params, X, act)[0] - Y) ** 2))
+
+# Target function for the fitting examples, on [-3, 3].
+f = lambda x: np.sin(2 * x) * np.exp(-x ** 2 / 4)
+GRID = np.linspace(-3, 3, 400)[:, None]
+
+# Worked backprop example: y_hat = w2 relu(w1 x + b1) + b2, loss (y_hat - y)^2.
+TINY = [(np.array([[0.8]]), np.array([-0.2])), (np.array([[1.5]]), np.array([0.1]))]
+TX, TY = np.array([[1.5]]), np.array([[1.0]])
+T_LOSS, T_GRADS = N.mse_loss(TINY, TX, TY, "relu")
+T_Z = float(TX[0, 0] * 0.8 - 0.2)
+T_H = max(T_Z, 0.0)
+T_YHAT = float(N.forward(TINY, TX, "relu")[0][0, 0])
+def finite_difference(k, which, h=1e-6):
+    P = TINY[k][which]
+    old = P.flat[0]
+    P.flat[0] = old + h; up = N.mse_loss(TINY, TX, TY, "relu")[0]
+    P.flat[0] = old - h; down = N.mse_loss(TINY, TX, TY, "relu")[0]
+    P.flat[0] = old
+    return (up - down) / (2 * h)
+T_FD = {name: finite_difference(k, w) for name, k, w in
+        (("w1", 0, 0), ("b1", 0, 1), ("w2", 1, 0), ("b2", 1, 1))}
+T_BP = {"w1": T_GRADS[0][0][0, 0], "b1": T_GRADS[0][1][0],
+        "w2": T_GRADS[1][0][0, 0], "b2": T_GRADS[1][1][0]}
+
+# Softmax example
+Z_SM = np.array([2.0, 1.0, -1.0])
+P_SM = N.softmax(Z_SM)
+
+# Fitting: 60 noisy samples, three activations, the same 1-16-16-1 shape.
+rng = np.random.default_rng(0)
+FX = rng.uniform(-3, 3, (60, 1))
+FY = f(FX) + rng.normal(0, 0.05, FX.shape)
+FITS = {}
+for act in ("identity", "relu", "tanh"):
+    p, losses = N.train(N.init_mlp([1, 16, 16, 1], np.random.default_rng(1)),
+                        FX, FY, act, alpha=0.01, epochs=3000)
+    FITS[act] = (p, losses, mse(p, GRID, f(GRID), act))
+
+# Regularization: 8 datasets of 12 points, a 1-64-64-1 tanh network, three strengths.
+BETAS = (0.0, 1e-3, 1e-1)
+REG = {b: [] for b in BETAS}
+REG_EXAMPLE = {}
+for seed in range(8):
+    r = np.random.default_rng(100 + seed)
+    X = r.uniform(-3, 3, (12, 1)); Y = f(X) + r.normal(0, 0.1, X.shape)
+    for beta in BETAS:
+        p, _ = N.train(N.init_mlp([1, 64, 64, 1], np.random.default_rng(seed)),
+                       X, Y, "tanh", alpha=0.01, epochs=4000, beta=beta)
+        REG[beta].append((mse(p, X, Y, "tanh"), mse(p, GRID, f(GRID), "tanh")))
+        if seed == 0:
+            REG_EXAMPLE[beta] = (X, Y, p)
+REG = {b: np.array(v) for b, v in REG.items()}
+REG_WINS = int((REG[1e-3][:, 1] < REG[0.0][:, 1]).sum())
+
+# Autoencoder: 200 noisy points on three quarters of a circle, squeezed through 1 number.
+r = np.random.default_rng(3)
+THETA = r.uniform(0, 1.5 * np.pi, 200)
+AX = np.c_[np.cos(THETA), np.sin(THETA)] + r.normal(0, 0.03, (200, 2))
+AE = {}
+for act, sizes in (("identity", [2, 1, 2]), ("tanh", [2, 32, 1, 32, 2])):
+    p, _ = N.train(N.init_mlp(sizes, np.random.default_rng(3)), AX, AX, act,
+                   alpha=0.01, epochs=3000, batch=50)
+    AE[act] = (p, mse(p, AX, AX, act))
+# The code of the nonlinear autoencoder: its first two layers, bottleneck pre-activation.
+CODE = N.forward(AE["tanh"][0][:2], AX, "tanh")[0][:, 0]
+order = np.argsort(THETA)
+CODE_RANK_CORR = float(np.corrcoef(np.argsort(np.argsort(THETA)), np.argsort(np.argsort(CODE)))[0, 1])
+
+# Convolution example: a step up then a step down, kernel (-1, 0, 1).
+SIG = np.array([0, 0, 0, 1, 1, 1, 1, 0, 0], dtype=float)
+KER = np.array([-1.0, 0.0, 1.0])
+CONV = np.correlate(SIG, KER, mode="valid")    # y_i = sum_j w_j x_(i+j)
+```
+
+A neural network is a flexible function with many adjustable parameters. Fed enough examples, gradient descent tunes the parameters until the function matches the data. On this site, neural networks are one option wherever a chapter needs a function it can't write down: a value function ([Chapter 8](../part2/ch08-approximate-value-functions.qmd)), a policy ([Chapters 10–13](../part2/ch11-policy-gradient-estimation.qmd)), a critic ([Chapter 13](../part2/ch13-actor-critic-methods.qmd)) or a discriminator ([Chapter 18](../part3/ch18-imitation-learning.qmd)). This appendix follows ADM Appendix D. All code runs in plain NumPy, with the gradient computed by hand, so every step is visible.
+
+## At a glance
+
+| Architecture | Idea | Good for | Where it fits |
+|---|---|---|---|
+| Feedforward | layers of affine maps and nonlinearities | any fixed-size input and output | value functions (Ch 8, which fits one), policies and critics (Ch 10–13) |
+| Convolutional | the same small filter slides across the input | images, signals, grids | value functions or policies for image-like states |
+| Recurrent | a hidden state carried from step to step | sequences, histories | summarizing observation histories in POMDPs (Ch 19–22) |
+| Autoencoder | squeeze the input through a narrow middle, then rebuild it | compression, learned features | learning compact state features |
+| Adversarial | a generator and a discriminator trained against each other | imitating a distribution | GAIL (Ch 18, described there) |
+
+: Neural architectures in ADM Appendix D. Only the feedforward network is run in a chapter of this site; the others are demonstrated here or described. {#tbl-arch}
+
+## Feedforward networks
+
+A **feedforward network**, or multilayer perceptron, is a chain of layers. Each layer mixes its inputs linearly and then bends the result with a fixed nonlinear function:
+
+::: {.key-equation data-name="One layer"}
+$$
+\mathbf{x}' = \phi\big(\mathbf{W}\mathbf{x} + \mathbf{b}\big)
+$$ {#eq-layer}
+:::
+
+**In words.** Each output unit takes a weighted sum of all inputs, adds a bias, and passes it through an activation function.
+
+**Term by term.**
+
+- $\mathbf{x}$: the layer's input, a vector of length $m$; $\mathbf{x}'$: its output, of length $n$.
+- $\mathbf{W}$: an $n \times m$ weight matrix; row $i$ holds the weights of output unit $i$. $\mathbf{b}$: a bias vector of length $n$.
+- $\phi$: the **activation function**, applied to each element separately (@fig-activations).
+
+**Why it holds.** It is a design choice, and the nonlinearity is essential. Without it, two layers collapse into one: $\mathbf{W}_2(\mathbf{W}_1\mathbf{x} + \mathbf{b}_1) + \mathbf{b}_2 = (\mathbf{W}_2\mathbf{W}_1)\mathbf{x} + (\mathbf{W}_2\mathbf{b}_1 + \mathbf{b}_2)$, still an affine map, so any depth of linear layers can only draw straight lines. With a nonlinear $\phi$, a network with one wide enough hidden layer can approximate any continuous function on a bounded region to any accuracy (the universal approximation theorem; Cybenko 1989, Hornik 1991).
+
+The code on this page stores samples as rows, so a layer computes `X @ W + b` with `W` of shape $m \times n$: the transpose of @eq-layer, applied to a whole batch at once. Hidden layers apply $\phi$; the output layer is left linear so it can produce any real number.
+
+```{python}
+#| label: fig-activations
+#| fig-cap: "The four activation functions in adm.neural. Each changes slowly or not at all for very negative inputs and grows with the input."
+#| fig-alt: "Four small line charts over inputs from minus 3 to 3. Sigmoid: an S-curve from 0 to 1. Tanh: an S-curve from minus 1 to 1. ReLU: zero for negative inputs, then a straight line of slope 1. Leaky ReLU: a line of slope 0.1 for negative inputs, then slope 1."
+fig, axes = plt.subplots(1, 4, figsize=(10, 2.6), sharey=True)
+z = np.linspace(-3, 3, 300)
+for ax, (name, label) in zip(axes, (("sigmoid", r"sigmoid $1/(1+e^{-z})$"), ("tanh", r"$\tanh z$"),
+                                    ("relu", r"ReLU $\max(0, z)$"), ("leaky_relu", r"leaky ReLU $\max(0.1z, z)$"))):
+    ax.plot(z, N.ACTIVATIONS[name][0](z), color=blue, lw=2)
+    ax.axhline(0, color=style.MUTED, lw=0.8); ax.axvline(0, color=style.MUTED, lw=0.8)
+    ax.set_title(label, fontsize=10); ax.set_xlabel("z")
+axes[0].set_ylim(-1.5, 3)
+plt.tight_layout()
+plt.show()
+```
+
+When the output must be a probability distribution, for example a stochastic policy over actions, the last layer is followed by a softmax:
+
+::: {.key-equation .famous data-name="Softmax"}
+$$
+\operatorname{softmax}(\mathbf{z})_i = \frac{\exp(z_i)}{\sum_j \exp(z_j)}
+$$ {#eq-softmax}
+:::
+
+**In words.** Exponentiate every score so it is positive, then divide by the total so the results add up to 1.
+
+**Term by term.**
+
+- $z_i$: the score (logit) of option $i$; larger scores get larger probabilities.
+- $\exp$: keeps the order of the scores and makes them positive; a gap of 1 between scores means a ratio of $e \approx 2.72$ between probabilities.
+- The denominator: normalizes the results to sum to 1.
+
+**Why it holds.** Adding the same constant to every score cancels between numerator and denominator, so only differences between scores matter; the code subtracts the largest score before exponentiating to avoid overflow. Example: scores $(2, 1, -1)$ give probabilities `{python} ", ".join(fmt(p, 3) for p in P_SM)`.
+
+@fig-network shows the network used for the examples below, and how information flows in training.
+
+```{dot}
+//| label: fig-network
+//| fig-width: 3
+//| fig-height: 5.04
+//| fig-cap: "The 1-16-16-1 network used for curve fitting. The forward pass computes the prediction layer by layer; the backward pass sends the loss gradient back through the same layers."
+//| fig-alt: "Diagram, top to bottom: input x; hidden layer 1, 16 tanh units; hidden layer 2, 16 tanh units; linear output y hat; squared-error loss. Gray arrows labeled forward run down the chain. Orange arrows labeled gradient run back up from the loss to the first hidden layer."
+digraph net {
+  rankdir=TB; bgcolor="#fcfcfb"; pad=0.2; nodesep=0.3; ranksep=0.35;
+  node [shape=box, style="rounded,filled", fillcolor="#cde2fb", color="#2a78d6", fontname="Helvetica", fontsize=12, width=2.6];
+  edge [color="#52514e", penwidth=1.2, arrowsize=0.7, fontname="Helvetica", fontsize=10, fontcolor="#52514e"];
+  x [label="input x (1 number)", fillcolor="#f0efec", color="#52514e"];
+  h1 [label="hidden layer 1: 16 units\nh1 = tanh(x W1 + b1)"];
+  h2 [label="hidden layer 2: 16 units\nh2 = tanh(h1 W2 + b2)"];
+  y [label="output (linear)\nŷ = h2 W3 + b3"];
+  L [label="loss (ŷ − y)²", fillcolor="#fbe1d6", color="#eb6834"];
+  x -> h1 [label=" forward"]; h1 -> h2 [label=" forward"]; h2 -> y [label=" forward"]; y -> L [label=" forward"];
+  L -> y [label=" gradient", color="#eb6834", fontcolor="#eb6834"];
+  y -> h2 [label=" gradient", color="#eb6834", fontcolor="#eb6834"];
+  h2 -> h1 [label=" gradient", color="#eb6834", fontcolor="#eb6834"];
+}
+```
+
+## Backpropagation
+
+Training needs the gradient of the loss with respect to every weight. **Backpropagation** (reverse-mode differentiation) gets all of them in one backward sweep, at about the cost of one extra forward pass:
+
+::: {.key-equation .famous data-name="Chain rule (backpropagation)"}
+$$
+\frac{\partial \ell}{\partial \mathbf{x}} = \frac{\partial \ell}{\partial \mathbf{x}'}\,\frac{\partial \mathbf{x}'}{\partial \mathbf{x}}
+$$ {#eq-chain}
+:::
+
+**In words.** The gradient with respect to a layer's input is the gradient with respect to its output, times how much the output moves when the input moves.
+
+**Term by term.**
+
+- $\ell$: the loss, a single number.
+- $\partial \ell / \partial \mathbf{x}'$: arrives from the layer above (from the loss itself, at the top).
+- $\partial \mathbf{x}' / \partial \mathbf{x}$: local to the layer. For @eq-layer it is $\phi'(\mathbf{W}\mathbf{x} + \mathbf{b})$ times $\mathbf{W}$, and the weight gradient is the incoming gradient (after $\phi'$) times the layer input.
+
+**Why it holds.** It is the chain rule of calculus, applied once per layer. Going from the output backward means each layer multiplies a gradient *vector* by its local derivative, so no large Jacobian matrix is ever formed. That is why the backward pass costs about as much as the forward pass, however many parameters there are.
+
+### Worked example
+
+Take a network with one hidden ReLU unit: $\hat{y} = w_2\,\max(0, w_1 x + b_1) + b_2$ with $w_1 = 0.8$, $b_1 = -0.2$, $w_2 = 1.5$, $b_2 = 0.1$, one sample $x = 1.5$, $y = 1$, and loss $\ell = (\hat{y} - y)^2$.
+
+**Forward.** $z = 0.8 \cdot 1.5 - 0.2 =$ `{python} fmt(T_Z)`, $h = \max(0, z) =$ `{python} fmt(T_H)`, $\hat{y} = 1.5 h + 0.1 =$ `{python} fmt(T_YHAT)`, $\ell =$ `{python} fmt(T_LOSS)`.
+
+**Backward.**
+
+- $\partial\ell/\partial\hat{y} = 2(\hat{y} - y) =$ `{python} fmt(2 * (T_YHAT - 1))`. Since $\hat{y} = w_2 h + b_2$: $\partial\ell/\partial w_2 =$ `{python} fmt(2 * (T_YHAT - 1))` $\times h =$ `{python} fmt(T_BP["w2"])` and $\partial\ell/\partial b_2 =$ `{python} fmt(T_BP["b2"])`.
+- Into the hidden unit: $\partial\ell/\partial h =$ `{python} fmt(2 * (T_YHAT - 1))` $\times w_2 =$ `{python} fmt(2 * (T_YHAT - 1) * 1.5)`. The ReLU is in its active region ($z > 0$), so its slope is 1 and $\partial\ell/\partial z$ is the same.
+- Since $z = w_1 x + b_1$: $\partial\ell/\partial w_1 =$ `{python} fmt(2 * (T_YHAT - 1) * 1.5)` $\times x =$ `{python} fmt(T_BP["w1"])` and $\partial\ell/\partial b_1 =$ `{python} fmt(T_BP["b1"])`.
+
+```{python}
+#| output: asis
+print("| Parameter | Backpropagation | Finite difference |\n|---|---:|---:|")
+for name in ("w1", "b1", "w2", "b2"):
+    print(f"| ${name[0]}_{name[1]}$ | {fmt(T_BP[name], 6)} | {fmt(T_FD[name], 6)} |")
+print("\n: The hand-computed gradients agree with centered finite differences, (ℓ(θ + h) − ℓ(θ − h)) / 2h with h = 10⁻⁶. {#tbl-backprop}")
+```
+
+## Fitting a curve
+
+@fig-fit fits `{python} len(FX)` noisy samples of $f(x) = \sin(2x)\,e^{-x^2/4}$ with three networks of the same 1-16-16-1 shape, trained for 3,000 steps of Adam (a gradient method that scales each parameter's step by its recent gradient size). Only the activation differs.
+
+```{python}
+#| label: fig-fit
+#| fig-cap: "Left: three 1-16-16-1 networks fitted to 60 noisy samples (dots) of the gray target curve. Right: training loss (mean squared error) per step on a log scale; the dashed line is the noise variance, 0.0025."
+#| fig-alt: "Two charts. Left: a wavy gray target curve with dots scattered around it. The identity-activation network is a nearly flat straight line. The ReLU and tanh networks both follow the wave closely, the ReLU one with slight corners. Right: loss curves. The identity curve flattens near 0.2. The ReLU and tanh curves fall just below the dashed noise line within about 500 steps; the tanh curve has several brief spikes."
+fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(10, 3.8))
+ax1.plot(GRID, f(GRID), color=style.MUTED, lw=4, alpha=0.5, label="target f(x)")
+ax1.scatter(FX, FY, s=10, color=style.INK, zorder=3)
+colors = {"identity": orange, "relu": green, "tanh": blue}
+for act, (p, losses, err) in FITS.items():
+    ax1.plot(GRID, N.forward(p, GRID, act)[0], color=colors[act], lw=2, label=act)
+    ax2.semilogy(losses, color=colors[act], lw=2, label=act)
+ax2.axhline(0.05 ** 2, color=style.INK, ls="--", lw=1, label="noise variance")
+ax1.set_xlabel("x"); ax1.legend(fontsize=8)
+ax2.set_xlabel("training step"); ax2.set_ylabel("training loss"); ax2.legend(fontsize=8)
+plt.tight_layout()
+plt.show()
+```
+
+The test error on a fine grid, measured against the true $f$, is `{python} fmt(FITS["identity"][2], 3)` for the linear network, which can only draw a straight line, against `{python} fmt(FITS["relu"][2], 4)` for ReLU and `{python} fmt(FITS["tanh"][2], 4)` for tanh. Both nonlinear networks settle slightly below the noise variance of 0.0025; driving the training loss much lower would mean fitting the noise itself. The spikes in the tanh curve are Adam steps that overshoot; after step 500 the loss is back below the noise level within about 15 steps each time.
+
+## Regularization
+
+A large network fitted to few points can pass through every point, noise included, and swing wildly between them. **Weight regularization** adds a penalty on large weights to the training loss:
+
+::: {.key-equation data-name="L2-regularized loss"}
+$$
+\min_{\theta}\ \frac{1}{\lvert \mathcal{D} \rvert}\sum_{(x, y) \in \mathcal{D}} \big(f_\theta(x) - y\big)^2 + \beta \lVert \mathbf{W} \rVert_2^2
+$$ {#eq-l2}
+:::
+
+**In words.** Fit the data, but pay a price for every large weight.
+
+**Term by term.**
+
+- $\mathcal{D}$: the training data; $f_\theta$: the network with parameters $\theta$.
+- $\lVert \mathbf{W} \rVert_2^2$: the sum of all squared weights (the code leaves biases unpenalized).
+- $\beta \ge 0$: the strength. $\beta = 0$ is plain fitting; a large $\beta$ flattens the network toward a constant.
+
+**Why it holds.** The penalty's gradient, $2\beta\mathbf{W}$, pulls every weight toward zero at each step, so a weight survives only if the data keep pushing it. Small weights keep each $\tanh$ unit near its linear region, which gives smoother functions. In Bayesian terms it is a Gaussian prior on the weights ([Appendix B](b-probability-distributions.qmd)), and the minimizer is the most probable network given the data.
+
+```{python}
+#| label: fig-reg
+#| fig-cap: "A 1-64-64-1 tanh network fitted to 12 noisy points (dataset 1 of 8) with three regularization strengths β. The gray curve is the true function."
+#| fig-alt: "Three panels. With beta 0 the network passes through every point but plunges far below the target between x of minus 1 and 0, where there are no points. With beta 0.001 it follows the target closely, missing only part of the trough where there are no points. With beta 0.1 it is nearly flat and misses the wave."
+fig, axes = plt.subplots(1, 3, figsize=(10, 3), sharey=True)
+for ax, beta in zip(axes, BETAS):
+    X, Y, p = REG_EXAMPLE[beta]
+    ax.plot(GRID, f(GRID), color=style.MUTED, lw=4, alpha=0.5)
+    ax.plot(GRID, N.forward(p, GRID, "tanh")[0], color=blue, lw=2)
+    ax.scatter(X, Y, s=14, color=style.INK, zorder=3)
+    ax.set_title(rf"$\beta = {beta:g}$", fontsize=10); ax.set_xlabel("x")
+axes[0].set_ylim(-1.6, 1.6)
+plt.tight_layout()
+plt.show()
+```
+
+```{python}
+#| output: asis
+print("| β | Training error | Test error | Test error per dataset |\n|---|---:|---:|---|")
+for beta in BETAS:
+    tr, te = REG[beta].mean(axis=0)
+    print(f"| {beta:g} | {tr:.4f} | {te:.3f} | {', '.join(f'{v:.3f}' for v in REG[beta][:, 1])} |")
+print("\n: Mean squared errors averaged over 8 datasets of 12 points (noise variance 0.01). Training error excludes the penalty. {#tbl-reg}")
+```
+
+Without regularization the network drives its training error far below the noise variance of 0.01: it has memorized the noise. A small penalty, $\beta = 10^{-3}$, gives a lower test error on `{python} REG_WINS` of the 8 datasets; a large one, $\beta = 0.1$, underfits every dataset.
+
+## Other architectures
+
+**Convolutional networks.** Instead of connecting every input to every unit, a convolutional layer slides one small filter along the input, computing $y_i = \sum_j w_j\,x_{i+j}$ at each position. The same few weights are reused everywhere, so a pattern is detected wherever it appears. With the filter $(-1, 0, 1)$, the signal `{python} " ".join(str(int(v)) for v in SIG)` becomes `{python} " ".join(fmt(v, 0) for v in CONV)`: the filter responds $+1$ around the step up, $-1$ around the step down, and 0 on flat stretches. Stacks of such layers, learned from data, find edges, then shapes, then objects in images.
+
+**Recurrent networks.** A recurrent network reads a sequence one element at a time and carries a hidden state forward, $\mathbf{h}_t = \phi(\mathbf{W}\mathbf{h}_{t-1} + \mathbf{U}\mathbf{x}_t + \mathbf{b})$, with the same weights at every step. The hidden state is a learned summary of everything seen so far, which makes recurrent networks a natural way to turn a POMDP's action-observation history into something a policy can use, in place of an exact belief ([Chapter 19](../part4/ch19-beliefs.qmd)). Training unrolls the network over time and backpropagates through the unrolled chain; gradients that shrink or grow at each step make long memories hard to learn, which gated designs such as the LSTM (Hochreiter and Schmidhuber 1997) address.
+
+**Autoencoders.** An autoencoder is trained to reproduce its input through a narrow middle layer, the **code**. Because the input must pass through the bottleneck, the code has to capture what matters about it. @fig-autoencoder squeezes `{python} len(AX)` noisy points on three quarters of a circle through a single number. A linear autoencoder can only project onto a line (it recovers principal component analysis), with reconstruction error `{python} fmt(AE["identity"][1], 3)`. A 2-32-1-32-2 tanh network bends its code around the arc, with error `{python} fmt(AE["tanh"][1], 4)`, and its code is almost a monotone function of the angle (rank correlation `{python} fmt(abs(CODE_RANK_CORR), 3)`): it has discovered that the data are one-dimensional.
+
+```{python}
+#| label: fig-autoencoder
+#| fig-cap: "Left: 200 points near three quarters of a circle (gray) and their reconstructions through a one-number code, by a linear autoencoder (orange) and a tanh autoencoder (blue). Right: the tanh autoencoder's code against each point's angle."
+#| fig-alt: "Two charts. Left: gray points form an arc from angle 0 to 270 degrees. The orange reconstructions all lie on one straight line. The blue reconstructions lie along the arc. Right: the code value against angle from 0 to about 4.7 radians forms a single smooth curve that changes steadily with the angle."
+fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(9, 3.8))
+ax1.scatter(AX[:, 0], AX[:, 1], s=8, color=style.MUTED, alpha=0.6, label="data")
+for act, c, lab in (("identity", orange, "linear"), ("tanh", blue, "tanh")):
+    R = N.forward(AE[act][0], AX, act)[0]
+    ax1.scatter(R[:, 0], R[:, 1], s=6, color=c, label=lab)
+ax1.set_aspect("equal"); ax1.legend(fontsize=8, markerscale=2); ax1.set_xlabel("x1"); ax1.set_ylabel("x2")
+ax2.scatter(THETA, CODE, s=6, color=blue)
+ax2.set_xlabel("angle (radians)"); ax2.set_ylabel("code")
+plt.tight_layout()
+plt.show()
+```
+
+**Adversarial networks.** A generative adversarial network (Goodfellow et al. 2014) trains two networks against each other. A **generator** turns random noise into samples; a **discriminator** tries to tell those samples from real data. The generator improves by fooling the discriminator, and at the balance point its samples are indistinguishable from the data. [Chapter 18](../part3/ch18-imitation-learning.qmd)'s GAIL uses the same game with a policy as the generator: the discriminator tries to tell the policy's state-action pairs from an expert's, and the policy is rewarded for fooling it.
+
+**References.** G. Cybenko, "Approximation by superpositions of a sigmoidal function," *Mathematics of Control, Signals and Systems* 2, 1989. K. Hornik, "Approximation capabilities of multilayer feedforward networks," *Neural Networks* 4, 1991. S. Hochreiter and J. Schmidhuber, "Long short-term memory," *Neural Computation* 9, 1997. I. Goodfellow et al., "Generative adversarial nets," *NeurIPS*, 2014.
+
+## Code
+
+The forward pass caches each layer's input and pre-activation; the backward pass walks the layers in reverse, applying @eq-chain. [Chapter 8](../part2/ch08-approximate-value-functions.qmd)'s `NeuralNetValue` is the one-hidden-layer case of the same computation.
+
+::: {.panel-tabset group="lang"}
+## Python
+```{python}
+#| output: asis
+show_source(N.forward, N.backward, N.mse_loss)
+```
+## Julia
+```{.julia .snippet}
+using Random
+
+# Layers are (W, b) with W of size (d_out, d_in): Julia keeps one sample
+# per COLUMN, so a layer computes W * X .+ b (the transpose of the Python
+# layout, which is natural for Julia's column-major arrays).
+function forward(params, X)
+    A, cache = X, []
+    for (k, (W, b)) in enumerate(params)
+        Z = W * A .+ b
+        push!(cache, (A, Z))
+        A = k == length(params) ? Z : tanh.(Z)   # linear output layer
+    end
+    return A, cache
+end
+
+function mse_loss(params, X, Y)
+    Yhat, cache = forward(params, X)
+    n = size(X, 2)
+    dA = 2 .* (Yhat .- Y) ./ n
+    grads = Vector{Any}(undef, length(params))
+    for k in length(params):-1:1
+        A_prev, Z = cache[k]
+        dZ = k == length(params) ? dA : dA .* (1 .- tanh.(Z) .^ 2)
+        W = params[k][1]
+        # sum over the batch (dims = 2), then drop that axis
+        grads[k] = (dZ * A_prev', vec(sum(dZ; dims = 2)))
+        dA = W' * dZ
+    end
+    return sum(abs2, Yhat .- Y) / n, grads
+end
+
+function demo()
+    rng = MersenneTwister(0)
+    f(x) = sin(2x) * exp(-x^2 / 4)
+    X = 6 .* rand(rng, 1, 60) .- 3              # 1 × 60: one sample per column
+    Y = f.(X)
+    params = [(randn(rng, 16, 1), zeros(16)), (randn(rng, 16, 16) ./ 4, zeros(16)),
+              (randn(rng, 1, 16) ./ 4, zeros(1))]
+    # Finite-difference check of one weight
+    loss0, grads = mse_loss(params, X, Y)
+    h = 1e-6
+    params[2][1][3, 5] += h; up = mse_loss(params, X, Y)[1]
+    params[2][1][3, 5] -= 2h; down = mse_loss(params, X, Y)[1]
+    params[2][1][3, 5] += h
+    @assert isapprox((up - down) / 2h, grads[2][1][3, 5]; atol = 1e-6)
+    # Plain gradient descent (Python's train() uses Adam)
+    for _ in 1:3000
+        _, grads = mse_loss(params, X, Y)
+        for ((W, b), (dW, db)) in zip(params, grads)
+            W .-= 0.05 .* dW; b .-= 0.05 .* db
+        end
+    end
+    loss = mse_loss(params, X, Y)[1]
+    println("loss ", round(loss0; digits = 4), " -> ", round(loss; digits = 4))
+    @assert loss < loss0 / 5
+end
+demo()
+```
 :::

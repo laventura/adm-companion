@@ -1,7 +1,495 @@
 ---
 title: "1 · Introduction"
+subtitle: "Decision making under uncertainty"
+jupyter: python3
+execute:
+  echo: false
 ---
 
 ::: {.callout-note appearance="minimal"}
-**In progress.** This page will cover ADM Ch. 1, *Introduction*.
+**Executed in:** Python · **Book:** ADM Ch. 1 · **Lecture:** to be added
 :::
+<!-- TODO(video): link the official Stanford AA228 introductory lecture. -->
+
+```{python}
+#| include: false
+import numpy as np
+import matplotlib.pyplot as plt
+from matplotlib.patches import RegularPolygon
+
+from adm import imitation as im
+from adm import intro
+from adm import model_free as mf
+from adm import style
+from adm.io import write_json
+from adm.mdp import policy_iteration
+from adm.page import show_source
+from adm.problems.hex_world import (DIRECTIONS, STANDARD_REWARDS, STANDARD_TILES, hex_mdp,
+                                    hex_world)
+
+style.apply()
+blue, orange, green, yellow, pink, dkgreen, purple, red = style.CATEGORICAL
+fmt = lambda x, d=2: f"{x:.{d}f}".replace("-", "−")
+
+HW = hex_world()
+T, R, G = HW.T, HW.R, HW.gamma
+N = len(R)
+TERM = N - 1
+START = [i for i, t in enumerate(STANDARD_TILES) if t not in STANDARD_REWARDS]
+B0 = np.zeros(N)
+B0[START] = 1 / len(START)                           # start on any ordinary tile
+value = lambda p: im.policy_value(T, R, G, np.eye(6)[p] if np.ndim(p) == 1 else p, B0)
+
+# --- Five ways to build a decision maker ------------------------------------------------------------
+PLAN, U_PLAN, _ = policy_iteration(T, R, G, np.zeros(N, int))            # planning (Ch 7)
+V_PLAN = value(PLAN)
+RULE10 = intro.head_for(STANDARD_TILES, (2, 9))                           # explicit programming
+RULE5 = intro.head_for(STANDARD_TILES, (1, 0))
+V_RULE10, V_RULE5 = value(RULE10), value(RULE5)
+RULE_DIFF = int((RULE10[:-1] != PLAN[:-1]).sum())
+
+def clone(m, seed):                                                       # supervised learning (Ch 18)
+    rng = np.random.default_rng(seed)
+    demos = im.rollouts(T, np.eye(6)[PLAN], B0, m, 30, rng, end=TERM)
+    pairs = [p for d in demos for p in d]
+    return im.behavioral_cloning(pairs, N, 6), len(pairs)
+BC = {m: [clone(m, s) for s in range(20)] for m in (2, 5, 20)}
+BC_V = {m: np.array([value(p) for p, _ in BC[m]]) for m in BC}
+BC_PAIRS = {m: np.mean([k for _, k in BC[m]]) for m in BC}
+
+LS = [intro.local_search(HW, B0, np.random.default_rng(s), proposals=300) for s in range(5)]  # optimization
+LS_V = np.array([value(p) for p, _ in LS])
+LS_STEPS = 300 * 100 * 40                                                  # proposals x episodes x steps
+
+def q_learn(steps, seed):                                                  # reinforcement learning (Ch 17)
+    rng = np.random.default_rng(seed)
+    L = mf.QLearning(N, 6, G, 0.1)
+    reset = lambda s2, rng: rng.choice(N, p=B0) if s2 == TERM else None
+    mf.run_tabular(HW, L, steps, rng.choice(N, p=B0), rng, epsilon=0.1, reset=reset)
+    return L.Q.argmax(axis=1)
+QL = {k: [q_learn(k, s) for s in range(5)] for k in (5000, 20000, 50000)}
+QL_V = {k: np.array([value(p) for p in QL[k]]) for k in QL}
+
+# --- Outcome uncertainty: how reliable are moves? -----------------------------------------------------
+PS = np.round(np.arange(0.40, 1.001, 0.05), 2)
+SWEEP = {}
+for p in PS:
+    Hp = hex_mdp(STANDARD_TILES, STANDARD_REWARDS, p_intended=p)
+    pol, U, _ = policy_iteration(Hp.T, Hp.R, Hp.gamma, np.zeros(N, int))
+    SWEEP[float(p)] = (pol, U, float(B0 @ U), int((pol[START] != PLAN[START]).sum()))
+assert np.isclose(SWEEP[0.7][2], V_PLAN)
+```
+
+## Big picture
+
+### Where this chapter fits
+
+This is the starting point of the book and of this site. It frames the whole subject: an **agent** repeatedly observes its environment and acts, and it must choose well despite several kinds of **uncertainty**. The rest of the book is organized around those kinds of uncertainty, one Part each. This page is also a map: each idea below points to the chapter that develops it.
+
+**The question:** what does it mean to make good decisions when the world is uncertain, and what are the ways to build a system that does?
+
+The short answer: **choose actions that maximize expected utility over time, given everything observed so far; build such systems by programming, learning from examples, optimizing in simulation, planning with a model, or learning from experience.**
+
+```{dot}
+//| label: fig-loop
+//| fig-width: 5.52
+//| fig-height: 1.12
+//| fig-cap: "The observe–act loop. At each step the agent receives an observation of its environment and chooses an action, which changes the environment."
+//| fig-alt: "Diagram. Two boxes side by side: Environment and Agent. An arrow from Environment to Agent is labeled observation o_t; an arrow from Agent back to Environment is labeled action a_t."
+digraph loop {
+  rankdir=LR; bgcolor="#fcfcfb"; pad=0.25; nodesep=0.6; ranksep=1.4;
+  node [shape=box, style="rounded,filled", fillcolor="white", color="#c3c2b7", penwidth=1.2,
+        fontname="Helvetica", fontsize=13, fontcolor="#0b0b0b", margin="0.2,0.1"];
+  edge [color="#52514e", penwidth=1.2, arrowsize=0.7, fontname="Helvetica", fontsize=11, fontcolor="#52514e"];
+  env [label=<<B>Environment</B><BR/><FONT POINT-SIZE="11">state, other agents</FONT>>, fillcolor="#f0efec"];
+  agent [label=<<B>Agent</B><BR/><FONT POINT-SIZE="11">policy</FONT>>, fillcolor="#cde2fb", color="#2a78d6"];
+  env -> agent [label="observation oₜ"];
+  agent -> env [label="action aₜ"];
+}
+```
+
+### The key ideas at a glance
+
+1. **The observe–act loop.** An agent (a person, a robot, or software) receives an observation $o_t$, chooses an action $a_t$, and the environment responds. Observations can be noisy or incomplete, and actions can have uncertain effects. A **policy** says what to do given what has been observed.
+
+2. **Four sources of uncertainty.** *Outcome* uncertainty: actions have random effects. *Model* uncertainty: we don't know the rules of the environment exactly. *State* uncertainty: we can't see the state directly. *Interaction* uncertainty: other agents are choosing too. The book's Parts II–V each add one of these; Part I sets up the probability and utility needed to reason about any of them.
+
+3. **Maximize expected utility.** A rational agent chooses the action with the highest expected utility, averaging over what it is uncertain about (Chapter 6). Over time, that becomes maximizing expected discounted reward (Chapter 7).
+
+4. **Five ways to build a decision maker.** Write the rules by hand; learn from an expert's examples; search over policies in simulation; plan with a model; or learn by trial and error. They differ in what the designer must supply: rules, examples, a simulator, a model, or only a reward.
+
+5. **Many fields contributed.** Probability and statistics, economics (utility, games), psychology (reinforcement), neuroscience (neural networks), computer science, control engineering and operations research all built parts of the toolkit.
+
+### Vocabulary
+
+| Term | Plain meaning |
+|:---|:---|
+| Agent | Anything that observes and acts: a person, a robot, a program |
+| Observation $o_t$ | What the agent perceives at time $t$; possibly noisy or partial |
+| Action $a_t$ | What the agent does at time $t$ |
+| Policy $\pi$ | A rule for choosing actions from what has been observed |
+| Reward, utility | A number saying how good an outcome is |
+| Discount factor $\gamma$ | How much less a reward counts for each step it is delayed |
+| Model | A description of how the environment responds to actions |
+
+: Terms used on this page. {#tbl-vocab}
+
+### After this chapter you can
+
+- Describe a decision problem as an observe–act loop, and name its sources of uncertainty.
+- Say which Part of the book, and which chapters of this site, address each source.
+- Compare the five ways to design a decision maker, and what each requires.
+- Compute a discounted return and a maximum-expected-utility decision by hand.
+
+## Intuition
+
+::: {.callout-tip title="Analogy"}
+Learning to cook a new dish. You could follow a recipe exactly (explicit programming), copy what a friend does (learning from examples), try variations and keep what tastes better (optimization), reason from how ingredients behave (planning with a model), or cook it many times and learn from each result (reinforcement learning). The oven may run hot (outcome uncertainty), you don't fully know the recipe's quirks (model uncertainty), you can't see inside the cake (state uncertainty), and someone else keeps adjusting the heat (interaction uncertainty).
+:::
+
+We'll use **Hex World** throughout this page (Appendix F.1; [problem gallery](../appendices/f-problems.qmd#hex-world)): an agent moves across 24 hexagonal tiles, and each move goes the intended way only 70% of the time, veering to a neighboring direction otherwise. Three tiles end the episode with a reward: +10, +5 or −10. Bumping into the edge costs 1. We score every policy by its expected discounted reward ($\gamma = 0.9$) from a random ordinary tile.
+
+### Five designers, one problem
+
+The five approaches, each implemented with this site's code from later chapters:
+
+- **Explicit programming**: a hand-written rule "always head for the +10 tile" earns `{python} fmt(V_RULE10)`.
+- **Learning from examples** (behavioral cloning, Chapter 18): copying 5 expert demonstrations earns `{python} fmt(BC_V[5].mean())` on average; 20 demonstrations, `{python} fmt(BC_V[20].mean())`.
+- **Optimization** (Chapter 10): trying random changes to a policy in a simulator, and keeping what helps, earns between `{python} fmt(LS_V.min())` and `{python} fmt(LS_V.max())`.
+- **Planning** (Chapter 7): computing the best policy from the model earns `{python} fmt(V_PLAN)`, the optimum.
+- **Reinforcement learning** (Chapter 17): Q-learning by trial and error earns between `{python} fmt(QL_V[50000].min())` and `{python} fmt(QL_V[50000].max())` after 50,000 steps.
+
+The less the designer knows, the more data the method needs, and planning is only possible with a model. See @fig-five.
+
+### Uncertainty changes the right answer
+
+If moves always went the intended way, the best policy would be worth `{python} fmt(SWEEP[1.0][2])`; at 70% reliability, `{python} fmt(SWEEP[0.7][2])`; at 40%, `{python} fmt(SWEEP[0.4][2])`. The best *action* changes too: at 40% reliability, `{python} SWEEP[0.4][3]` of the 21 ordinary tiles choose differently than at 70%. Accounting for uncertainty isn't a correction to a deterministic plan; it changes the plan. See the [interactive](#uncertainty-dial).
+
+## Formalism
+
+### The decision problem
+
+At each step $t$, the agent has seen $o_1, \dots, o_t$ and chooses $a_t$. A policy $\pi$ maps what has been seen to an action. Its quality is the expected discounted sum of rewards it collects, and the goal is the best policy:
+
+::: {.key-equation data-name="Expected discounted return"}
+$$
+\pi^* = \arg\max_\pi\ \mathbb{E}\Big[\sum_{t=1}^{\infty} \gamma^{t-1} r_t \ \Big|\ \pi\Big]
+$$ {#eq-return}
+:::
+
+**In words.** Pick the way of acting that collects the most reward on average, counting rewards less the later they come.
+
+**Term by term.**
+
+- $r_t$: the reward received at step $t$, which depends on the state and the action.
+- $\gamma \in [0, 1)$: the discount factor; a reward $k$ steps away counts $\gamma^k$ as much. With $\gamma = 0.9$, a reward 10 steps away counts about a third.
+- $\mathbb{E}[\cdot \mid \pi]$: the average over every source of randomness (outcomes, observations, other agents) when acting by $\pi$.
+
+**Why it holds.** It's a definition, not a theorem, but a well-motivated one: the discounted sum is finite whenever rewards are bounded, and discounting captures both impatience and the risk that the process ends. Parts II–V are about computing or approximating $\pi^*$ under different uncertainties.
+
+### Maximum expected utility
+
+For a single decision, the principle is (developed in Chapter 6):
+
+::: {.key-equation .famous data-name="Maximum expected utility"}
+$$
+a^* = \arg\max_a \sum_{s'} P(s' \mid a, o)\, U(s')
+$$ {#eq-meu}
+:::
+
+**In words.** Choose the action whose possible outcomes, weighted by their probabilities, are best on average.
+
+**Term by term.**
+
+- $P(s' \mid a, o)$: the probability that action $a$ leads to outcome $s'$, given observation $o$ (Chapters 2–3 compute such probabilities).
+- $U(s')$: the utility, how much the agent values outcome $s'$ (Chapter 6).
+- The sum is the **expected utility** of $a$; the best action maximizes it.
+
+**Why it holds.** Utility theory (J. von Neumann and O. Morgenstern, *Theory of Games and Economic Behavior*, 1944) shows that if an agent's preferences between uncertain outcomes satisfy a few consistency axioms, they can be described by a utility function, and the agent prefers exactly the options with higher expected utility. Over time, @eq-return is this principle applied to whole sequences of decisions.
+
+### Sources of uncertainty, and where they are covered
+
+| Source | What is uncertain | Part | Chapters on this site |
+|---|---|---|---|
+| Probability and utility | (the foundations) | I | [2](../part1/ch02-representation.qmd)–[6](../part1/ch06-simple-decisions.qmd) |
+| Outcome | the effects of actions | II | [7](../part2/ch07-exact-solution-methods.qmd)–[14](../part2/ch14-policy-validation.qmd) |
+| Model | how the environment works | III | [15](../part3/ch15-exploration-and-exploitation.qmd)–[18](../part3/ch18-imitation-learning.qmd) |
+| State | the current state itself | IV | [19](../part4/ch19-beliefs.qmd)–[23](../part4/ch23-controller-abstractions.qmd) |
+| Interaction | what other agents will do | V | [24](../part5/ch24-multiagent-reasoning.qmd)–[27](../part5/ch27-collaborative-agents.qmd) |
+
+: The book's structure (ADM §1.6). {#tbl-parts}
+
+### Five ways to design a decision maker
+
+| Approach | The designer supplies | On this page | Developed in |
+|---|---|---|---|
+| Explicit programming | the rules themselves | "head for +10" | — |
+| Supervised learning | examples of good decisions | behavioral cloning | [Ch 18](../part3/ch18-imitation-learning.qmd) |
+| Optimization | a policy space and a simulator | local search | [Ch 10](../part2/ch10-policy-search.qmd) |
+| Planning | a model of the environment | policy iteration | [Ch 7](../part2/ch07-exact-solution-methods.qmd), [9](../part2/ch09-online-planning.qmd), [20](../part4/ch20-exact-belief-state-planning.qmd) |
+| Reinforcement learning | only a reward signal and interaction | Q-learning | [Ch 15](../part3/ch15-exploration-and-exploitation.qmd)–[17](../part3/ch17-model-free-methods.qmd) |
+
+: Approaches to building decision makers (ADM §1.3). {#tbl-methods}
+
+## Worked example
+
+### A discounted return
+
+A hex-world agent bumps into the edge once (−1), takes two ordinary steps (0 each), then steps onto the +10 tile. With $\gamma = 0.9$ and the reward counted when it acts on that tile at step 4:
+
+$$
+-1 + 0.9 \times 0 + 0.9^2 \times 0 + 0.9^3 \times 10 = -1 + 7.29 = 6.29
+$$
+
+Had it reached the +10 tile two steps later, the same reward would count $0.9^5 \times 10 = 5.90$. Discounting is what makes the agent prefer short routes.
+
+### A maximum-expected-utility choice
+
+The agent is on a tile with the −10 tile to the east and a safe ordinary tile to the west. A move goes the intended way with probability 0.7 and veers to each neighboring direction with probability 0.15. Heading east lands on the −10 tile with probability 0.7. Heading west lands there only if the move veers twice around, which can't happen in one step: probability 0. If the ordinary tiles are worth about 4 and the −10 tile is worth −10:
+
+- east: $0.7 \times (-10) + 0.3 \times 4 = -5.8$;
+- west: $1.0 \times 4 = 4$.
+
+Maximum expected utility picks west. With these numbers, even a 10% chance of the −10 tile would cost 1.4 in expected utility, so good policies weigh even small risks of landing there; the uncertainty dial below shows how the best actions shift as the risk of veering changes.
+
+```{python}
+#| output: asis
+print(f"In Hex World itself, the best policy's values range from {fmt(U_PLAN[START].min())} to "
+      f"{fmt(U_PLAN[START].max())} over the ordinary tiles; the rule \"head for +10\" chooses differently "
+      f"on {RULE_DIFF} of them.")
+```
+
+## Interactive
+
+### The uncertainty dial {#uncertainty-dial}
+
+Slide the probability that a move goes the intended way. The map shows the optimal policy (arrows) and each tile's value (color: blue good, red bad). Watch which tiles change their action as moves get less reliable.
+
+```{python}
+#| include: false
+centers = [[c + 0.5 * (r % 2), -r * np.sqrt(3) / 2] for r, c in STANDARD_TILES]
+reward = [STANDARD_REWARDS.get(t) for t in STANDARD_TILES]
+write_json({"centers": centers, "reward": reward, "directions": list(DIRECTIONS),
+            "sweep": {f"{p:.2f}": {"policy": [int(a) for a in v[0][:-1]], "values": [round(float(u), 3) for u in v[1][:-1]],
+                                   "value": round(v[2], 3), "changed": v[3]} for p, v in SWEEP.items()},
+            "base": [int(a) for a in PLAN[:-1]]},
+           "data/ch01-dial.json")
+```
+
+```{ojs}
+dialData = FileAttachment("data/ch01-dial.json").json()
+viewof dialP = Inputs.range([0.4, 1.0], {step: 0.05, value: 0.7, label: "P(move goes as intended)"})
+```
+
+```{ojs}
+dialNow = dialData.sweep[dialP.toFixed(2)]
+md`Expected discounted reward from a random ordinary tile: **${dialNow.value.toFixed(2)}**. Tiles whose best action differs from the 70% case: **${dialNow.changed}** (outlined).`
+```
+
+```{ojs}
+//| label: fig-dial
+//| fig-cap: "Hex World's optimal policy (arrows) and values (color) for the chosen move reliability. Reward tiles show their reward; tiles outlined in orange choose a different action than at 70% reliability."
+//| fig-alt: "Interactive hex map of 24 tiles in three rows. Reward tiles show +5, −10 and +10. Every other tile shows an arrow for its best direction and is colored from red (low value) to blue (high value). Moving the slider changes the colors and some arrows; changed tiles are outlined in orange."
+{
+  const S = 52, pad = 34, r = S * 0.58;
+  const X = k => pad + dialData.centers[k][0] * S, Y = k => pad + 10 - dialData.centers[k][1] * S;
+  const hex = k => d3.range(6).map(j => [X(k) + r * Math.cos(Math.PI / 6 + j * Math.PI / 3),
+                                         Y(k) + r * Math.sin(Math.PI / 6 + j * Math.PI / 3)].join(",")).join(" ");
+  const color = d3.scaleDiverging([-10, 0, 10], t => d3.interpolateRdBu(t));
+  const ang = [0, 60, 120, 180, 240, 300].map(d => d * Math.PI / 180);
+  const cells = dialData.centers.map((_, k) => {
+    const rw = dialData.reward[k], u = rw === null ? dialNow.values[k] : rw;
+    const changed = rw === null && dialNow.policy[k] !== dialData.base[k];
+    const a = ang[dialNow.policy[k]], dx = 0.3 * S * Math.cos(a), dy = -0.3 * S * Math.sin(a);
+    const mark = rw === null
+      ? svg`<line x1="${X(k) - dx}" y1="${Y(k) - dy}" x2="${X(k) + dx}" y2="${Y(k) + dy}" stroke="#0b0b0b" stroke-width="2" marker-end="url(#tip)"/>`
+      : svg`<text x="${X(k)}" y="${Y(k) + 4}" text-anchor="middle" font-size="12" font-weight="bold" font-family="Helvetica">${rw > 0 ? "+" : ""}${rw}</text>`;
+    return svg`<g><polygon points="${hex(k)}" fill="${color(u)}" stroke="${changed ? "#eb6834" : "#fcfcfb"}" stroke-width="${changed ? 4 : 2}"/>${mark}</g>`;
+  });
+  return svg`<svg width="${2 * pad + 10.5 * S}" height="${2 * pad + 2.4 * S}" style="background:#fcfcfb">
+    <defs><marker id="tip" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#0b0b0b"/></marker></defs>${cells}</svg>`;
+}
+```
+
+## Algorithms & code
+
+### The explicit rule and the local search
+
+The other three approaches use code shown on their own chapters' pages (linked in @tbl-methods).
+
+::: {.panel-tabset group="lang"}
+## Python
+```{python}
+#| output: asis
+show_source(intro.head_for, intro.simulated_return, intro.local_search)
+```
+## Julia
+```{.julia .snippet}
+using ADM, LinearAlgebra
+
+p = hex_world()                     # Hex World (Appendix F.1); T[s, a, s′], R[s, a]
+n = size(p.T, 1)
+
+# Planning: value iteration on the model (Ch 7).
+function plan(p; iters = 1000)
+    U = zeros(size(p.T, 1))
+    for _ in 1:iters
+        U = [maximum(p.R[s, a] + p.γ * (p.T[s, a, :] ⋅ U) for a in 1:6) for s in axes(p.T, 1)]
+    end
+    return U, [argmax([p.R[s, a] + p.γ * (p.T[s, a, :] ⋅ U) for a in 1:6]) for s in axes(p.T, 1)]
+end
+U, policy = plan(p)
+
+# Score a deterministic policy from a uniform start over the ordinary tiles.
+start = [i for i in 1:n-1 if !all(p.T[i, :, n] .== 1)]   # tiles that don't end the episode
+b = zeros(n); b[start] .= 1 / length(start)
+function score(p, policy, b)
+    Tπ = [p.T[s, policy[s], t] for s in 1:n, t in 1:n]
+    Rπ = [p.R[s, policy[s]] for s in 1:n]
+    return b ⋅ ((I - p.γ * Tπ) \ Rπ)
+end
+println("planning: ", round(score(p, policy, b); digits = 3))
+@assert isapprox(score(p, policy, b), 4.526; atol = 1e-3)
+```
+:::
+
+::: {.callout-note collapse="true" title="Reading the Python code"}
+- **`head_for`** uses `hex_steps`, a breadth-first search that counts the fewest moves from every tile to the target, and picks the direction whose neighbor is closest. It knows the map and the goal, but nothing about veering or about the −10 tile.
+- **`simulated_return`** creates its random generator from a fixed seed each time, so two policies are scored on the same random draws. Differences between them then reflect the policies, not the luck of the draws.
+- **`local_search`** is a simple hill climber: it only ever looks at simulated returns, never at `T` or `R`.
+:::
+
+### Run them
+
+```{python}
+#| echo: true
+game = hex_world()
+rule = intro.head_for(STANDARD_TILES, (2, 9))               # head for the +10 tile
+policy, U, _ = policy_iteration(game.T, game.R, game.gamma, np.zeros(len(game.R), int))
+print("rule:", round(value(rule), 3), " planning:", round(value(policy), 3))
+```
+
+### Results
+
+#### Five ways to build a Hex World agent
+
+```{python}
+#| label: fig-five
+#| fig-cap: "Hex World: the expected discounted reward (from a random ordinary tile) of policies built five ways. Dots are individual runs (20 for behavioral cloning, 5 for local search and Q-learning); bars are averages. The dashed line is the optimum."
+#| fig-alt: "Bar chart with seven bars. Head for +10 about 2.8 and head for +5 about 1.7. Behavioral cloning with 2, 5 and 20 demonstrations averages about 0.2, 1.6 and 4.0, with widely scattered dots for 2 and 5. Local search averages about 4.0. Q-learning with 5,000, 20,000 and 50,000 steps averages about 3.9, 4.3 and 4.4. Planning reaches the dashed optimum line at about 4.5."
+fig, ax = plt.subplots(figsize=(9.5, 3.8))
+groups = [("head for +10\n(rule)", [V_RULE10], "#9c9b95"), ("head for +5\n(rule)", [V_RULE5], "#9c9b95"),
+          ("clone 2\ndemos", BC_V[2], green), ("clone 5\ndemos", BC_V[5], green), ("clone 20\ndemos", BC_V[20], green),
+          ("local search\n(simulator)", LS_V, yellow),
+          ("Q-learning\n5,000 steps", QL_V[5000], pink), ("Q-learning\n20,000", QL_V[20000], pink),
+          ("Q-learning\n50,000", QL_V[50000], pink), ("planning\n(model)", [V_PLAN], blue)]
+jit = np.random.default_rng(0)
+for k, (lab, vals, c) in enumerate(groups):
+    ax.bar(k, np.mean(vals), color=c, alpha=0.55, width=0.7)
+    if len(vals) > 1:
+        ax.scatter(k + jit.uniform(-0.2, 0.2, len(vals)), vals, color=c, s=12, zorder=3, edgecolor=style.INK, linewidth=0.3)
+ax.axhline(V_PLAN, color=style.INK, ls="--", lw=1)
+ax.set_xticks(range(len(groups)), [g[0] for g in groups], fontsize=8)
+ax.set_ylabel("expected discounted reward")
+plt.tight_layout()
+plt.show()
+```
+
+- **The rule is easy to write and mediocre.** "Head for +10" ignores veering and the +5 tile, and chooses differently from the optimal policy on `{python} RULE_DIFF` of 21 ordinary tiles, for `{python} fmt(V_RULE10)` against `{python} fmt(V_PLAN)`.
+- **Copying needs enough examples.** Tiles no demonstration visited get a random action. With 5 demonstrations (about `{python} fmt(BC_PAIRS[5], 0)` state–action pairs) the clones varied from `{python} fmt(BC_V[5].min())` to `{python} fmt(BC_V[5].max())`; with 20, from `{python} fmt(BC_V[20].min())` to `{python} fmt(BC_V[20].max())`.
+- **Optimization in simulation works, at a cost.** Each local search used `{python} f"{LS_STEPS:,}"` simulated steps to reach `{python} fmt(LS_V.mean())` on average.
+- **Reinforcement learning needs no model, but needs experience.** Q-learning's policies averaged `{python} fmt(QL_V[5000].mean())` after 5,000 steps and `{python} fmt(QL_V[50000].mean())` after 50,000.
+- **Planning is the most efficient, when a model exists.** Policy iteration found the optimum, `{python} fmt(V_PLAN)`, with no simulation at all.
+
+#### A short history
+
+| Year | Contribution | Where it matters on this site |
+|---|---|---|
+| 1738 | D. Bernoulli: the utility of money grows less than proportionally (the St. Petersburg paradox) | [Ch 6](../part1/ch06-simple-decisions.qmd) |
+| 1763 | T. Bayes (published posthumously): inverse probability, Bayes' rule | [Ch 2](../part1/ch02-representation.qmd)–[4](../part1/ch04-parameter-learning.qmd), [19](../part4/ch19-beliefs.qmd) |
+| 1944 | J. von Neumann and O. Morgenstern: expected utility and game theory | [Ch 6](../part1/ch06-simple-decisions.qmd), [24](../part5/ch24-multiagent-reasoning.qmd) |
+| 1949 | N. Metropolis and S. Ulam: the Monte Carlo method | [Ch 3](../part1/ch03-inference.qmd), [9](../part2/ch09-online-planning.qmd), [14](../part2/ch14-policy-validation.qmd) |
+| 1951 | J. Nash: equilibria in games | [Ch 24](../part5/ch24-multiagent-reasoning.qmd)–[26](../part5/ch26-state-uncertainty.qmd) |
+| 1953 | L. S. Shapley: stochastic (Markov) games | [Ch 25](../part5/ch25-sequential-problems.qmd) |
+| 1957 | R. Bellman: dynamic programming and the Bellman equation | [Ch 7](../part2/ch07-exact-solution-methods.qmd) |
+| 1960 | R. A. Howard: policy iteration; R. E. Kalman: the Kalman filter | [Ch 7](../part2/ch07-exact-solution-methods.qmd), [19](../part4/ch19-beliefs.qmd) |
+| 1965 | K. J. Åström: control with incomplete state information (POMDPs) | [Ch 19](../part4/ch19-beliefs.qmd)–[23](../part4/ch23-controller-abstractions.qmd) |
+| 1988 | J. Pearl: Bayesian networks for probabilistic reasoning | [Ch 2](../part1/ch02-representation.qmd)–[5](../part1/ch05-structure-learning.qmd) |
+| 1989 | C. J. C. H. Watkins: Q-learning | [Ch 17](../part3/ch17-model-free-methods.qmd) |
+
+: A few milestones (one line each; see ADM §1.4 for the wider story across economics, psychology, neuroscience, computer science, engineering, mathematics and operations research). {#tbl-history}
+
+#### Applications and impact
+
+The same framework covers very different problems (ADM §1.2): aircraft collision avoidance, where alerts must come early enough to act but not so early that pilots maneuver needlessly (this site's [Chapter 14](../part2/ch14-policy-validation.qmd) validates such a system); automated driving, with noisy sensors and unpredictable road users; medical screening schedules that trade detection against false alarms; saving and investing over a lifetime; teams of drones watching a wildfire; and planetary rovers that must act without waiting for Earth.
+
+Decision-making algorithms bring real benefits, in medicine, infrastructure, energy and conservation among others. They also carry risks (ADM §1.5): an optimizer serves whatever objective it is given, data-driven methods inherit the biases of their data, and systems can be manipulated by adversaries. The validation methods of Chapter 14, and care in choosing the objective, are part of building them responsibly.
+
+## Solved problems
+
+**Problem 1: name the uncertainty.** Which source of uncertainty (outcome, model, state or interaction) dominates each situation? (a) A delivery drone is pushed off course by gusts. (b) A car's camera can't see a pedestrian behind a parked truck. (c) A trading algorithm faces other trading algorithms. (d) A new battery's discharge curve hasn't been measured.
+
+::: {.callout-tip collapse="true" title="Solution"}
+(a) Outcome: the effect of the chosen action is random. (b) State: the world's current state is hidden. (c) Interaction: other agents choose too. (d) Model: the rules governing the system are unknown until learned. Real problems usually mix several; the book's Parts add them one at a time.
+:::
+
+**Problem 2: discounting.** With $\gamma = 0.9$, what is a reward of 1 every step forever worth? And a single reward of 10, received 7 steps from now (at step 8)?
+
+::: {.callout-tip collapse="true" title="Solution"}
+$\sum_{t=1}^{\infty} 0.9^{t-1} = 1/(1 - 0.9) = 10$. The delayed reward: $0.9^7 \times 10 \approx 4.78$. Waiting 7 steps costs more than half its value.
+:::
+
+**Problem 3: maximum expected utility.** A hiker can take a short trail (arrives in 1 hour with probability 0.8; gets lost for 5 hours with probability 0.2) or a long trail (always 2 hours). Utility is minus the hours. Which does maximum expected utility choose? What if getting lost took 6 hours?
+
+::: {.callout-tip collapse="true" title="Solution"}
+Short: $0.8(-1) + 0.2(-5) = -1.8$; long: $-2$. Short wins, barely. With 6 hours: $0.8(-1) + 0.2(-6) = -2.0$, a tie. Maximum expected utility weighs how likely each outcome is *and* how bad it is.
+:::
+
+**Problem 4: pick an approach.** For each case, which approach from @tbl-methods is most natural? (a) An accurate simulator exists, but no model you can write down. (b) An expert has logged thousands of decisions. (c) The dynamics are known exactly and the problem is small. (d) The system can be tried safely many times, but nothing is known about it.
+
+::: {.callout-tip collapse="true" title="Solution"}
+(a) Optimization (policy search) or reinforcement learning in the simulator. (b) Supervised learning (imitation), perhaps refined later. (c) Planning: exact methods such as value or policy iteration. (d) Reinforcement learning. On Hex World above, these gave very different results for the same amount of designer effort.
+:::
+
+**Problem 5: why does "head for +10" lose?** Using the page's numbers, explain why a rule that heads for the best reward does worse than the optimal policy.
+
+::: {.callout-tip collapse="true" title="Solution"}
+The rule ignores two things the optimal policy weighs. Some tiles are much closer to the +5 tile than to the +10 tile, and with discounting a nearby +5 can be worth more than a distant +10. And moves veer 30% of the time, so paths that pass next to the −10 tile risk falling in. The optimal policy (worth `{python} fmt(V_PLAN)`) trades these off tile by tile; the rule (`{python} fmt(V_RULE10)`) doesn't, and differs on `{python} RULE_DIFF` tiles.
+:::
+
+## Recap
+
+1. **Decision making is an observe–act loop under uncertainty (@fig-loop).**
+   *Why it matters:* every chapter of the book is a way of choosing actions in this loop.
+2. **There are four sources of uncertainty: outcome, model, state and interaction (@tbl-parts).**
+   *Why it matters:* they organize the book; Parts II–V add them one at a time, on the foundations of Part I.
+3. **Rational choice means maximizing expected utility, and over time, expected discounted reward (@eq-meu, @eq-return).**
+   *Why it matters:* this single principle underlies decision networks, MDPs, POMDPs and games alike.
+4. **There are five broad ways to build a decision maker (@tbl-methods).**
+   *Why it matters:* they trade designer knowledge for data; on Hex World, planning with a model was optimal at once, while learning without one needed tens of thousands of steps.
+5. **Uncertainty changes the best action, not just its value (@fig-dial).**
+   *Why it matters:* a plan made as if the world were deterministic can be wrong, which is why the book models uncertainty explicitly.
+
+## Cheat sheet & connections
+
+| Name | Formula | Ref |
+|---|---|---|
+| Discounted return | $\sum_{t=1}^{\infty} \gamma^{t-1} r_t$ | @eq-return |
+| ★ Maximum expected utility | $a^* = \arg\max_a \sum_{s'} P(s' \mid a, o)\, U(s')$ | @eq-meu |
+| Constant reward $r$ forever | $r / (1 - \gamma)$ | Problem 2 |
+
+: Key equations from this page (★ = well-known by name). {#tbl-cheatsheet}
+
+**Common pitfalls**
+
+- **Planning as if the world were deterministic.** Uncertainty changes which action is best.
+- **Confusing the kinds of uncertainty.** A noisy sensor (state) calls for different tools than an unknown model (model) or an adversary (interaction).
+- **Choosing the method before the problem.** The best approach depends on what you have: a model, a simulator, examples, or only experience.
+- **Forgetting the objective.** An optimizer delivers exactly what the reward asks for, which may not be what was meant.
+
+**Where to go next**
+
+- [Ch 2 · Representation](../part1/ch02-representation.qmd): probability as the language of uncertainty.
+- [Ch 6 · Simple Decisions](../part1/ch06-simple-decisions.qmd): utility and maximum expected utility.
+- [Ch 7 · Exact Solution Methods](../part2/ch07-exact-solution-methods.qmd): MDPs, the first sequential model.
+- [Appendix F · Problems](../appendices/f-problems.qmd): every problem used on this site.

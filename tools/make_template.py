@@ -3,8 +3,8 @@
 Copies the figure style (Python and Julia), page helpers, JSON export, the
 theme, the chapter template, the snippet and freeze checkers and their
 tests, and writes a minimal Quarto website around them: config, home page,
-notation and cheat-sheet pages, one example chapter, pyproject.toml and a
-Julia project. The Python package and Julia module are renamed on the way.
+notation and cheat-sheet pages, one example chapter, pyproject.toml, a
+Julia project, and the licenses (MIT for code, CC BY-NC 4.0 for content). The Python package and Julia module are renamed on the way.
 
 This repository stays the single source: rerun the script to pick up later
 improvements, rather than editing a copy by hand.
@@ -18,6 +18,7 @@ import argparse
 import re
 import sys
 import uuid
+from datetime import date
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -85,6 +86,9 @@ website:
   page-footer:
     center: >-
       An independent, unofficial companion to *{a.book}*.
+      Site text and figures © {a.author},
+      [CC BY-NC 4.0](https://creativecommons.org/licenses/by-nc/4.0/);
+      code [MIT](https://opensource.org/license/mit).
 
 format:
   html:
@@ -223,6 +227,44 @@ uv run python tools/check_freeze.py          # cached results match the sources
 """
 
 
+def mit_license(a) -> str:
+    """This site's MIT license with the copyright holder and code folders replaced."""
+    text = (ROOT / "LICENSE").read_text()
+    text = re.sub(r"^Copyright \(c\) .*$", f"Copyright (c) {date.today().year} {a.author}",
+                  text, count=1, flags=re.M)
+    return rename(text, a.package, a.module)
+
+
+CONTENT_LICENSE = """# Content license
+
+Copyright (c) YEAR AUTHOR
+
+The prose, figures, diagrams, worked examples and solved problems of this site
+(the `.qmd` pages and the images and data they produce) are licensed under the
+**Creative Commons Attribution-NonCommercial 4.0 International License**
+(CC BY-NC 4.0).
+
+- Summary: <https://creativecommons.org/licenses/by-nc/4.0/>
+- Full legal code: <https://creativecommons.org/licenses/by-nc/4.0/legalcode>
+
+You may share and adapt this material for non-commercial purposes, as long as
+you give appropriate credit, link to the license, and indicate if changes were
+made.
+
+Suggested credit: *TITLE* by AUTHOR, <SITE_URL>, CC BY-NC 4.0.
+
+## What this license does not cover
+
+- **Source code.** The code in `PKG/`, `julia/`, `tools/` and `tests/`, and the
+  code shown on the pages, is licensed under the MIT License; see `LICENSE`.
+- **The book.** This is an independent, unofficial companion to *BOOK*, which
+  is licensed separately by its authors. This site does not reproduce the
+  book's text, figures, exercises or code.
+- **Embedded videos** and other third-party material remain under their
+  owners' terms.
+"""
+
+
 def build(a) -> list[Path]:
     dest = Path(a.dest)
     if dest.exists() and any(dest.iterdir()):
@@ -258,6 +300,13 @@ def build(a) -> list[Path]:
     write("chapters/data/.gitkeep", "")
     write("README.md", README.replace("TITLE", a.title).replace("BOOK", a.book)
                              .replace("PKG", a.package))
+    write("LICENSE", mit_license(a))
+    content = CONTENT_LICENSE
+    for key, value in [("YEAR", str(date.today().year)), ("AUTHOR", a.author),
+                       ("TITLE", a.title), ("SITE_URL", a.site_url), ("BOOK", a.book),
+                       ("PKG", a.package)]:
+        content = content.replace(key, value)
+    write("LICENSE-content.md", content)
     return written
 
 
@@ -269,6 +318,7 @@ def main(argv=None):
     p.add_argument("--title", required=True, help='site title, e.g. "PBML Companion"')
     p.add_argument("--book", required=True, help="the book's title")
     p.add_argument("--site-url", default="https://example.github.io/companion/")
+    p.add_argument("--author", default="Atul Acharya", help="copyright holder in the licenses")
     a = p.parse_args(argv)
     if not a.package.isidentifier():
         sys.exit(f"--package must be a Python identifier, got {a.package!r}")

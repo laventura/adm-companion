@@ -38,6 +38,17 @@ def test_names_replaced(site):
     assert 'name = "PBML"' in (site / "julia/Project.toml").read_text()
 
 
+def test_licenses(site):
+    mit = (site / "LICENSE").read_text()
+    assert mit.startswith("MIT License") and "Atul Acharya" in mit
+    assert "pbml/" in mit and "adm/" not in mit
+    content = (site / "LICENSE-content.md").read_text()
+    assert "CC BY-NC 4.0" in content and "Probabilistic Machine Learning" in content
+    assert not re.search(r"\b(YEAR|AUTHOR|TITLE|SITE_URL|BOOK|PKG)\b|adm|Kochenderfer", content)
+    footer = yaml.safe_load((site / "_quarto.yml").read_text())["website"]["page-footer"]
+    assert "CC BY-NC 4.0" in footer["center"] and "MIT" in footer["center"]
+
+
 def test_refuses_non_empty_destination(site):
     with pytest.raises(SystemExit):
         make_template.main([str(site), "--package", "x", "--title", "t", "--book", "b"])

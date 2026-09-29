@@ -1,8 +1,276 @@
 ---
 title: "E · Search Algorithms"
 subtitle: "Appendices"
+jupyter: python3
+execute:
+  echo: false
 ---
 
 ::: {.callout-note appearance="minimal"}
-**In progress.** This page will cover ADM Appendix E, *Search Algorithms*.
+**Executed in:** Python · **Book:** ADM Appendix E
+:::
+
+```{python}
+#| include: false
+import numpy as np
+import matplotlib.pyplot as plt
+from matplotlib.colors import LogNorm
+
+from adm import search as S
+from adm import style
+from adm.page import show_source
+
+style.apply()
+blue, orange, green, yellow, pink, dkgreen, purple, red = style.CATEGORICAL
+
+ROWS = ["..#....",
+        "..#.##.",
+        "....#G.",
+        ".##.#..",
+        "......."]
+P, GOAL, CELLS = S.maze(ROWS)
+DIST = S.distances(P, GOAL, CELLS)
+MAN = lambda s: abs(s[0] - GOAL[0]) + abs(s[1] - GOAL[1])
+U_HI = lambda s: 0.0 if s == GOAL else 10.0 - MAN(s)       # optimistic
+U_LO = lambda s: 0.0 if s == GOAL else -10.0               # pessimistic leaf value
+Q_HI = lambda s, a: P.R(s, a) + U_HI(P.T(s, a))
+EXACT = lambda s: 0.0 if s == GOAL else 10.0 - DIST[s]
+D = 12
+STARTS = [s for s in CELLS if s != GOAL]
+METHODS = {
+    "forward search": lambda s: S.forward_search(P, s, D, U_LO),
+    "branch and bound": lambda s: S.branch_and_bound(P, s, D, U_LO, Q_HI),
+    "memoized search": lambda s: S.memoized_search(P, s, D, U_LO),
+    "heuristic search": lambda s: S.heuristic_search(P, s, D, U_HI, U_LO),
+}
+RUNS = {name: {s: run(s) for s in STARTS} for name, run in METHODS.items()}
+EXACT_RUNS = {s: S.heuristic_search(P, s, D, EXACT, U_LO) for s in STARTS}
+# Every method must return the true shortest-route value 10 - distance.
+assert all(RUNS[m][s][1] == 10 - DIST[s] for m in RUNS for s in STARTS)
+NODES = {m: {s: r[2] for s, r in runs.items()} for m, runs in RUNS.items()}
+TOTAL = {m: sum(v.values()) for m, v in NODES.items()}
+TOTAL_EXACT = sum(r[2] for r in EXACT_RUNS.values())
+FAR = (0, 0)
+BB_FAR, BB_NEAR = NODES["branch and bound"][FAR], NODES["branch and bound"][(3, 6)]
+# Starts where branch and bound prunes almost everything
+CHEAP = [s for s in STARTS if NODES["branch and bound"][s] <= 10]
+assert all(s[1] >= 4 for s in CHEAP)       # all in the right part of the maze
+# From (4, 0), moving north and moving east tie on the upper bound.
+assert Q_HI((4, 0), "N") == Q_HI((4, 0), "E") and MAN((4, 0)) == DIST[(4, 0)]
+EXITS = sorted({len(P.actions(s)) for s in STARTS})
+
+def path_from(s):
+    route = [s]
+    while s != GOAL:
+        s = P.T(s, S.heuristic_search(P, s, D, U_HI, U_LO)[0])
+        route.append(s)
+    return route
+FAR_PATH = path_from(FAR)
+```
+
+A **search problem** is a decision problem with no randomness: each action leads to exactly one next state. It is the special case of an MDP ([Chapter 7](../part2/ch07-exact-solution-methods.qmd)) with deterministic transitions, usually without discounting. Route finding, puzzles and many scheduling problems are search problems. The algorithms here are the deterministic versions of the online planners in [Chapter 9](../part2/ch09-online-planning.qmd), which add sampling and expectations to handle chance. This appendix follows ADM Appendix E with an original maze.
+
+## At a glance
+
+| Method | Idea | Needs | Work on this maze (26 starts) |
+|---|---|---|---|
+| Forward search | try every action sequence to depth $d$ | a leaf value $U$ | `{python} f"{TOTAL['forward search']:,}"` nodes |
+| Branch and bound | skip actions whose upper bound can't beat the best so far | lower and upper bounds | `{python} f"{TOTAL['branch and bound']:,}"` nodes |
+| Memoized search (dynamic programming) | remember each (depth, state) answer | memory for the table | `{python} f"{TOTAL['memoized search']:,}"` nodes |
+| Heuristic search | memoized branch and bound, ordered by reward plus heuristic | an optimistic heuristic | `{python} f"{TOTAL['heuristic search']:,}"` nodes |
+
+: Four search methods and the number of states each expanded, summed over every start cell of the maze below, with depth `{python} D`. {#tbl-glance}
+
+## The maze
+
+The maze in @fig-maze has `{python} len(CELLS)` free cells. The agent moves north, east, south or west into a free cell; walls and the border block movement. Every move earns $-1$, entering the goal earns $+10$ more, and the goal ends the episode. So from a cell $\delta$ moves from the goal, the best return is $10 - \delta$: reaching the goal is always worth it, and shorter is better.
+
+Formally, a search problem has a state space $\mathcal{S}$, the valid actions $\mathcal{A}(s)$ in each state (none in an absorbing state such as the goal), a deterministic transition $T(s, a)$ giving the next state, and a reward $R(s, a)$.
+
+```{python}
+#| label: fig-maze
+#| fig-cap: "The maze. Each free cell shows its true distance to the goal G (fewest moves) and, in gray, its Manhattan distance, which ignores walls. The orange line is a shortest route from the top-left corner, 11 moves."
+#| fig-alt: "A grid of 5 rows and 7 columns with dark wall cells. The goal G is in row 3, column 6. Each free cell shows two numbers. On the right side of the maze the two numbers match. On the left side the true distance is much larger than the Manhattan distance, because a wall column separates the left side from the goal; for example the top-left cell shows 11 and 7. An orange route runs from the top-left corner one cell east, down to row 2, east to column 3, down to the bottom row, east to column 5, and up into the goal."
+fig, ax = plt.subplots(figsize=(6.2, 4.6))
+H, W = len(ROWS), len(ROWS[0])
+for r in range(H):
+    for c in range(W):
+        wall = ROWS[r][c] == "#"
+        ax.add_patch(plt.Rectangle((c - 0.5, r - 0.5), 1, 1, facecolor=style.INK_SECONDARY if wall else style.SURFACE,
+                                   edgecolor=style.GRID))
+        if (r, c) == GOAL:
+            ax.text(c, r, "G", ha="center", va="center", fontsize=16, color=blue, weight="bold")
+        elif not wall:
+            ax.text(c, r - 0.15, str(DIST[(r, c)]), ha="center", va="center", fontsize=12, color=style.INK)
+            ax.text(c, r + 0.25, str(MAN((r, c))), ha="center", va="center", fontsize=9, color=style.MUTED)
+xs, ys = [c for r, c in FAR_PATH], [r for r, c in FAR_PATH]
+ax.plot(xs, ys, color=orange, lw=3, alpha=0.45, zorder=3, solid_capstyle="round")
+ax.set_xlim(-0.5, W - 0.5); ax.set_ylim(H - 0.5, -0.5); ax.set_aspect("equal")
+ax.set_xticks(range(W)); ax.set_yticks(range(H)); ax.set_xlabel("column"); ax.set_ylabel("row")
+ax.grid(False)
+plt.show()
+```
+
+## Forward search
+
+The best return with $d$ moves left follows from the best returns one move later:
+
+::: {.key-equation .famous data-name="Deterministic Bellman equation"}
+$$
+U_d(s) = \max_{a \in \mathcal{A}(s)} \Big[ R(s, a) + U_{d-1}\big(T(s, a)\big) \Big], \qquad U_0(s) = U(s)
+$$ {#eq-det-bellman}
+:::
+
+**In words.** The value of a state is the best, over actions, of the reward now plus the value of where that action leads.
+
+**Term by term.**
+
+- $U_d(s)$: the best return from $s$ with $d$ moves left.
+- $R(s, a) + U_{d-1}(T(s, a))$: take $a$, collect its reward, and continue optimally from the one state it leads to. With randomness this would be an expectation over next states ([Chapter 7](../part2/ch07-exact-solution-methods.qmd)); here there is only one.
+- $U(s)$: a value estimate used at the depth limit. This page uses $-10$ for any non-goal leaf, a pessimistic "didn't get there" value, and 0 at the goal, which pays nothing more.
+
+**Why it holds.** Any sequence of $d$ moves is a first move followed by $d - 1$ more, so its return is $R(s, a)$ plus the return of the rest. The best sequence must continue with the best $d - 1$ moves from $T(s, a)$; otherwise swapping in a better continuation would improve it.
+
+**Forward search** evaluates @eq-det-bellman by plain recursion: from the start, try every action, recurse to depth $d$, and back the values up. It builds a **search tree**: the start is the root, and each action adds a child. With $\lvert\mathcal{A}\rvert$ actions the tree has $O(\lvert\mathcal{A}\rvert^d)$ nodes. In the maze, cells have `{python} EXITS[0]` or `{python} EXITS[-1]` exits, and searching to depth `{python} D` from the top-left corner expands `{python} f"{NODES['forward search'][FAR]:,}"` nodes, even though there are only `{python} len(CELLS)` cells. The tree is huge because the same cells are reached again and again by different paths, including paths that walk back and forth.
+
+## Branch and bound
+
+**Branch and bound** skips parts of the tree that provably can't contain a better answer. It needs an upper bound $\overline{Q}(s, a)$ on the return after taking $a$ in $s$. It tries actions from the highest bound down, and as soon as the next action's bound is no better than the best return already found, it stops: that action and all the remaining ones (whose bounds are lower still) are pruned.
+
+For the maze, the Manhattan distance ignores walls, so it never overestimates the true distance and $10 - \text{Manhattan}(s)$ never underestimates the value. So $\overline{Q}(s, a) = R(s, a) + 10 - \text{Manhattan}(T(s, a))$ is a valid upper bound. @fig-bb-tree shows the whole search from the cell just below the goal's right neighbor, (3, 6).
+
+```{dot}
+//| label: fig-bb-tree
+//| fig-width: 4.83
+//| fig-height: 3.12
+//| fig-cap: "Branch and bound from (3, 6), with bounds Q̄ from the Manhattan distance. It expands 3 nodes: the start, (2, 6), and the goal. Every other branch is pruned because its bound can't beat a value already found."
+//| fig-alt: "Search tree. The root, cell (3, 6), has three branches: north to (2, 6) with bound 8, expanded; west to (3, 5) with bound 8, pruned; south to (4, 6) with bound 6, pruned. Cell (2, 6) has three branches: west into the goal with bound 9 and value 9; north to (1, 6) with bound 7, pruned; south back to (3, 6) with bound 7, pruned. The root's value is 8."
+digraph bb {
+  rankdir=TB; bgcolor="#fcfcfb"; pad=0.2; nodesep=0.25; ranksep=0.45;
+  node [shape=box, style="rounded,filled", fillcolor="#cde2fb", color="#2a78d6", fontname="Helvetica", fontsize=11];
+  edge [color="#52514e", penwidth=1.2, arrowsize=0.7, fontname="Helvetica", fontsize=10, fontcolor="#52514e"];
+  root [label="start (3, 6)\nvalue −1 + 9 = 8"];
+  n26 [label="(2, 6)\nvalue 9"];
+  n35 [label="(3, 5)\npruned: 8 ≤ 8", fillcolor="#f0efec", color="#898781", fontcolor="#52514e"];
+  n46 [label="(4, 6)\npruned", fillcolor="#f0efec", color="#898781", fontcolor="#52514e"];
+  goal [label="goal\nvalue 0", fillcolor="#fbe1d6", color="#eb6834"];
+  n16 [label="(1, 6)\npruned: 7 ≤ 9", fillcolor="#f0efec", color="#898781", fontcolor="#52514e"];
+  n36 [label="(3, 6)\npruned", fillcolor="#f0efec", color="#898781", fontcolor="#52514e"];
+  root -> n26 [label=" N, bound 8"]; root -> n35 [label=" W, bound 8", style=dashed]; root -> n46 [label=" S, bound 6", style=dashed];
+  n26 -> goal [label=" W, bound 9"]; n26 -> n16 [label=" N, bound 7", style=dashed]; n26 -> n36 [label=" S, bound 7", style=dashed];
+}
+```
+
+Pruning is only as good as the bound. From `{python} len(CHEAP)` cells in the right part of the maze, branch and bound expands between `{python} min(NODES['branch and bound'][s] for s in CHEAP)` and `{python} max(NODES['branch and bound'][s] for s in CHEAP)` nodes. From the top-left corner, where the bound says `{python} MAN(FAR)` moves and the truth is `{python} DIST[FAR]`, it expands `{python} f"{BB_FAR:,}"`, almost as many as forward search. Even from the bottom-left corner, where the bound is exact, it expands `{python} f"{NODES['branch and bound'][(4, 0)]:,}"`: moving north ties with moving east on the bound, the fixed action order tries north first, and the loose bounds on the far side of that branch make it expensive to rule out.
+
+## Dynamic programming
+
+@eq-det-bellman depends only on the state and the moves left, not on how the search got there. So the second time the search meets the same (moves left, state) pair, it can reuse the answer instead of searching again. Storing answers in a table is **memoization**, and it turns forward search into **dynamic programming**. At most `{python} D + 1` depths × `{python} len(CELLS)` cells = `{python} (D + 1) * len(CELLS)` distinct pairs can be expanded, and in practice the searches from each start expanded between `{python} min(NODES['memoized search'].values())` and `{python} max(NODES['memoized search'].values())`. From the top-left corner that is `{python} NODES['memoized search'][FAR]` nodes instead of `{python} f"{NODES['forward search'][FAR]:,}"`.
+
+## Heuristic search
+
+**Heuristic search** combines both ideas: memoize, and try actions in order of the immediate reward plus an optimistic estimate $\overline{U}$ of the value afterward, pruning when that estimate can't beat the best found:
+
+::: {.key-equation data-name="Heuristic action bound"}
+$$
+\overline{Q}(s, a) = R(s, a) + \overline{U}\big(T(s, a)\big)
+$$ {#eq-heuristic}
+:::
+
+**In words.** An action looks as good as its immediate reward plus the most the next state could possibly be worth.
+
+**Term by term.**
+
+- $\overline{U}(s)$: the **heuristic**, an optimistic guess of the best return from $s$. Here, $10 - \text{Manhattan}(s)$.
+- Sorting actions by $\overline{Q}$ tries the most promising first; stopping when $\overline{Q}(s, a)$ is at most the best found prunes the rest.
+
+**Why it holds.** The search returns the optimal value if the heuristic is **admissible**, meaning it never underestimates: $\overline{U}(s) \ge U^*(s)$. Then every pruned action's true return is at most its bound, which is at most a value already found. Often the heuristic is also **consistent**: $\overline{U}(s) \ge R(s, a) + \overline{U}(T(s, a))$ for every action, so the optimism never grows along a path. For the maze, one move changes the Manhattan distance by at most 1 and earns $-1$ (or $+9$ into the goal, where $\overline{U}$ drops from 9 to 0), so the heuristic is both. Here the upper bound must also cover the leaf value: $-10 \le \overline{U}(s)$ everywhere.
+
+@fig-work compares the work done by all four methods from every start. Heuristic search expanded `{python} f"{TOTAL['heuristic search']:,}"` nodes in total, against `{python} f"{TOTAL['memoized search']:,}"` for memoization alone and `{python} f"{TOTAL['forward search']:,}"` for forward search. The heuristic's accuracy sets the savings: with the exact distances as the heuristic, it walks straight to the goal and expands only $\delta + 1$ nodes from each start, `{python} TOTAL_EXACT` in total.
+
+```{python}
+#| label: fig-work
+#| fig-cap: "Nodes expanded by each method, from each start cell, searching to depth 12 (log color scale; walls dark, goal G). All four return the same optimal value from every start."
+#| fig-alt: "Four small maze maps with a number in each free cell. Forward search: tens of thousands to about 190,000 nodes everywhere. Branch and bound: 2 to 6 nodes on the goal's side and along the right, but over 100,000 on the far left. Memoized search: about 100 to 130 nodes everywhere. Heuristic search: 2 to 6 nodes near the goal and about 85 to 120 elsewhere."
+fig, axes = plt.subplots(2, 2, figsize=(10, 6.4))
+norm = LogNorm(1, 2e5)
+cmap = style.sequential_cmap()
+for ax, (name, nodes) in zip(axes.flat, NODES.items()):
+    grid = np.full((H, W), np.nan)
+    for s, n in nodes.items():
+        grid[s] = n
+    ax.imshow(np.where([[ch == "#" for ch in row] for row in ROWS], 1, np.nan), cmap="gray_r", vmin=0, vmax=1.4)
+    ax.imshow(grid, cmap=cmap, norm=norm)
+    for (r, c), n in nodes.items():
+        ax.text(c, r, f"{n:,}" if n < 1000 else f"{n / 1000:.0f}k", ha="center", va="center", fontsize=8,
+                color="white" if n > 3000 else style.INK)
+    ax.text(GOAL[1], GOAL[0], "G", ha="center", va="center", fontsize=12, color=orange, weight="bold")
+    ax.set_title(f"{name}: {TOTAL[name]:,} in total", fontsize=10)
+    ax.set_xticks([]); ax.set_yticks([]); ax.grid(False)
+plt.tight_layout()
+plt.show()
+```
+
+## Where these ideas appear
+
+| Idea here | Stochastic version on this site |
+|---|---|
+| Forward search | forward search over expected values ([Chapter 9](../part2/ch09-online-planning.qmd)), and over beliefs ([Chapter 22](../part4/ch22-online-belief-state-planning.qmd)) |
+| Branch and bound | branch and bound with value bounds ([Chapter 9](../part2/ch09-online-planning.qmd), [Chapter 22](../part4/ch22-online-belief-state-planning.qmd)) |
+| Memoization, dynamic programming | value iteration, which tabulates $U_d$ for all states at once ([Chapter 7](../part2/ch07-exact-solution-methods.qmd)) |
+| Heuristic search with an admissible heuristic | heuristic search with optimistic values ([Chapter 9](../part2/ch09-online-planning.qmd)), and gap heuristic search ([Chapter 22](../part4/ch22-online-belief-state-planning.qmd)) |
+
+: Search methods and their counterparts under uncertainty. {#tbl-where}
+
+## Code
+
+::: {.panel-tabset group="lang"}
+## Python
+```{python}
+#| output: asis
+show_source(S.forward_search, S.branch_and_bound, S.heuristic_search)
+```
+## Julia
+```{.julia .snippet}
+# The same maze. States are (row, col) tuples, 0-based like the Python
+# code, so the numbers match the figures.
+const ROWS = ["..#....", "..#.##.", "....#G.", ".##.#..", "......."]
+const MOVES = [('N', (-1, 0)), ('E', (0, 1)), ('S', (1, 0)), ('W', (0, -1))]
+const CELLS = Set((r - 1, c - 1) for r in eachindex(ROWS)
+                  for c in 1:length(ROWS[r]) if ROWS[r][c] != '#')
+const GOAL = (2, 5)
+step(s, d) = (s[1] + d[1], s[2] + d[2])
+actions(s) = s == GOAL ? [] : [m for m in MOVES if step(s, m[2]) in CELLS]
+reward(s, m) = -1.0 + (step(s, m[2]) == GOAL ? 10.0 : 0.0)
+manhattan(s) = abs(s[1] - GOAL[1]) + abs(s[2] - GOAL[2])
+U_hi(s) = s == GOAL ? 0.0 : 10.0 - manhattan(s)
+U_lo(s) = s == GOAL ? 0.0 : -10.0
+
+# Returns (action, value, nodes expanded). M memoizes (depth, state).
+function heuristic_search(s, d, M = Dict())
+    haskey(M, (d, s)) && return (M[(d, s)]..., 0)
+    A = actions(s)
+    if isempty(A) || d <= 0
+        best, nodes = (nothing, U_lo(s)), 1
+    else
+        bound(m) = reward(s, m) + U_hi(step(s, m[2]))
+        best, nodes = (nothing, -Inf), 1
+        # sort is stable, so ties keep N, E, S, W order, as in Python
+        for m in sort(A; by = bound, rev = true)
+            bound(m) <= best[2] && break
+            _, u, n = heuristic_search(step(s, m[2]), d - 1, M)
+            nodes += n
+            reward(s, m) + u > best[2] && (best = (m[1], reward(s, m) + u))
+        end
+    end
+    M[(d, s)] = best
+    return (best..., nodes)
+end
+
+a, u, n = heuristic_search((0, 0), 12)
+println("from (0, 0): move ", a, ", value ", u, ", ", n, " nodes")
+@assert u == 10 - 11
+a, u, n = heuristic_search((3, 6), 12)
+@assert (a, u, n) == ('N', 8.0, 3)
+```
 :::

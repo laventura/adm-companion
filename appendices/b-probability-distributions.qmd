@@ -1,8 +1,222 @@
 ---
 title: "B · Probability Distributions"
 subtitle: "Appendices"
+jupyter: python3
+execute:
+  echo: false
 ---
 
 ::: {.callout-note appearance="minimal"}
-**In progress.** This page will cover ADM Appendix B, *Probability Distributions*.
+**Executed in:** Python · **Book:** ADM Appendix B
+:::
+
+```{python}
+#| include: false
+import numpy as np
+import matplotlib.pyplot as plt
+from scipy import integrate, stats
+
+from adm import style
+
+style.apply()
+blue, orange, green, yellow, pink, dkgreen, purple, red = style.CATEGORICAL
+fmt = lambda x, d=3: f"{x:.{d}f}".replace("-", "−")
+rng = np.random.default_rng(0)
+
+# Every density integrates to 1, and its sample mean matches its mean (100,000 draws).
+CHECKS = []
+for name, dist, lo, hi in (("Uniform(−1, 3)", stats.uniform(-1, 4), -1, 3),
+                           ("N(2, 1.5²)", stats.norm(2, 1.5), -np.inf, np.inf),
+                           ("Beta(2, 5)", stats.beta(2, 5), 0, 1)):
+    area = integrate.quad(dist.pdf, lo, hi)[0]
+    CHECKS.append((name, area, dist.mean(), dist.rvs(100_000, random_state=rng).mean()))
+MU, SIGMA = np.array([1.0, -1.0]), np.array([[2.0, 0.8], [0.8, 1.0]])
+MVN = stats.multivariate_normal(MU, SIGMA)
+MVN_AREA = integrate.dblquad(lambda y, x: MVN.pdf([x, y]), -12, 14, -14, 12)[0]
+ALPHA = np.array([2.0, 3.0, 5.0])
+DIR_SAMPLES = rng.dirichlet(ALPHA, 100_000)
+DIR_MEAN = DIR_SAMPLES.mean(axis=0)
+# Beta-Bernoulli: after 7 heads in 10 tosses from a uniform prior, the posterior is Beta(8, 4).
+POST = stats.beta(1 + 7, 1 + 3)
+```
+
+Probability distributions describe uncertainty about a quantity. This appendix lists the families used on this site, with their formulas, what their parameters do, and where they appear. It follows ADM Appendix B, adding the two discrete distributions used most often. Plots use this site's own parameter choices.
+
+## At a glance
+
+| Distribution | Parameters | Density or mass function | Mean | Variance |
+|---|---|---|---|---|
+| Bernoulli$(p)$ | $p \in [0, 1]$ | $P(x = 1) = p$, $P(x = 0) = 1 - p$ | $p$ | $p(1 - p)$ |
+| Categorical$(\mathbf{p})$ | $p_i \ge 0$, $\sum_i p_i = 1$ | $P(x = i) = p_i$ | — | — |
+| Uniform $\mathcal{U}(a, b)$ | $a < b$ | $\frac{1}{b - a}$ on $[a, b]$ | $\frac{a + b}{2}$ | $\frac{(b - a)^2}{12}$ |
+| Gaussian $\mathcal{N}(\mu, \sigma^2)$ | $\mu$, $\sigma > 0$ | $\frac{1}{\sigma\sqrt{2\pi}} e^{-(x - \mu)^2/(2\sigma^2)}$ | $\mu$ | $\sigma^2$ |
+| Beta$(\alpha, \beta)$ | $\alpha, \beta > 0$ | $\frac{\Gamma(\alpha + \beta)}{\Gamma(\alpha)\Gamma(\beta)} x^{\alpha - 1}(1 - x)^{\beta - 1}$ on $(0, 1)$ | $\frac{\alpha}{\alpha + \beta}$ | $\frac{\alpha\beta}{(\alpha + \beta)^2(\alpha + \beta + 1)}$ |
+| Gaussian $\mathcal{N}(\boldsymbol{\mu}, \boldsymbol{\Sigma})$ | mean vector, covariance | see @eq-mvn | $\boldsymbol{\mu}$ | $\boldsymbol{\Sigma}$ |
+| Dirichlet$(\boldsymbol{\alpha})$ | $\alpha_i > 0$ | see @eq-dirichlet | $\alpha_i / \alpha_0$ | $\frac{\alpha_i(\alpha_0 - \alpha_i)}{\alpha_0^2(\alpha_0 + 1)}$ |
+
+: The distributions used on this site ($\Gamma$ is the gamma function; $\alpha_0 = \sum_i \alpha_i$). {#tbl-dists}
+
+## Discrete distributions
+
+A **Bernoulli** variable is a single yes/no outcome, like a coin toss or whether a click happens (the bandits of [Chapter 15](../part3/ch15-exploration-and-exploitation.qmd)). A **categorical** variable takes one of $n$ values with given probabilities: every discrete variable in a Bayesian network ([Chapter 2](../part1/ch02-representation.qmd)), every row of a transition model $T(s' \mid s, a)$, and every stochastic policy is one.
+
+## Uniform
+
+$\mathcal{U}(a, b)$ spreads probability evenly over an interval: every point in $[a, b]$ is equally likely. It is the natural "know nothing but the range" distribution, used for random initial conditions and, as $\text{Beta}(1, 1)$, as the uninformative prior of [Chapter 4](../part1/ch04-parameter-learning.qmd).
+
+## Gaussian
+
+::: {.key-equation .famous data-name="Gaussian (normal) density"}
+$$
+\mathcal{N}(x \mid \mu, \sigma^2) = \frac{1}{\sigma\sqrt{2\pi}} \exp\!\Big(-\frac{(x - \mu)^2}{2\sigma^2}\Big)
+$$ {#eq-gauss}
+:::
+
+**In words.** A bell curve centered at $\mu$, whose width is set by $\sigma$.
+
+**Term by term.**
+
+- $\mu$: the mean, center and peak of the curve.
+- $\sigma$: the standard deviation; about 68% of the probability lies within $\mu \pm \sigma$ and 95% within $\mu \pm 1.96\sigma$.
+- $\frac{1}{\sigma\sqrt{2\pi}}$: the constant that makes the area 1.
+
+**Why it holds.** $\int e^{-z^2/2}\,dz = \sqrt{2\pi}$ (square the integral and switch to polar coordinates), and substituting $z = (x - \mu)/\sigma$ gives the constant. The central limit theorem explains why the Gaussian is everywhere: sums of many small independent effects are approximately Gaussian. Used for continuous Bayesian networks ([Chapter 2](../part1/ch02-representation.qmd)), exploration noise ([Chapter 10](../part2/ch10-policy-search.qmd)–[12](../part2/ch12-policy-gradient-optimization.qmd)) and Kalman filters ([Chapter 19](../part4/ch19-beliefs.qmd)).
+
+## Beta
+
+The **Beta** distribution describes an unknown probability, a number in $(0, 1)$. Its main use is as the conjugate prior for a Bernoulli probability:
+
+::: {.key-equation .famous data-name="Beta–Bernoulli update"}
+$$
+p \sim \text{Beta}(\alpha, \beta),\ \ \text{observe } k \text{ successes in } n \text{ trials}
+\quad\Longrightarrow\quad
+p \mid \text{data} \sim \text{Beta}(\alpha + k,\ \beta + n - k)
+$$ {#eq-beta}
+:::
+
+**In words.** Start with pseudo-counts $\alpha$ and $\beta$; add the observed successes and failures.
+
+**Term by term.**
+
+- $\text{Beta}(1, 1)$ is uniform: no prior preference.
+- The posterior mean $(\alpha + k)/(\alpha + \beta + n)$ moves from the prior mean toward the observed fraction $k/n$ as $n$ grows.
+- Example: from a uniform prior, 7 successes in 10 trials give $\text{Beta}(8, 4)$: mean `{python} fmt(POST.mean())`, 95% interval `{python} fmt(POST.ppf(0.025))` to `{python} fmt(POST.ppf(0.975))`.
+
+**Why it holds.** By Bayes' rule, the posterior is proportional to prior times likelihood: $p^{\alpha - 1}(1 - p)^{\beta - 1} \cdot p^k(1 - p)^{n - k}$, which is the Beta form with exponents increased by $k$ and $n - k$. Used for parameter learning ([Chapter 4](../part1/ch04-parameter-learning.qmd)), Bayesian bandits ([Chapter 15](../part3/ch15-exploration-and-exploitation.qmd)) and failure-probability intervals ([Chapter 14](../part2/ch14-policy-validation.qmd)).
+
+## Multivariate Gaussian
+
+::: {.key-equation data-name="Multivariate Gaussian density"}
+$$
+\mathcal{N}(\mathbf{x} \mid \boldsymbol{\mu}, \boldsymbol{\Sigma}) = \frac{1}{(2\pi)^{n/2} |\boldsymbol{\Sigma}|^{1/2}} \exp\!\Big(-\tfrac{1}{2}(\mathbf{x} - \boldsymbol{\mu})^\top \boldsymbol{\Sigma}^{-1}(\mathbf{x} - \boldsymbol{\mu})\Big)
+$$ {#eq-mvn}
+:::
+
+**In words.** A bell-shaped hill in $n$ dimensions, centered at $\boldsymbol{\mu}$, stretched and tilted by $\boldsymbol{\Sigma}$.
+
+**Term by term.**
+
+- $\boldsymbol{\mu}$: the mean vector. $\boldsymbol{\Sigma}$: the covariance matrix, symmetric and positive definite ([Appendix A](a-mathematical-concepts.qmd)); its off-diagonal entries tilt the hill when variables are correlated.
+- $(\mathbf{x} - \boldsymbol{\mu})^\top \boldsymbol{\Sigma}^{-1}(\mathbf{x} - \boldsymbol{\mu})$: the squared Mahalanobis distance; its level sets are the elliptical contours.
+- $|\boldsymbol{\Sigma}|$: the determinant, which normalizes for the ellipses' volume.
+
+**Why it holds.** Changing variables to $\mathbf{z} = \mathbf{L}^{-1}(\mathbf{x} - \boldsymbol{\mu})$, with $\boldsymbol{\Sigma} = \mathbf{L}\mathbf{L}^\top$, turns it into a product of $n$ standard Gaussians; the Jacobian contributes $|\boldsymbol{\Sigma}|^{1/2}$. Numerically, the example in @fig-dists integrates to `{python} fmt(MVN_AREA, 4)`. Used for commute times ([Chapter 3](../part1/ch03-inference.qmd)), the cross-entropy method ([Chapter 10](../part2/ch10-policy-search.qmd)) and Kalman filters ([Chapter 19](../part4/ch19-beliefs.qmd)).
+
+## Dirichlet
+
+The **Dirichlet** generalizes the Beta to a whole probability vector, and is the conjugate prior for categorical variables:
+
+::: {.key-equation data-name="Dirichlet density"}
+$$
+\text{Dir}(\mathbf{x} \mid \boldsymbol{\alpha}) = \frac{\Gamma(\alpha_0)}{\prod_{i=1}^{n} \Gamma(\alpha_i)} \prod_{i=1}^{n} x_i^{\alpha_i - 1}, \qquad x_i > 0,\ \sum_i x_i = 1,\ \ \alpha_0 = \sum_i \alpha_i
+$$ {#eq-dirichlet}
+:::
+
+**In words.** A distribution over probability vectors: the $\alpha_i$ act as pseudo-counts for each category.
+
+**Term by term.**
+
+- With all $\alpha_i = 1$, every probability vector is equally likely.
+- Larger $\alpha_0$ concentrates the vectors near the mean $\boldsymbol{\alpha}/\alpha_0$.
+- Updating on counts $m_i$ gives $\text{Dir}(\boldsymbol{\alpha} + \mathbf{m})$, exactly as for the Beta.
+- Example: $\boldsymbol{\alpha} = (2, 3, 5)$ has mean $(0.2, 0.3, 0.5)$; 100,000 samples averaged `{python} ", ".join(fmt(m) for m in DIR_MEAN)`.
+
+**Why it holds.** The normalizing constant is the multivariate Beta function; with $n = 2$ it reduces to the Beta distribution. Used for learning conditional probability tables ([Chapter 4](../part1/ch04-parameter-learning.qmd)), Bayesian structure scores ([Chapter 5](../part1/ch05-structure-learning.qmd)) and posterior sampling of transition models ([Chapter 16](../part3/ch16-model-based-methods.qmd)).
+
+## Checks
+
+```{python}
+#| output: asis
+print("| Distribution | Area under density | Mean | Mean of 100,000 samples |\n|---|---:|---:|---:|")
+for name, area, mean, sample in CHECKS:
+    print(f"| {name} | {area:.6f} | {fmt(mean)} | {fmt(sample)} |")
+print("\n: Numerical checks of three densities. {#tbl-checks}")
+```
+
+## Figures
+
+```{python}
+#| label: fig-dists
+#| fig-cap: "Densities of the continuous families with this site's example parameters. Top: uniform and Gaussian; Beta for several (α, β). Bottom: contours of a correlated two-dimensional Gaussian; 2,000 samples from Dirichlet(2, 3, 5) and Dirichlet(1, 1, 1), shown by their first two components."
+#| fig-alt: "Four panels. Top left: flat uniform densities and bell-shaped Gaussians with different centers and widths. Top right: Beta densities on 0 to 1: flat for (1, 1), humped left of center for (2, 5), U-shaped for (0.5, 0.5), and a peak near 0.67 for (8, 4). Bottom left: tilted elliptical contours centered at (1, minus 1). Bottom right: points in the triangle x1 plus x2 at most 1; the Dirichlet(1, 1, 1) points fill it evenly, the Dirichlet(2, 3, 5) points cluster near (0.2, 0.3)."
+fig, axes = plt.subplots(2, 2, figsize=(10, 7))
+x = np.linspace(-6, 8, 600)
+ax = axes[0, 0]
+for (a, b), c in zip(((-1, 3), (2, 7)), (blue, orange)):
+    ax.plot(x, stats.uniform(a, b - a).pdf(x), color=c, lw=2, label=f"U({a}, {b})")
+for (m, s), c in zip(((0, 1), (2, 1.5), (-2, 0.5)), (green, purple, red)):
+    ax.plot(x, stats.norm(m, s).pdf(x), color=c, lw=2, ls="--", label=rf"N({m}, ${s}^2$)")
+ax.set_xlabel("x"); ax.set_ylabel("density"); ax.legend(fontsize=8); ax.set_title("Uniform and Gaussian")
+ax = axes[0, 1]
+p = np.linspace(0.002, 0.998, 500)
+for (a, b), c in zip(((1, 1), (2, 5), (0.5, 0.5), (8, 4)), (blue, orange, green, purple)):
+    ax.plot(p, stats.beta(a, b).pdf(p), color=c, lw=2, label=f"Beta({a}, {b})")
+ax.set_ylim(0, 4); ax.set_xlabel("x"); ax.legend(fontsize=8); ax.set_title("Beta")
+ax = axes[1, 0]
+g1, g2 = np.meshgrid(np.linspace(-4, 6, 200), np.linspace(-5, 3, 200))
+ax.contour(g1, g2, MVN.pdf(np.dstack([g1, g2])), levels=8, colors=blue, linewidths=1)
+ax.scatter(*MU, color=style.INK, s=20)
+ax.set_xlabel("x1"); ax.set_ylabel("x2"); ax.set_aspect("equal")
+ax.set_title(r"Gaussian, $\mu = (1, -1)$, $\Sigma = [[2, 0.8], [0.8, 1]]$", fontsize=10)
+ax = axes[1, 1]
+for a, c in (((1, 1, 1), orange), ((2, 3, 5), blue)):
+    s = rng.dirichlet(a, 2000)
+    ax.scatter(s[:, 0], s[:, 1], s=3, color=c, alpha=0.5, label=f"Dir{a}")
+ax.plot([0, 1, 0, 0], [0, 0, 1, 0], color=style.MUTED, lw=1)
+ax.set_xlabel("x1"); ax.set_ylabel("x2"); ax.set_aspect("equal"); ax.legend(fontsize=8, markerscale=4)
+ax.set_title("Dirichlet (first two components)")
+plt.tight_layout()
+plt.show()
+```
+
+## Code
+
+::: {.panel-tabset group="lang"}
+## Python
+```{.python .snippet}
+import numpy as np
+from scipy import stats
+
+rng = np.random.default_rng(0)
+posterior = stats.beta(1 + 7, 1 + 3)        # uniform prior, 7 of 10 successes
+print("posterior mean", round(posterior.mean(), 3),
+      "95% interval", np.round(posterior.ppf([0.025, 0.975]), 3))
+samples = rng.dirichlet([2, 3, 5], 100_000)
+print("Dirichlet sample mean", samples.mean(axis=0).round(3))
+assert abs(posterior.mean() - 8 / 12) < 1e-12
+assert np.allclose(samples.mean(axis=0), [0.2, 0.3, 0.5], atol=0.005)
+```
+## Julia
+```{.julia .snippet}
+import Distributions
+using Random, Statistics
+
+posterior = Distributions.Beta(1 + 7, 1 + 3)   # uniform prior, 7 of 10 successes
+println("posterior mean ", round(Distributions.mean(posterior); digits = 3),
+        ", 95% interval ", round.(Distributions.quantile.(posterior, [0.025, 0.975]); digits = 3))
+x = rand(MersenneTwister(0), Distributions.Dirichlet([2.0, 3.0, 5.0]), 100_000)   # 3 × n
+println("Dirichlet sample mean ", round.(vec(mean(x; dims = 2)); digits = 3))
+@assert Distributions.mean(posterior) ≈ 8 / 12
+@assert all(abs.(vec(mean(x; dims = 2)) .- [0.2, 0.3, 0.5]) .< 0.005)
+```
 :::

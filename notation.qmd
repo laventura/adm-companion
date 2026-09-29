@@ -2,10 +2,16 @@
 title: "Notation"
 ---
 
-This site uses the book's notation. Symbols are added here as chapters are written.
+This site uses the book's notation, so you can move between the two. Symbols are grouped by the Part where they first appear, in chapter order; each is listed once, where it is introduced, unless a later chapter gives it a new meaning. The book reuses some letters for different things in different chapters; [the last section](#overloaded) lists them.
+
+For the key equations themselves, see the [cheat sheets](cheatsheets.qmd).
+
+## Introduction and Part I: probabilistic reasoning {#part1}
 
 | Symbol | Meaning | First used |
 |---|---|---|
+| $r_t$ | Reward received at step $t$ | Ch 1 |
+| $a^*$ | The action with the highest expected utility | Ch 1 |
 | $P(x)$ | Probability mass function (discrete): the probability that $X = x$ | Ch 2 |
 | $p(x)$ | Probability density function (continuous); probabilities are areas under it | Ch 2 |
 | $\operatorname{cdf}(x)$ | Cumulative distribution function, $P(X \le x)$ | Ch 2 |
@@ -19,6 +25,11 @@ This site uses the book's notation. Symbols are added here as chapters are writt
 | $\mathrm{pa}(x_i)$ | Values of the parents of $X_i$ in a Bayesian network | Ch 2 |
 | $(X \perp Y \mid Z)$ | $X$ and $Y$ are conditionally independent given $Z$ | Ch 2 |
 | $q$, $e$, $h$ | Query, evidence, and hidden variables in an inference problem | Ch 3 |
+| $\phi$ | A factor: a table over some variables (a CPT, or any partial product) | Ch 3 |
+| $P(c \mid o_{1:n})$ | Naive Bayes posterior of class $c$ given observations $o_1, \ldots, o_n$ | Ch 3 |
+| $w$ | Likelihood weight of a sample | Ch 3 |
+| $x_{-i}$ | All variables except $x_i$ | Ch 3 |
+| $\boldsymbol{\mu}_{a \mid b}$, $\boldsymbol{\Sigma}_{a \mid b}$ | Mean and covariance of Gaussian block $\mathbf{a}$ given block $\mathbf{b}$ | Ch 3 |
 | $\theta$ | Model parameters, such as CPT entries | Ch 4 |
 | $\ell(\theta)$ | Log-likelihood of the data under parameters $\theta$ | Ch 4 |
 | $m_{ijk}$ | Count of records with variable $i$ at value $k$ and its parents at combination $j$ | Ch 4 |
@@ -33,11 +44,6 @@ This site uses the book's notation. Symbols are added here as chapters are writt
 | $q_i$, $r_i$ | Number of parent combinations and number of values of variable $i$ | Ch 5 |
 | $\kappa$ | Equivalent sample size of a BDeu prior | Ch 5 |
 | $\mathrm{pa}_G(x_i)$ | Parents of $x_i$ in graph $G$ | Ch 5 |
-| $\phi$ | A factor: a table over some variables (a CPT, or any partial product) | Ch 3 |
-| $P(c \mid o_{1:n})$ | Naive Bayes posterior of class $c$ given observations $o_1, \ldots, o_n$ | Ch 3 |
-| $w$ | Likelihood weight of a sample | Ch 3 |
-| $x_{-i}$ | All variables except $x_i$ | Ch 3 |
-| $\boldsymbol{\mu}_{a \mid b}$, $\boldsymbol{\Sigma}_{a \mid b}$ | Mean and covariance of Gaussian block $\mathbf{a}$ given block $\mathbf{b}$ | Ch 3 |
 | $A \succ B$, $A \sim B$, $A \succeq B$ | $A$ preferred to $B$; indifferent; at least as good | Ch 6 |
 | $[S_1 : p_1; \ldots; S_n : p_n]$ | Lottery: outcome $S_i$ with probability $p_i$ | Ch 6 |
 | $U(S)$ | Utility of outcome $S$ | Ch 6 |
@@ -46,6 +52,13 @@ This site uses the book's notation. Symbols are added here as chapters are writt
 | $\lambda$ | Risk-aversion parameter of exponential utility $1 - e^{-\lambda x}$ | Ch 6 |
 | $EU(a \mid o)$, $EU^*(o)$ | Expected utility of action $a$ given observation $o$; its maximum over actions | Ch 6 |
 | $\mathrm{VOI}(O' \mid o)$ | Value of information of observing $O'$, given $o$ | Ch 6 |
+
+: Symbols from Chapters 1–6. {#tbl-notation-1}
+
+## Part II: sequential problems {#part2}
+
+| Symbol | Meaning | First used |
+|---|---|---|
 | $\mathcal{S}$ | State space | Ch 7 |
 | $\mathcal{A}$ | Action space | Ch 7 |
 | $T(s' \mid s, a)$ | Transition model: probability of reaching $s'$ from $s$ after action $a$ | Ch 7 |
@@ -88,7 +101,6 @@ This site uses the book's notation. Symbols are added here as chapters are writt
 | $\nabla_\theta \log \pi_\theta(a \mid s)$ | Score of an action: the direction that makes it more likely | Ch 11 |
 | $r_{\text{to-go}}^{(k)}$ | Reward-to-go: discounted reward from step $k$ on | Ch 11 |
 | $r_{\text{base}}(s)$ | Baseline subtracted from the reward-to-go | Ch 11 |
-| $A(s, a)$ | Advantage: $Q(s, a) - U(s)$ | Ch 11 |
 | $F_\theta$ | Fisher information matrix of the policy's trajectory distribution | Ch 12 |
 | $D_{\text{KL}}(p \,\Vert\, q)$ | Kullback–Leibler divergence from $p$ to $q$ | Ch 12 |
 | $\epsilon$ | Trust-region size (KL or step budget); PPO's clipping range | Ch 12 |
@@ -109,6 +121,13 @@ This site uses the book's notation. Symbols are added here as chapters are writt
 | $w = P(\tau)/P'(\tau)$ | Importance weight of a trajectory sampled from the proposal | Ch 14 |
 | $T_i$, $R_i$ | The $i$-th of several candidate models in robust dynamic programming | Ch 14 |
 | $R'$, $\lambda$ | Adversarial reward, and its weight on the log-likelihood of the adversary's choices | Ch 14 |
+
+: Symbols from Chapters 7–14. {#tbl-notation-2}
+
+## Part III: model uncertainty {#part3}
+
+| Symbol | Meaning | First used |
+|---|---|---|
 | $\theta_a$, $\theta^*$ | Payoff probability of bandit arm $a$; the best arm's | Ch 15 |
 | $w_a$, $\ell_a$ | Wins and losses observed on arm $a$ | Ch 15 |
 | $\rho_a$ | Posterior probability that the next pull of arm $a$ wins, $(w_a + 1)/(w_a + \ell_a + 2)$ | Ch 15 |
@@ -138,6 +157,23 @@ This site uses the book's notation. Symbols are added here as chapters are writt
 | $\beta$ (SMILe) | Mixing rate in SMILe (not the features) | Ch 18 |
 | $P_\phi(\tau)$, $Z(\phi)$ | Maximum entropy trajectory distribution and its normalizer | Ch 18 |
 | $C_\phi(s, a)$ | GAIL discriminator: probability a pair came from the learner | Ch 18 |
+
+: Symbols from Chapters 15–18. {#tbl-notation-3}
+
+## Part IV: state uncertainty {#part4}
+
+| Symbol | Meaning | First used |
+|---|---|---|
+| $o$ | An observation | Ch 19 |
+| $O(o \mid a, s')$ | Observation model: probability of observing $o$ after taking $a$ and landing in $s'$ | Ch 19 |
+| $b(s)$ | Belief: probability that the current state is $s$, given the history | Ch 19 |
+| $\mathcal{N}(x \mid \mu, \Sigma)$ | Gaussian density at $x$ with mean $\mu$ and covariance $\Sigma$ | Ch 19 |
+| $\mathbf{T}_s$, $\mathbf{T}_a$, $\boldsymbol{\Sigma}_s$ | Linear-Gaussian dynamics: state matrix, action matrix, process-noise covariance | Ch 19 |
+| $\mathbf{O}_s$, $\boldsymbol{\Sigma}_o$ | Linear-Gaussian sensor: observation matrix, sensor-noise covariance | Ch 19 |
+| $\boldsymbol{\mu}_b$, $\boldsymbol{\Sigma}_b$ | Mean and covariance of a Gaussian belief | Ch 19 |
+| $\boldsymbol{\mu}_p$, $\boldsymbol{\Sigma}_p$ | Mean and covariance after the predict step | Ch 19 |
+| $\mathbf{K}$ | Kalman gain | Ch 19 |
+| $s^{(i)}$, $w^{(i)}$ | The $i$-th particle and its weight | Ch 19 |
 | $\text{Update}(b, a, o)$ | The belief after acting and observing (the Ch 19 filter) | Ch 20 |
 | $R(b, a)$, $T(b' \mid b, a)$ | Reward and transition of the belief-state MDP | Ch 20 |
 | $P(o \mid b, a)$ | Probability of observing $o$ after taking $a$ from belief $b$ | Ch 20 |
@@ -153,12 +189,12 @@ This site uses the book's notation. Symbols are added here as chapters are writt
 | $V$, $u_E$ | Stored belief-utility pairs (sawtooth), and the corner beliefs' utilities | Ch 21 |
 | $\rho(b, b')$ | Minimum ratio $\min_i b_i/b'_i$ in the sawtooth bound | Ch 21 |
 | $m$, $\lambda_i$ | Grid granularity and interpolation weights of a triangulation | Ch 21 |
+| $\delta$ (gap) | Gap below which heuristic search stops refining a belief | Ch 21 |
 | $Q_d(b, a)$, $U_d(b)$ | Forward-search action value and value with $d$ steps left | Ch 22 |
 | $m$ (online) | Samples per action (sparse sampling), simulations (MCTS) or scenarios (determinized search) | Ch 22 |
 | $h$ | A history: the actions and observations since the current belief | Ch 22 |
 | $N(h, a)$, $Q(h, a)$ | Visit count and value estimate of action $a$ after history $h$ (MCTS) | Ch 22 |
 | $\Phi$, $\phi = (s, i, j)$ | Determinizing matrix of uniform numbers; a particle's state, scenario and depth | Ch 22 |
-| $\delta$ (gap) | Gap below which heuristic search stops refining a belief | Ch 21 |
 | $X$, $x$ | A controller's nodes, and one node (its memory state, not the environment's state) | Ch 23 |
 | $\psi(a \mid x)$ | A controller's action distribution at node $x$ | Ch 23 |
 | $\eta(x' \mid x, a, o)$ | A controller's successor distribution after action $a$ and observation $o$ | Ch 23 |
@@ -166,6 +202,13 @@ This site uses the book's notation. Symbols are added here as chapters are writt
 | $T_\theta$, $r_\theta$, $u_\theta$ | Transition matrix, rewards and values on (node, state) pairs for controller parameters $\theta = (\psi, \eta)$ | Ch 23 |
 | $\beta$, $v$ | Start distribution on (node, state) pairs; expected discounted time spent in each pair | Ch 23 |
 | $\tau$ | Shift in the projection onto the probability simplex | Ch 23 |
+
+: Symbols from Chapters 19–23. {#tbl-notation-4}
+
+## Part V: multiagent systems {#part5}
+
+| Symbol | Meaning | First used |
+|---|---|---|
 | $\mathcal{I}$, $i$, $k$ | The agents, one agent, and their number | Ch 24 |
 | $\mathcal{A}^i$, $\boldsymbol{a} = (a^1, \dots, a^k)$ | Agent $i$'s actions; a joint action | Ch 24 |
 | $-i$ | Every agent except $i$, as in $\boldsymbol{a}^{-i}$ or $\boldsymbol{\pi}^{-i}$ | Ch 24 |
@@ -187,13 +230,41 @@ This site uses the book's notation. Symbols are added here as chapters are writt
 | $\boldsymbol{x} = (x^1, \dots, x^k)$ | Joint controller node | Ch 26 |
 | $R(s, \boldsymbol{a})$ (shared) | The team's single reward in a Dec-POMDP | Ch 27 |
 | $U^*_{\text{MPOMDP}}(b)$ | Optimal team value if observations were shared (an upper bound) | Ch 27 |
-| $o$ | An observation | Ch 19 |
-| $O(o \mid a, s')$ | Observation model: probability of observing $o$ after taking $a$ and landing in $s'$ | Ch 19 |
-| $b(s)$ | Belief: probability that the current state is $s$, given the history | Ch 19 |
-| $\mathcal{N}(x \mid \mu, \Sigma)$ | Gaussian density at $x$ with mean $\mu$ and covariance $\Sigma$ | Ch 19 |
-| $\mathbf{T}_s$, $\mathbf{T}_a$, $\boldsymbol{\Sigma}_s$ | Linear-Gaussian dynamics: state matrix, action matrix, process-noise covariance | Ch 19 |
-| $\mathbf{O}_s$, $\boldsymbol{\Sigma}_o$ | Linear-Gaussian sensor: observation matrix, sensor-noise covariance | Ch 19 |
-| $\boldsymbol{\mu}_b$, $\boldsymbol{\Sigma}_b$ | Mean and covariance of a Gaussian belief | Ch 19 |
-| $\boldsymbol{\mu}_p$, $\boldsymbol{\Sigma}_p$ | Mean and covariance after the predict step | Ch 19 |
-| $\mathbf{K}$ | Kalman gain | Ch 19 |
-| $s^{(i)}$, $w^{(i)}$ | The $i$-th particle and its weight | Ch 19 |
+
+: Symbols from Chapters 24–27. {#tbl-notation-5}
+
+## Appendices {#appendices}
+
+| Symbol | Meaning | First used |
+|---|---|---|
+| $\lVert \mathbf{x} \rVert_p$ | The $p$-norm of a vector; $\lVert \mathbf{x} \rVert_\infty$ is its largest absolute entry | App A |
+| $\mathbf{A} \succ 0$ | $\mathbf{A}$ is positive definite: $\mathbf{x}^\top \mathbf{A} \mathbf{x} > 0$ for every $\mathbf{x} \ne \mathbf{0}$ | App A |
+| $H(P)$, $H(P, Q)$ | Entropy of $P$; cross entropy of $Q$ relative to $P$ | App A |
+| $\nabla f(\mathbf{x})$ | Gradient: the vector of partial derivatives, pointing uphill | App A |
+| $B$ | The Bellman backup as an operator on value functions | App A |
+| $O(g(n))$, $\Omega(g(n))$, $\Theta(g(n))$ | Grows no faster than, no slower than, and as fast as $g$, up to constant factors | App C |
+| $\mathbf{W}$, $\mathbf{b}$, $\phi$ | A network layer's weights, biases and activation function | App D |
+| $\operatorname{softmax}(\mathbf{z})$ | Turns scores into probabilities: $e^{z_i}/\sum_j e^{z_j}$ | App D |
+| $\beta$ (regularization) | Weight of the penalty on squared network weights | App D |
+| $\mathcal{A}(s)$ | Valid actions in state $s$ (none in an absorbing state) | App E |
+| $T(s, a)$ (deterministic) | The one next state after taking $a$ in $s$ | App E |
+
+: Symbols introduced in the appendices. {#tbl-notation-app}
+
+## Symbols with several meanings {#overloaded}
+
+The book, and so this site, reuses a few letters. The chapter always makes the meaning clear, but when reading across chapters, check this list.
+
+| Symbol | Meanings, by chapter |
+|---|---|
+| $\alpha$ | Pseudocounts (Ch 4–5, 16); step size (Ch 10, App A); quantile level (Ch 15); learning rate (Ch 17); alpha vector (Ch 20–23) |
+| $\beta$ | Beta parameter (Ch 4); basis functions (Ch 8); shaping potential (Ch 17); reward features and SMILe rate (Ch 18); start distribution (Ch 23); regularization weight (App D) |
+| $\delta$ | Residual thresholds (Ch 7, 9); finite-difference step (Ch 11); temporal difference residual (Ch 13, 17); pruning lead (Ch 20); belief gap (Ch 21) |
+| $\lambda$ | Risk aversion (Ch 6); GAE weight (Ch 13); adversary weight (Ch 14); softmax precision (Ch 15, 24); trace decay (Ch 17); interpolation and mixture weights (Ch 18, 21) |
+| $\phi$ | Factor (Ch 3); kernel (Ch 4); critic parameters (Ch 13); reward weights (Ch 18); particle (Ch 22); activation function (App D) |
+| $b$ | Initial state distribution (Ch 10, 14); belief over models (Ch 16); belief over states (Ch 19 on) |
+| $m$ | Counts (Ch 4–5); number of samples or simulations (Ch 9, 22); R-MAX threshold (Ch 16); grid granularity (Ch 21) |
+| $h$ | Hidden variables (Ch 3); kernel bandwidth (Ch 4); history (Ch 22); plan horizon (Ch 26) |
+| $N$ | Visit counts (Ch 9, 15, 16, 22); eligibility traces (Ch 17); opponent action counts (Ch 24, 25) |
+
+: Letters that mean different things in different chapters. {#tbl-overloaded}

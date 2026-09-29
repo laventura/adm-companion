@@ -5,23 +5,143 @@ subtitle: "Concepts, pictures, and code for *Algorithms for Decision Making*"
 
 This site is an independent, unofficial companion to *Algorithms for Decision Making* by Mykel Kochenderfer, Tim Wheeler, and Kyle Wray (MIT Press, 2022), the textbook for Stanford AA228/CS238. The book is freely available at [algorithmsbook.com](https://algorithmsbook.com).
 
-::: {.callout-note appearance="minimal"}
-**In progress.** Pages are being written chapter by chapter. A map of the whole book will appear here.
+Every chapter has a page with the big picture, intuition, the key equations explained term by term, worked examples with real numbers, interactive figures, tested code in Python and Julia, and solved problems.
+
+## The book in one picture
+
+The book is about one agent, or several, choosing actions under uncertainty. Part I builds the tools: probability to describe what we don't know, and utility to say what we want. Parts II–V then each add one source of uncertainty (@fig-book-map): random outcomes of actions over time, an unknown model, a hidden state, and other agents. Within a Part, the chapters typically move from stating the problem, to solving it exactly, to approximating when exact is too expensive.
+
+```{dot}
+//| label: fig-book-map
+//| fig-width: 7
+//| fig-height: 5.36
+//| fig-cap: "How the Parts build on each other. Each labeled arrow adds what the next Part must handle; Part I supplies the probability and utility tools used everywhere."
+//| fig-alt: "Diagram. Chapter 1, the introduction, points to Part I, probabilistic reasoning: represent beliefs, infer, learn, decide once. Part I points to Part II, sequential problems, labeled plus time and random outcomes: a known model with random outcomes. Part II points to Part III, model uncertainty, labeled plus unknown model: learn by acting. Part II also points to Part IV, state uncertainty, labeled plus hidden state: act on beliefs. Parts III and IV both point to Part V, multiagent systems, labeled plus other agents. The appendices sit to the side as reference material used throughout."
+digraph book {
+  rankdir=TB; bgcolor="#fcfcfb"; pad=0.2; nodesep=0.35; ranksep=0.45;
+  node [shape=box, style="rounded,filled", fillcolor="#cde2fb", color="#2a78d6", fontname="Helvetica", fontsize=11, width=2.4];
+  edge [color="#52514e", penwidth=1.2, arrowsize=0.7, fontname="Helvetica", fontsize=10, fontcolor="#52514e"];
+  intro [label=<<B>Chapter 1</B><BR/>decisions under uncertainty>, fillcolor="#f0efec", color="#52514e"];
+  p1 [label=<<B>Part I</B>&nbsp;· Ch 2–6<BR/>probabilistic reasoning:<BR/>represent, infer, learn, decide once>];
+  p2 [label=<<B>Part II</B>&nbsp;· Ch 7–14<BR/>sequential problems:<BR/>known model, random outcomes>];
+  p3 [label=<<B>Part III</B>&nbsp;· Ch 15–18<BR/>model uncertainty:<BR/>learn by acting>];
+  p4 [label=<<B>Part IV</B>&nbsp;· Ch 19–23<BR/>state uncertainty:<BR/>act on beliefs>];
+  p5 [label=<<B>Part V</B>&nbsp;· Ch 24–27<BR/>multiagent systems:<BR/>others choose too>];
+  app [label=<<B>Appendices A–F</B><BR/>math, distributions, complexity,<BR/>networks, search, problems>, fillcolor="#fbe1d6", color="#eb6834"];
+  intro -> p1 [label=" start"];
+  p1 -> p2 [label=" + time, random outcomes"];
+  p2 -> p3 [label=" + unknown model"];
+  p2 -> p4 [label=" + hidden state"];
+  p3 -> p5 [label=" + other agents"];
+  p4 -> p5 [label=" + other agents"];
+  { rank=same; p1; app; }
+  p1 -> app [style=invis];
+}
+```
+
+## Chapters
+
+::: {.panel-tabset}
+
+## Introduction and Part I
+
+| Chapter | The question it answers |
+|---|---|
+| [1 · Introduction](intro/ch01-introduction.qmd) | What is a decision problem, and what are the ways to build a decision maker? |
+| [2 · Representation](part1/ch02-representation.qmd) | How do we write down uncertain beliefs compactly? (Bayesian networks) |
+| [3 · Inference](part1/ch03-inference.qmd) | Given some observations, how likely is everything else? |
+| [4 · Parameter Learning](part1/ch04-parameter-learning.qmd) | How do we fit the numbers in a model to data? |
+| [5 · Structure Learning](part1/ch05-structure-learning.qmd) | How do we find which variables influence which? |
+| [6 · Simple Decisions](part1/ch06-simple-decisions.qmd) | How do we choose once, with utilities and the value of information? |
+
+## Part II
+
+| Chapter | The question it answers |
+|---|---|
+| [7 · Exact Solution Methods](part2/ch07-exact-solution-methods.qmd) | How do we plan optimally in a small MDP? (value and policy iteration) |
+| [8 · Approximate Value Functions](part2/ch08-approximate-value-functions.qmd) | What if there are too many states for a table? |
+| [9 · Online Planning](part2/ch09-online-planning.qmd) | How do we plan only from the current state? (forward search, MCTS) |
+| [10 · Policy Search](part2/ch10-policy-search.qmd) | Can we search over policies directly, without values? |
+| [11 · Policy Gradient Estimation](part2/ch11-policy-gradient-estimation.qmd) | How do we estimate which way to change a policy? |
+| [12 · Policy Gradient Optimization](part2/ch12-policy-gradient-optimization.qmd) | How do we take safe, efficient steps with those gradients? |
+| [13 · Actor-Critic Methods](part2/ch13-actor-critic-methods.qmd) | How do a learned value and a learned policy help each other? |
+| [14 · Policy Validation](part2/ch14-policy-validation.qmd) | How do we check that a policy is safe before we trust it? |
+
+## Part III
+
+| Chapter | The question it answers |
+|---|---|
+| [15 · Exploration and Exploitation](part3/ch15-exploration-and-exploitation.qmd) | When should we try something new instead of using what works? (bandits) |
+| [16 · Model-Based Methods](part3/ch16-model-based-methods.qmd) | How do we learn a model while acting, and plan with it? |
+| [17 · Model-Free Methods](part3/ch17-model-free-methods.qmd) | Can we learn values directly from experience? (Q-learning, Sarsa) |
+| [18 · Imitation Learning](part3/ch18-imitation-learning.qmd) | How do we learn from an expert's demonstrations? |
+
+## Part IV
+
+| Chapter | The question it answers |
+|---|---|
+| [19 · Beliefs](part4/ch19-beliefs.qmd) | How do we track a hidden state from noisy observations? (Bayes, Kalman and particle filters) |
+| [20 · Exact Belief State Planning](part4/ch20-exact-belief-state-planning.qmd) | How do we plan optimally over beliefs? (conditional plans, alpha vectors) |
+| [21 · Offline Belief State Planning](part4/ch21-offline-belief-state-planning.qmd) | How do we approximate a POMDP policy ahead of time, with bounds? |
+| [22 · Online Belief State Planning](part4/ch22-online-belief-state-planning.qmd) | How do we plan from the current belief as we go? |
+| [23 · Controller Abstractions](part4/ch23-controller-abstractions.qmd) | Can a small finite-state controller replace the belief? |
+
+## Part V
+
+| Chapter | The question it answers |
+|---|---|
+| [24 · Multiagent Reasoning](part5/ch24-multiagent-reasoning.qmd) | What should each player do in a one-shot game? (Nash and correlated equilibria) |
+| [25 · Sequential Problems](part5/ch25-sequential-problems.qmd) | What changes when games have states and time? (Markov games) |
+| [26 · State Uncertainty](part5/ch26-state-uncertainty.qmd) | What if players can't see the state either? (POMGs) |
+| [27 · Collaborative Agents](part5/ch27-collaborative-agents.qmd) | How does a team with a shared goal act on private observations? (Dec-POMDPs) |
+
+## Appendices
+
+| Appendix | What it covers |
+|---|---|
+| [A · Mathematical Concepts](appendices/a-mathematical-concepts.qmd) | Norms, convexity, information and entropy, gradient ascent, contraction |
+| [B · Probability Distributions](appendices/b-probability-distributions.qmd) | Uniform, Gaussian, Beta, Dirichlet, and conjugate updates |
+| [C · Computational Complexity](appendices/c-computational-complexity.qmd) | Big-O, P, NP, PSPACE, and why exact planning gets hard |
+| [D · Neural Representations](appendices/d-neural-representations.qmd) | Feedforward networks, backpropagation, regularization |
+| [E · Search Algorithms](appendices/e-search-algorithms.qmd) | Forward search, branch and bound, dynamic programming, heuristics |
+| [F · Problems](appendices/f-problems.qmd) | Every problem used on the site, with code to load it |
+
 :::
+
+## Reading paths
+
+You don't have to read in order. Some routes through the site, each a chain of chapters that build on one another:
+
+| If you want | Read |
+|---|---|
+| The core of planning | [7](part2/ch07-exact-solution-methods.qmd) → [8](part2/ch08-approximate-value-functions.qmd) → [9](part2/ch09-online-planning.qmd) |
+| Reinforcement learning | [7](part2/ch07-exact-solution-methods.qmd) → [15](part3/ch15-exploration-and-exploitation.qmd) → [16](part3/ch16-model-based-methods.qmd) → [17](part3/ch17-model-free-methods.qmd) |
+| Policy gradients | [10](part2/ch10-policy-search.qmd) → [11](part2/ch11-policy-gradient-estimation.qmd) → [12](part2/ch12-policy-gradient-optimization.qmd) → [13](part2/ch13-actor-critic-methods.qmd) |
+| Partial observability (POMDPs) | [3](part1/ch03-inference.qmd) → [19](part4/ch19-beliefs.qmd) → [20](part4/ch20-exact-belief-state-planning.qmd) → [21](part4/ch21-offline-belief-state-planning.qmd) → [22](part4/ch22-online-belief-state-planning.qmd) |
+| Games and teams | [6](part1/ch06-simple-decisions.qmd) → [24](part5/ch24-multiagent-reasoning.qmd) → [25](part5/ch25-sequential-problems.qmd) → [26](part5/ch26-state-uncertainty.qmd) → [27](part5/ch27-collaborative-agents.qmd) |
+| Probabilistic models | [2](part1/ch02-representation.qmd) → [3](part1/ch03-inference.qmd) → [4](part1/ch04-parameter-learning.qmd) → [5](part1/ch05-structure-learning.qmd) |
+
+: Suggested orders for common goals. {#tbl-paths}
 
 ## How to use this site
 
-Each chapter has one page, laid out the same way:
+Each chapter page is laid out the same way:
 
-1. **Big picture:** where the chapter fits, in one diagram.
+1. **Big picture:** where the chapter fits, its key ideas, and its vocabulary.
 2. **Intuition:** a concrete story before any math.
-3. **Formalism:** the definitions and key equations, in the book's notation.
+3. **Formalism:** the definitions and key equations, in the book's notation, each explained in words and term by term.
 4. **Worked example:** the ideas applied to real numbers.
 5. **Interactive:** figures you can change.
 6. **Algorithms & code:** implementations in Python and Julia, side by side.
 7. **Solved problems:** try each one before opening its solution.
-8. **Cheat sheet & connections:** the key equations, and links to related chapters.
+8. **Recap** and **Cheat sheet & connections:** the key points, the key equations, and links to related chapters.
+
+Big picture and Intuition are written to stand alone: reading just those two sections of every chapter gives a tour of the whole book.
 
 Each page states which language was executed to produce its figures. The code in the other language is tested separately.
 
-The [notation](notation.qmd) page collects the symbols used across the site.
+Three reference pages collect material from across the site:
+
+- [Notation](notation.qmd): every symbol, grouped by Part.
+- [Cheat sheets](cheatsheets.qmd): every chapter's key equations in one place.
+- [Problems](appendices/f-problems.qmd): the gallery of problems, with loading code in both languages.

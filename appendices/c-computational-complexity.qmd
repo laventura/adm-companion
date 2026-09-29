@@ -1,8 +1,269 @@
 ---
 title: "C · Computational Complexity"
 subtitle: "Appendices"
+jupyter: python3
+execute:
+  echo: false
 ---
 
 ::: {.callout-note appearance="minimal"}
-**In progress.** This page will cover ADM Appendix C, *Computational Complexity*.
+**Executed in:** Python · **Book:** ADM Appendix C
+:::
+
+```{python}
+#| include: false
+import math
+from itertools import product
+
+import numpy as np
+import matplotlib.pyplot as plt
+
+from adm import complexity as C
+from adm import style
+from adm.page import show_source
+
+style.apply()
+blue, orange, green, yellow, pink, dkgreen, purple, red = style.CATEGORICAL
+
+# Worked 3SAT example: 4 variables, 6 clauses (+i = x_i, -i = not x_i).
+F = [(1, 2, -3), (-1, 3, 4), (-2, -4, 3), (1, -2, -4), (2, 3, 4), (-1, -3, -4)]
+F_X, F_CHECKED = C.brute_force_sat(F, 4)
+F_COUNT = C.count_satisfying(F, 4)
+# Every sign pattern over x1..x3 as a clause: each assignment breaks exactly one.
+UNSAT = [tuple(s * i for s, i in zip(sg, (1, 2, 3))) for sg in product((1, -1), repeat=3)]
+U_X, U_CHECKED = C.brute_force_sat(UNSAT, 3)
+
+def lit(l):
+    return f"x_{l}" if l > 0 else rf"\lnot x_{-l}"
+
+def clause(c):
+    return "(" + r" \lor ".join(lit(l) for l in c) + ")"
+
+def tf(x):
+    return ", ".join("T" if v else "F" for v in x)
+
+# Time at 10^9 elementary steps per second.
+GROWTH = {"n": lambda n: n, "n log₂ n": lambda n: n * math.log2(n), "n²": lambda n: n**2,
+          "n³": lambda n: n**3, "2ⁿ": lambda n: 2.0**n, "n!": lambda n: math.factorial(n)}
+SIZES = (10, 20, 50, 100)
+
+def duration(steps):
+    s = steps / 1e9
+    for unit, size in (("years", 3.15576e7), ("days", 86400), ("hours", 3600), ("minutes", 60)):
+        if s >= size:
+            v = s / size
+            if v < 1e4:
+                return f"{v:,.0f} {unit}"
+            e = math.floor(math.log10(v))          # v = m × 10^e
+            return f"{v / 10**e:.1f} × 10<sup>{e}</sup> {unit}"
+    if s >= 1:
+        return f"{s:.0f} s"
+    for unit, size in (("ms", 1e-3), ("µs", 1e-6)):
+        if s >= size:
+            return f"{s / size:.0f} {unit}"
+    return f"{s * 1e9:.0f} ns"
+
+PLANS = [C.conditional_plan_count(3, 2, h) for h in range(1, 6)]
+AGE_UNIVERSE = 13.8e9 * 3.15576e7      # seconds
+```
+
+Complexity theory measures how the time or memory an algorithm needs grows with the size of its input. On this site it explains why some methods are exact but useless beyond toy problems, and why later chapters turn to approximations. This appendix follows ADM Appendix C: asymptotic notation, time and space complexity classes, and decidability, with original examples.
+
+## At a glance
+
+| Idea | Meaning | Example on this site |
+|---|---|---|
+| $O(g)$ | grows no faster than $g$, up to a constant | value iteration: $O(\lvert\mathcal{S}\rvert^2\lvert\mathcal{A}\rvert)$ per sweep ([Ch 7](../part2/ch07-exact-solution-methods.qmd)) |
+| P | solvable in polynomial time | solving an MDP by linear programming ([Ch 7](../part2/ch07-exact-solution-methods.qmd)) |
+| NP | a proposed solution can be checked in polynomial time | 3SAT: checking an assignment is quick |
+| NP-hard | at least as hard as every problem in NP | exact inference in Bayesian networks ([Ch 3](../part1/ch03-inference.qmd)) |
+| PSPACE | solvable with polynomial memory, however long it takes | finite-horizon POMDP planning ([Ch 20](../part4/ch20-exact-belief-state-planning.qmd)) |
+| NEXP | solvable in exponential time by guessing and checking | finite-horizon Dec-POMDP planning ([Ch 27](../part5/ch27-collaborative-agents.qmd)) |
+| undecidable | no algorithm answers every instance correctly | exact infinite-horizon POMDP planning ([Ch 21](../part4/ch21-offline-belief-state-planning.qmd)) |
+
+: The ideas on this page. {#tbl-glance}
+
+## Asymptotic notation
+
+::: {.key-equation data-name="Big-O notation"}
+$$
+f(n) = O\big(g(n)\big) \iff \text{there are } c > 0 \text{ and } n_0 \text{ with } \lvert f(n)\rvert \le c\,\lvert g(n)\rvert \text{ for all } n \ge n_0
+$$ {#eq-bigo}
+:::
+
+**In words.** Past some size $n_0$, $f$ never exceeds a fixed multiple of $g$. It is an upper bound on the growth rate that ignores constant factors.
+
+**Term by term.**
+
+- $f(n)$: the cost we care about, for example the number of steps on an input of size $n$.
+- $g(n)$: a simple comparison function such as $n^2$ or $2^n$.
+- $c$: absorbs constant factors (a faster computer, a tighter loop); $n_0$: ignores small inputs.
+
+**Why it holds.** It is a definition, not a theorem. Two consequences are used constantly. For a sum of terms, only the fastest-growing one matters: $3n^2 + 50n + 7 \le 60n^2$ for $n \ge 1$, so it is $O(n^2)$. And the "$=$" is really set membership: $n = O(n^2)$ is true, but $O(n^2) = n$ is meaningless. Related notation: $\Omega(g)$ is the matching lower bound, and $\Theta(g)$ means both.
+
+@tbl-growth shows why the order matters more than the constant. At a billion steps per second, a cubic algorithm handles $n = 100$ in a millisecond; an exponential one would outlast the universe (about 4 × 10<sup>`{python} math.floor(math.log10(AGE_UNIVERSE))`</sup> seconds old).
+
+```{python}
+#| output: asis
+print("| Steps | " + " | ".join(f"n = {n}" for n in SIZES) + " |")
+print("|---|" + "---:|" * len(SIZES))
+for name, g in GROWTH.items():
+    print(f"| {name} | " + " | ".join(duration(g(n)) for n in SIZES) + " |")
+print("\n: Running time at 10⁹ steps per second. {#tbl-growth}")
+```
+
+## Time complexity classes
+
+A **decision problem** asks a yes/no question, such as "is there a policy with expected value at least 10?" Classes group decision problems by the resources needed to answer them:
+
+- **P**: answerable in time polynomial in the input size.
+- **NP**: when the answer is yes, there is a certificate (a proposed solution) that can be checked in polynomial time.
+- **NP-hard**: every NP problem can be translated to it in polynomial time, so a fast algorithm for it would give fast algorithms for all of NP.
+- **NP-complete**: both in NP and NP-hard, so the hardest problems in NP.
+
+Whether P = NP is open; most researchers believe the classes differ. @fig-classes shows the known inclusions and where this site's problems sit.
+
+```{dot}
+//| label: fig-classes
+//| fig-width: 6.69
+//| fig-height: 4.9
+//| fig-cap: "Nested complexity classes, P ⊆ NP ⊆ PSPACE ⊆ EXPTIME ⊆ NEXP, drawn assuming each inclusion is strict (only P ≠ EXPTIME and NP ≠ NEXP are proven). Each box shows a complete problem from this site. Undecidable problems lie outside every class."
+//| fig-alt: "Diagram of nested boxes. The innermost box, P, contains MDP planning. Around it, NP contains 3SAT. Around that, PSPACE contains finite-horizon POMDP planning. Around that, EXPTIME. The outermost box, NEXP, contains finite-horizon Dec-POMDP planning. Outside all boxes, a separate node reads: undecidable, exact infinite-horizon POMDP planning."
+digraph classes {
+  bgcolor="#fcfcfb"; pad=0.2; nodesep=0.4; ranksep=0.2; compound=true;
+  node [shape=box, style="rounded,filled", fillcolor="#cde2fb", color="#2a78d6", fontname="Helvetica", fontsize=11];
+  graph [fontname="Helvetica", fontsize=12, labeljust=l, color="#52514e", style=rounded];
+  subgraph cluster_nexp { label="NEXP"; bgcolor="#f7f6f3";
+    dec [label="Dec-POMDP, finite horizon (Ch 27)"];
+    subgraph cluster_exp { label="EXPTIME"; bgcolor="#f0efec";
+      subgraph cluster_ps { label="PSPACE"; bgcolor="#e7e6e1";
+        pomdp [label="POMDP, finite horizon (Ch 20)"];
+        subgraph cluster_np { label="NP"; bgcolor="#dddcd5";
+          sat [label="3SAT"];
+          subgraph cluster_p { label="P"; bgcolor="#d2d1c9";
+            mdp [label="MDP (Ch 7)"];
+          }
+        }
+      }
+    }
+  }
+  undec [label="undecidable: exact infinite-horizon POMDP (Ch 21)", fillcolor="#fbe1d6", color="#eb6834"];
+  dec -> undec [style=invis];
+  mdp -> dec [style=invis];
+}
+```
+
+### Worked example: 3SAT {#sec-3sat}
+
+A **3SAT** formula is an AND of clauses, each an OR of up to three literals (a variable or its negation). The question: is there a true/false assignment that makes every clause true? It was the first problem shown to be NP-complete (Cook 1971; Karp 1972 showed 21 more).
+
+Take four variables and six clauses:
+
+```{python}
+#| output: asis
+# Three clauses per line, so the formula fits the text column.
+first, second = (r" \land ".join(clause(c) for c in half) for half in (F[:3], F[3:]))
+print(r"$$\begin{aligned}" + f"&{first}" + r" \land \\ " + f"&{second}" + r"\end{aligned}$$")
+```
+
+- **Checking is fast.** Given an assignment, test each clause for one true literal: at most 18 literal lookups. That is why 3SAT is in NP.
+- **Finding may be slow.** Brute force tries all $2^4 = 16$ assignments in order. Here it succeeds at assignment number `{python} F_CHECKED` ($x_1, \dots, x_4$ = `{python} tf(F_X)`), and `{python} F_COUNT` of the 16 assignments satisfy the formula.
+- **The worst case needs all of them.** The formula whose clauses are all 8 sign patterns over $x_1, x_2, x_3$ is unsatisfiable: each assignment breaks exactly one clause, the one whose three literals it makes false. Brute force checks all `{python} U_CHECKED` assignments before answering no. With $n$ variables that is $2^n$ checks, the $2^n$ row of @tbl-growth.
+
+Clever solvers prune most of the search on typical formulas, but no known algorithm avoids exponential time on every formula.
+
+**Proving hardness by reduction.** To show a new problem $Q$ is NP-hard, translate a known NP-complete problem such as 3SAT into instances of $Q$ in polynomial time. A fast solver for $Q$ would then solve 3SAT quickly. Cooper (1990) did this for inference in Bayesian networks: each variable of a 3SAT formula becomes a root node, each clause a node that is true when the clause holds, and an AND node at the bottom has positive probability exactly when the formula is satisfiable.
+
+## Space complexity
+
+**PSPACE** holds the problems solvable with memory polynomial in the input size, with no limit on time. Memory can be reused and time cannot, so PSPACE contains NP: try every certificate one after another, reusing the same memory. Finite-horizon POMDP planning is PSPACE-complete (Papadimitriou and Tsitsiklis 1987), which is why exact belief-state planning ([Ch 20](../part4/ch20-exact-belief-state-planning.qmd)) blows up. The number of conditional plans of depth $h$ for the crying baby (3 actions, 2 observations) is $3^{2^h - 1}$: `{python} ", ".join(f"{p:,}" for p in PLANS[:4])` for $h = 1, \dots, 4$, and about 6 × 10<sup>`{python} math.floor(math.log10(PLANS[4]))`</sup> for $h = 5$.
+
+## Decidability
+
+A problem is **decidable** if some algorithm always halts with the correct yes/no answer. Turing (1936) showed that the **halting problem** (does this program halt on this input?) is undecidable. The argument: suppose a program `halts(p, x)` existed. Build `contrary(p)`, which loops forever if `halts(p, p)` says yes and halts otherwise. Then `contrary(contrary)` halts exactly when it doesn't, a contradiction.
+
+For decision making, Madani, Hanks and Condon (2003) showed that for infinite-horizon POMDPs, deciding whether some policy reaches a given value is undecidable under several criteria, such as total undiscounted reward and the probability of reaching a goal. No algorithm solves general infinite-horizon POMDPs exactly, so [Chapter 21](../part4/ch21-offline-belief-state-planning.qmd) computes bounds instead.
+
+## Where complexity shows up on this site
+
+| Problem | Complexity | Source | Consequence on this site |
+|---|---|---|---|
+| Exact inference in Bayesian networks | NP-hard | Cooper 1990 | approximate inference by sampling ([Ch 3](../part1/ch03-inference.qmd)) |
+| Approximate inference to a fixed relative error | NP-hard | Dagum and Luby 1993 | sampling carries no worst-case guarantee ([Ch 3](../part1/ch03-inference.qmd)) |
+| Bayesian network structure learning | NP-complete | Chickering 1996 | local search over graphs ([Ch 5](../part1/ch05-structure-learning.qmd)) |
+| MDP planning | P-complete | Papadimitriou and Tsitsiklis 1987 | exact methods for small state spaces ([Ch 7](../part2/ch07-exact-solution-methods.qmd)) |
+| POMDP planning, finite horizon | PSPACE-complete | Papadimitriou and Tsitsiklis 1987 | point-based and online methods ([Ch 21](../part4/ch21-offline-belief-state-planning.qmd), [22](../part4/ch22-online-belief-state-planning.qmd)) |
+| POMDP planning, infinite horizon | undecidable (several criteria) | Madani, Hanks and Condon 2003 | bounds and finite controllers ([Ch 21](../part4/ch21-offline-belief-state-planning.qmd), [23](../part4/ch23-controller-abstractions.qmd)) |
+| Nash equilibrium of a two-player game | PPAD-complete | Chen and Deng 2006; Daskalakis, Goldberg and Papadimitriou 2009 | numerical search on small games ([Ch 24](../part5/ch24-multiagent-reasoning.qmd)) |
+| Dec-POMDP planning, finite horizon | NEXP-complete | Bernstein et al. 2002 | approximate joint planning ([Ch 27](../part5/ch27-collaborative-agents.qmd)) |
+
+: Complexity results behind the book's methods. PPAD is a class of search problems where a solution is guaranteed to exist; it lies between P and NP. {#tbl-where}
+
+**References.**
+
+- Bernstein, Givan, Immerman and Zilberstein, "The complexity of decentralized control of Markov decision processes," *Mathematics of Operations Research* 27(4), 2002.
+- Chen and Deng, "Settling the complexity of two-player Nash equilibrium," *FOCS*, 2006.
+- Chickering, "Learning Bayesian networks is NP-complete," in *Learning from Data*, Springer, 1996.
+- Cook, "The complexity of theorem-proving procedures," *STOC*, 1971.
+- Cooper, "The computational complexity of probabilistic inference using Bayesian belief networks," *Artificial Intelligence* 42, 1990.
+- Dagum and Luby, "Approximating probabilistic inference in Bayesian belief networks is NP-hard," *Artificial Intelligence* 60, 1993.
+- Daskalakis, Goldberg and Papadimitriou, "The complexity of computing a Nash equilibrium," *SIAM Journal on Computing* 39(1), 2009.
+- Karp, "Reducibility among combinatorial problems," in *Complexity of Computer Computations*, 1972.
+- Madani, Hanks and Condon, "On the undecidability of probabilistic planning and related stochastic optimization problems," *Artificial Intelligence* 147, 2003.
+- Papadimitriou and Tsitsiklis, "The complexity of Markov decision processes," *Mathematics of Operations Research* 12(3), 1987.
+- Turing, "On computable numbers, with an application to the Entscheidungsproblem," *Proceedings of the London Mathematical Society*, 1936.
+
+## Figure
+
+```{python}
+#| label: fig-growth
+#| fig-cap: "Steps needed by algorithms of each order, on a log scale. On this scale polynomials rise ever more slowly; 2ⁿ is a straight line that overtakes n³ at n = 10 and n! overtakes 2ⁿ at n = 4."
+#| fig-alt: "Line chart with input size n from 1 to 40 on the horizontal axis and steps from 1 to 10 to the 48 on a log vertical axis. The curves for n, n log n, n squared and n cubed rise slowly and flatten. The 2 to the n line rises steadily and passes n cubed at n equals 10. The n factorial curve rises fastest, passing 10 to the 40 at n equals 35."
+fig, ax = plt.subplots(figsize=(7, 4))
+n = np.arange(1, 41)
+curves = ((r"$n$", n, blue), (r"$n \log_2 n$", n * np.log2(n), orange), (r"$n^2$", n**2.0, green),
+          (r"$n^3$", n**3.0, yellow), (r"$2^n$", 2.0**n, purple),
+          (r"$n!$", np.array([math.factorial(k) for k in n], dtype=float), red))
+for label, y, c in curves:
+    ax.semilogy(n, y, color=c, lw=2, label=label)
+ax.set_ylim(1, 1e48); ax.set_xlabel("input size n"); ax.set_ylabel("steps")
+ax.legend(fontsize=9, loc="upper left")
+plt.show()
+```
+
+## Code
+
+The brute-force solver checks assignments in order and stops at the first that satisfies every clause.
+
+::: {.panel-tabset group="lang"}
+## Python
+```{python}
+#| output: asis
+show_source(C.satisfies, C.brute_force_sat)
+```
+## Julia
+```{.julia .snippet}
+# A clause is a tuple of nonzero Ints: +i is x_i, -i is not x_i.
+# x[abs(l)] is variable |l|'s value (1-based, like the literals).
+satisfies(clauses, x) = all(any(x[abs(l)] == (l > 0) for l in c) for c in clauses)
+
+function brute_force_sat(clauses, n)
+    k = 0
+    # Iterators.product varies its first argument fastest, so reverse
+    # each tuple to try assignments in the same order as the Python code.
+    for t in Iterators.product(ntuple(_ -> (false, true), n)...)
+        k += 1
+        x = reverse(t)
+        satisfies(clauses, x) && return x, k
+    end
+    return nothing, 2^n
+end
+
+F = [(1, 2, -3), (-1, 3, 4), (-2, -4, 3), (1, -2, -4), (2, 3, 4), (-1, -3, -4)]
+x, k = brute_force_sat(F, 4)
+println("satisfied by ", x, " after ", k, " checks")
+@assert x == (false, false, false, true) && k == 2
+unsat = [(s1 * 1, s2 * 2, s3 * 3) for s1 in (1, -1) for s2 in (1, -1) for s3 in (1, -1)]
+@assert brute_force_sat(unsat, 3) == (nothing, 8)
+```
 :::

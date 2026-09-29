@@ -15,7 +15,6 @@ import tempfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-PAGE_DIRS = ["intro", "part1", "part2", "part3", "part4", "part5", "appendices"]
 LANGS = {"python": "py", "julia": "jl"}
 FENCE = re.compile(r"^\s*(`{3,}|~{3,})\s*(.*?)\s*$")
 
@@ -47,6 +46,14 @@ def extract_snippets(text: str) -> dict[str, list[str]]:
     return snippets
 
 
+def page_dirs() -> list[Path]:
+    """Top-level folders that hold pages. Skips templates/ and folders
+    starting with _ or . (_site, _freeze, .quarto)."""
+    return sorted(d for d in ROOT.iterdir()
+                  if d.is_dir() and d.name[0] not in "_." and d.name != "templates"
+                  and any(d.glob("*.qmd")))
+
+
 def find_pages(chapter: str | None) -> list[Path]:
     if chapter is None:
         pattern = "*.qmd"
@@ -54,7 +61,7 @@ def find_pages(chapter: str | None) -> list[Path]:
         pattern = f"ch{int(chapter):02d}-*.qmd"
     else:
         pattern = f"{chapter.lower()}-*.qmd"
-    return sorted(p for d in PAGE_DIRS for p in (ROOT / d).glob(pattern))
+    return sorted(p for d in page_dirs() for p in d.glob(pattern))
 
 
 def run(lang: str, code: str) -> subprocess.CompletedProcess:

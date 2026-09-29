@@ -4,6 +4,7 @@ project:
   render:
     - index.qmd
     - notation.qmd
+    - cheatsheets.qmd
     - "intro/*.qmd"
     - "part*/*.qmd"
     - "appendices/*.qmd"
@@ -26,6 +27,7 @@ website:
     contents:
       - index.qmd
       - notation.qmd
+      - cheatsheets.qmd
       - section: "Introduction"
         contents: "intro/*.qmd"
       - section: "Part I — Probabilistic Reasoning"

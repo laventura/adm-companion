@@ -1,0 +1,28 @@
+---
+title: "Cheat sheets"
+subtitle: "Every chapter's key equations on one page"
+jupyter: python3
+execute:
+  echo: false
+  freeze: false     # rebuilt on every render, so it never lags the chapter pages
+---
+
+Each chapter page ends with a cheat sheet of its key equations. This page collects them all, in book order. A ★ marks equations well known by name. Each "eq." link opens the full explanation on the chapter page: the equation in words, term by term, and why it holds.
+
+```{python}
+#| output: asis
+from pathlib import Path
+
+from adm.page import cheat_sheet, page_title
+
+PARTS = [("Introduction", "intro"), ("Part I — Probabilistic Reasoning", "part1"),
+         ("Part II — Sequential Problems", "part2"), ("Part III — Model Uncertainty", "part3"),
+         ("Part IV — State Uncertainty", "part4"), ("Part V — Multiagent Systems", "part5")]
+for heading, folder in PARTS:
+    print(f"\n## {heading}\n")
+    for page in sorted(Path(folder).glob("ch*.qmd")):
+        href = f"{folder}/{page.name}"
+        print(f"\n### [{page_title(page)}]({href})\n")
+        print(cheat_sheet(page, href))
+        print()
+```

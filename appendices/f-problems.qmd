@@ -57,19 +57,19 @@ def draw_hexes(ax, mdp, values=None, policy=None, rewards_only=False, labels=Tru
     ax.axis("off")
 ```
 
-This page collects every problem used on the site, implemented in both Python (`adm/problems/`) and Julia (`julia/src/problems/`), with tests that check the two languages agree. It has two parts: the benchmark problems from Appendix F of the book, implemented from their descriptions, and the [small original problems](#problems-made-for-this-site) built for this site's chapters. Each problem is added when a chapter first uses it. The table shows which Appendix F problems are available so far.
+This page collects every problem used on the site, implemented in both Python (`adm/problems/`) and Julia (`julia/src/problems/`), with tests that check the two languages agree. It has two parts: the benchmark problems from Appendix F of the book, implemented from their descriptions, and the [small original problems](#problems-made-for-this-site) built for this site's chapters. Each problem was added when a chapter first used it, so the five Appendix F problems that no chapter needed (2048, cart-pole, machine replacement, catch and collaborative predator-prey) are not implemented. The table shows the status of each.
 
 | Problem | Kind | Status |
 |---|---|---|
 | F.1 Hex World | MDP, discrete | ✅ [below](#hex-world) |
-| F.2 2048 | MDP, discrete (huge) | added when first used |
-| F.3 Cart-Pole | MDP, continuous state | added when first used |
+| F.2 2048 | MDP, discrete (huge) | not implemented: no chapter uses it; the online planning chapter (Ch 9) uses Hex World and mountain car |
+| F.3 Cart-Pole | MDP, continuous state | not implemented: no chapter uses it; the continuous-state chapters (Ch 8–13) use mountain car and the simple regulator |
 | F.4 Mountain Car | MDP, continuous state | ✅ [below](#mountain-car) |
 | F.5 Simple Regulator | MDP, linear-quadratic | ✅ [below](#simple-regulator) |
 | F.6 Aircraft Collision Avoidance | MDP, discrete | ✅ [below](#collision-avoidance) |
 | F.7 Crying Baby | POMDP | ✅ [below](#crying-baby) |
-| F.8 Machine Replacement | POMDP | added when first used |
-| F.9 Catch | POMDP | added when first used |
+| F.8 Machine Replacement | POMDP | not implemented: no chapter uses it; the POMDP chapters (Ch 20–23) use the crying baby and [the fork](#the-fork) |
+| F.9 Catch | POMDP | not implemented: no chapter uses it; the POMDP chapters (Ch 20–23) use the crying baby and [the fork](#the-fork) |
 | F.10–F.12 Prisoner's Dilemma, Rock-Paper-Scissors, Traveler's Dilemma | Simple games | ✅ [below](#simple-games) |
 | F.13 Predator-Prey Hex World | Markov game | ✅ [below](#predator-prey) |
 | F.14 Multicaregiver Crying Baby | POMG | ✅ [below](#multicaregiver) |

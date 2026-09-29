@@ -1,8 +1,373 @@
 ---
 title: "A · Mathematical Concepts"
 subtitle: "Appendices"
+jupyter: python3
+execute:
+  echo: false
 ---
 
 ::: {.callout-note appearance="minimal"}
-**In progress.** This page will cover ADM Appendix A, *Mathematical Concepts*.
+**Executed in:** Python · **Book:** ADM Appendix A
 :::
+
+```{python}
+#| include: false
+import numpy as np
+import matplotlib.pyplot as plt
+from scipy import stats
+
+from adm import concepts as C
+from adm import style
+from adm.page import show_source
+from adm.problems.hex_world import hex_world
+from adm.validation import importance_estimate
+
+style.apply()
+blue, orange, green, yellow, pink, dkgreen, purple, red = style.CATEGORICAL
+fmt = lambda x, d=2: f"{x:.{d}f}".replace("-", "−")
+
+X = np.array([3.0, -4.0])
+NORMS = {"1": np.abs(X).sum(), "2": np.sqrt((X ** 2).sum()), "inf": np.abs(X).max()}
+A_PD, A_IND = np.array([[2.0, 1.0], [1.0, 2.0]]), np.array([[1.0, 2.0], [2.0, 1.0]])
+EIG_PD, EIG_IND = np.linalg.eigvalsh(A_PD), np.linalg.eigvalsh(A_IND)
+
+P, Q = [0.5, 0.3, 0.2], [0.4, 0.4, 0.2]
+H_P, H_PQ = C.entropy(P), C.cross_entropy(P, Q)
+KL_PQ, KL_QP = C.kl_divergence(P, Q), C.kl_divergence(Q, P)
+
+GRAD = lambda x: np.array([-2 * (x[0] - 1), -4 * (x[1] + 0.5)])       # f = -(x-1)^2 - 2(y+1/2)^2
+GA = {a: C.gradient_ascent(GRAD, [-2.0, 2.0], a, 30) for a in (0.1, 0.45, 0.55)}
+
+TAY_X = 0.5
+TAY = {k: sum((-1) ** (j // 2) * TAY_X ** j / np.prod(range(1, j + 1)) for j in range(0, k + 1, 2))
+       for k in (0, 2, 4)}                                             # cos x: even terms only
+
+NS = [10, 30, 100, 300, 1000, 3000, 10000]
+rng = np.random.default_rng(0)
+# Root-mean-square error of the sample mean of X^2 (true value 1), 300 repeats per n.
+MC_ERR = [np.sqrt(np.mean([((rng.normal(size=n) ** 2).mean() - 1) ** 2 for _ in range(300)])) for n in NS]
+TAIL = stats.norm.sf(3)                                                # P(X > 3), X ~ N(0, 1)
+def tail_runs(n, runs=500, shift=3.0):
+    plain, weighted = [], []
+    for _ in range(runs):
+        plain.append((rng.normal(size=n) > 3).mean())
+        z = rng.normal(shift, 1, size=n)                               # proposal N(3, 1)
+        log_w = stats.norm.logpdf(z) - stats.norm.logpdf(z, shift, 1)
+        weighted.append(importance_estimate((z > 3).astype(float), log_w)[0])
+    return np.array(plain), np.array(weighted)
+PLAIN, WEIGHTED = tail_runs(1000)
+
+HW = hex_world()
+pairs = []
+for _ in range(1000):
+    U, V = rng.normal(0, 10, len(HW.R)), rng.normal(0, 10, len(HW.R))
+    d_in = np.abs(U - V).max()
+    d_out = np.abs(C.bellman_backup(HW.T, HW.R, HW.gamma, U) - C.bellman_backup(HW.T, HW.R, HW.gamma, V)).max()
+    pairs.append((d_in, d_out))
+PAIRS = np.array(pairs)
+RATIO_MAX = (PAIRS[:, 1] / PAIRS[:, 0]).max()
+assert RATIO_MAX <= HW.gamma + 1e-12
+```
+
+This appendix collects the mathematics used across the site, each idea with a small computed example and a pointer to where it is used. It follows the topics of ADM Appendix A.
+
+## Spaces: measuring size and distance
+
+A **probability space** $(\Omega, \mathcal{E}, P)$ has a set of outcomes $\Omega$, a collection $\mathcal{E}$ of events (subsets of $\Omega$ we can assign probabilities to), and a probability measure $P$ with $P(\Omega) = 1$ that adds up over disjoint events (ADM §A.1–A.2). A **metric** $d(x, y)$ measures distance: it is zero only when $x = y$, symmetric, and obeys the triangle inequality (§A.3). On vectors, distances usually come from a **norm**:
+
+::: {.key-equation data-name="Lp norms"}
+$$
+\|\mathbf{x}\|_p = \Big(\sum_i |x_i|^p\Big)^{1/p}, \qquad \|\mathbf{x}\|_\infty = \max_i |x_i|
+$$ {#eq-norm}
+:::
+
+**In words.** A norm measures a vector's size; $p$ decides how much the largest component dominates.
+
+**Term by term.**
+
+- $p = 1$: the sum of absolute values ("taxicab" length); $p = 2$: the ordinary Euclidean length; $p = \infty$: the largest component only.
+- The distance between two vectors is the norm of their difference, $\|\mathbf{x} - \mathbf{y}\|_p$.
+- Example: $\mathbf{x} = (3, -4)$ has norms `{python} fmt(NORMS["1"], 0)`, `{python} fmt(NORMS["2"], 0)` and `{python} fmt(NORMS["inf"], 0)` for $p = 1, 2, \infty$.
+
+**Why it holds.** Each is a norm: zero only for the zero vector, scales with $|c|$ when the vector is multiplied by $c$, and satisfies the triangle inequality (Minkowski's inequality). The max norm is the limit of $\|\mathbf{x}\|_p$ as $p \to \infty$. It is the norm in which the Bellman backup contracts (see [below](#contraction)).
+
+## Positive definiteness
+
+A symmetric matrix $\mathbf{A}$ is **positive definite** if (ADM §A.5)
+
+::: {.key-equation data-name="Positive definite"}
+$$
+\mathbf{x}^\top \mathbf{A}\, \mathbf{x} > 0 \quad \text{for every } \mathbf{x} \ne \mathbf{0}
+$$ {#eq-pd}
+:::
+
+**In words.** The quadratic form $\mathbf{x}^\top \mathbf{A}\mathbf{x}$ is a bowl: positive in every direction away from the origin.
+
+**Term by term.**
+
+- $\mathbf{x}^\top \mathbf{A}\mathbf{x} = \sum_{i,j} A_{ij} x_i x_j$, a number for each $\mathbf{x}$.
+- Equivalently, all eigenvalues of $\mathbf{A}$ are positive. ≥ 0 instead of > 0 gives **positive semidefinite**.
+- Example: $\begin{bmatrix}2 & 1\\1 & 2\end{bmatrix}$ has eigenvalues `{python} ", ".join(fmt(e, 0) for e in EIG_PD)`: positive definite. $\begin{bmatrix}1 & 2\\2 & 1\end{bmatrix}$ has `{python} ", ".join(fmt(e, 0) for e in EIG_IND)`: indefinite, a saddle.
+
+**Why it holds.** Writing $\mathbf{x}$ in the eigenvector basis turns the form into $\sum_i \lambda_i y_i^2$, which is positive for every nonzero $\mathbf{y}$ exactly when every $\lambda_i > 0$. Covariance matrices (Chapter 19's Kalman filter) are positive semidefinite; a positive definite Hessian means a strict local minimum.
+
+## Convexity
+
+A function $f$ is **convex** if the chord between any two points lies on or above the graph (ADM §A.6):
+
+::: {.key-equation data-name="Convex function"}
+$$
+f\big(\lambda x + (1 - \lambda) y\big) \le \lambda f(x) + (1 - \lambda) f(y) \quad \text{for all } x, y \text{ and } \lambda \in [0, 1]
+$$ {#eq-convex}
+:::
+
+**In words.** The function at a weighted average is at most the weighted average of the function.
+
+**Term by term.**
+
+- $\lambda x + (1 - \lambda) y$: a point on the segment between $x$ and $y$.
+- The right side is the height of the chord above that point.
+- A set is convex if it contains every segment between its points; $f$ is concave if $-f$ is convex.
+
+**Why it holds.** It's a definition. Its use: a convex function's local minima are global, and it lies above its tangent lines. On this site: the optimal value function of a POMDP is convex in the belief (Chapter 20), which makes alpha vectors and the sawtooth and triangulated bounds of Chapter 21 work.
+
+## Information and entropy
+
+The **information content** of an outcome with probability $P(x)$ is $-\log P(x)$: rare outcomes are more surprising (ADM §A.7). Averaging gives entropy, and using the wrong model gives cross entropy (§A.8–A.10):
+
+::: {.key-equation .famous data-name="Entropy, cross entropy and KL divergence"}
+$$
+H(P) = -\sum_x P(x) \log P(x), \qquad
+H(P, Q) = -\sum_x P(x) \log Q(x), \qquad
+D_{\mathrm{KL}}(P \,\|\, Q) = H(P, Q) - H(P) = \sum_x P(x) \log \frac{P(x)}{Q(x)}
+$$ {#eq-info}
+:::
+
+**In words.** Entropy is the average surprise of outcomes from $P$. Cross entropy is the average surprise if you expected $Q$ instead. Their difference, the KL divergence, is the extra surprise from using the wrong model.
+
+**Term by term.**
+
+- With $\log_2$ the units are bits: a fair coin has $H = 1$ bit; a coin with $P(\text{heads}) = 0.9$ has `{python} fmt(C.entropy([0.9, 0.1]), 3)` bits.
+- For $P = (0.5, 0.3, 0.2)$ and $Q = (0.4, 0.4, 0.2)$: $H(P) =$ `{python} fmt(H_P, 3)` bits; $H(P, Q) =$ `{python} fmt(H_PQ, 3)`; $D_{\mathrm{KL}}(P\|Q) =$ `{python} fmt(KL_PQ, 4)` but $D_{\mathrm{KL}}(Q\|P) =$ `{python} fmt(KL_QP, 4)`: it isn't symmetric.
+- $D_{\mathrm{KL}}$ is infinite if $Q(x) = 0$ for some $x$ with $P(x) > 0$.
+
+**Why it holds.** $D_{\mathrm{KL}} \ge 0$, with equality only when $P = Q$ (Gibbs' inequality): since $\log$ is concave, Jensen's inequality gives $\sum_x P(x)\log\frac{Q(x)}{P(x)} \le \log \sum_x Q(x) = 0$. Used on this site: maximum likelihood minimizes cross entropy to the data (Chapter 4), Bayesian scores (Chapter 5), trust regions (Chapter 12), and maximum entropy IRL (Chapter 18).
+
+## Gradient ascent
+
+To climb a differentiable function $f$, repeatedly step uphill (ADM §A.11):
+
+::: {.key-equation data-name="Gradient ascent step"}
+$$
+\mathbf{x} \leftarrow \mathbf{x} + \alpha\, \nabla f(\mathbf{x})
+$$ {#eq-gradient}
+:::
+
+**In words.** Move a small step in the direction in which $f$ increases fastest.
+
+**Term by term.**
+
+- $\nabla f(\mathbf{x})$: the gradient, the vector of partial derivatives; it points uphill.
+- $\alpha > 0$: the step size. Too small is slow; too large overshoots and can diverge.
+- For a quadratic with curvature $c$ along some direction, the iteration is stable only if $\alpha < 2/c$.
+
+**Why it holds.** By Taylor's theorem, $f(\mathbf{x} + \alpha\nabla f) \approx f(\mathbf{x}) + \alpha\|\nabla f\|^2$, which increases $f$ for small enough $\alpha$. Along a direction with curvature $c$ the error is multiplied by $1 - \alpha c$ each step, which shrinks only if $|1 - \alpha c| < 1$, that is $\alpha < 2/c$. The example in @fig-gradient has curvatures 2 and 4, so the limit is 0.5. Used for policy gradients (Chapters 11–13), controllers (Chapter 23) and games (Chapter 24).
+
+## Taylor expansion
+
+A smooth function near a point $a$ is approximated by a polynomial (ADM §A.12):
+
+::: {.key-equation data-name="Taylor expansion"}
+$$
+f(x) = \sum_{n=0}^{\infty} \frac{f^{(n)}(a)}{n!}\,(x - a)^n \approx f(a) + f'(a)(x - a) + \tfrac{1}{2} f''(a)(x - a)^2
+$$ {#eq-taylor}
+:::
+
+**In words.** Near $a$, a function looks like its value, plus its slope times the distance, plus half its curvature times the distance squared, and so on.
+
+**Term by term.**
+
+- $f^{(n)}(a)$: the $n$-th derivative at $a$; $n!$ keeps the terms matched.
+- Truncating after the linear term gives the first-order approximation used for gradients; after the quadratic term, the second-order one used in Newton's method and trust regions.
+- Example: $\cos(0.5) =$ `{python} fmt(np.cos(0.5), 4)`; the approximations of order 0, 2 and 4 around 0 give `{python} ", ".join(fmt(v, 4) for v in TAY.values())`.
+
+**Why it holds.** For analytic functions the series converges to $f$ near $a$; for functions differentiable enough, the error after the order-$n$ term is proportional to $(x - a)^{n+1}$ (Taylor's theorem with remainder).
+
+## Monte Carlo estimation and importance sampling
+
+Expectations that can't be computed exactly can be estimated by sampling (ADM §A.13–A.14):
+
+::: {.key-equation .famous data-name="Monte Carlo and importance sampling"}
+$$
+\mathbb{E}_{x \sim P}[f(x)] \approx \frac{1}{n}\sum_{i=1}^{n} f(x^{(i)}),\ x^{(i)} \sim P
+\qquad\text{or}\qquad
+\approx \frac{1}{n}\sum_{i=1}^{n} f(x^{(i)})\, \frac{P(x^{(i)})}{Q(x^{(i)})},\ x^{(i)} \sim Q
+$$ {#eq-mc}
+:::
+
+**In words.** Average the function over samples. If you can only (or would rather) sample from $Q$, reweight each sample by how much more likely it was under $P$.
+
+**Term by term.**
+
+- The plain estimate is unbiased, with standard error $\sigma/\sqrt{n}$: ten times the samples buys about three times the accuracy.
+- The weights $P(x)/Q(x)$ correct for sampling from $Q$; $Q$ must be positive wherever $P f$ is nonzero.
+- A good $Q$ puts samples where $f(x)P(x)$ is large. Example: $P(X > 3)$ for $X \sim \mathcal{N}(0, 1)$ is `{python} f"{TAIL:.5f}"`. With 1000 samples, plain Monte Carlo's estimates had a standard deviation of `{python} f"{PLAIN.std():.5f}"`; sampling from $\mathcal{N}(3, 1)$ and reweighting, `{python} f"{WEIGHTED.std():.6f}"`.
+
+**Why it holds.** $\mathbb{E}_Q\big[f(x) P(x)/Q(x)\big] = \sum_x Q(x) f(x) P(x)/Q(x) = \mathbb{E}_P[f(x)]$, so both are unbiased; the law of large numbers makes the averages converge, and the central limit theorem gives the $1/\sqrt{n}$ rate. Used for inference (Chapter 3), online planning (Chapter 9), policy gradients (Chapter 11) and validation (Chapter 14).
+
+## Contraction mappings {#contraction}
+
+A function $B$ is a **contraction** in a norm if it brings every two points closer by at least a fixed factor (ADM §A.15):
+
+::: {.key-equation .famous data-name="Contraction mapping"}
+$$
+\|B U - B V\| \le \gamma\, \|U - V\| \quad \text{for all } U, V, \text{ with } \gamma < 1
+$$ {#eq-contraction}
+:::
+
+**In words.** Applying $B$ shrinks every distance by at least a factor $\gamma$.
+
+**Term by term.**
+
+- For MDPs, $B$ is the Bellman backup $(BU)(s) = \max_a [R(s, a) + \gamma \sum_{s'} T(s' \mid s, a) U(s')]$ and the norm is the max norm.
+- Consequence (the Banach fixed-point theorem): $B$ has exactly one fixed point $U^*$, and iterating $B$ from anywhere converges to it, the error shrinking by $\gamma$ each step. That is why value iteration works (Chapter 7).
+- Check on Hex World: over 1000 random pairs of value functions, the largest ratio $\|BU - BV\|_\infty / \|U - V\|_\infty$ was `{python} fmt(RATIO_MAX, 4)`, never above $\gamma = 0.9$.
+
+**Why it holds.** For each state, the difference of two maxima is at most the largest difference of their terms, $|\max_a g(a) - \max_a h(a)| \le \max_a |g(a) - h(a)|$. Each term differs by $\gamma \sum_{s'} T(s' \mid s, a)(U(s') - V(s'))$, an average of differences scaled by $\gamma$, so at most $\gamma \|U - V\|_\infty$.
+
+## Graphs
+
+A **graph** has nodes and edges between them (ADM §A.16). In a **directed** graph each edge points from a *parent* to a *child*; a directed graph with no cycles is a **DAG**, and its nodes can be put in a **topological order** in which every parent comes before its children. Bayesian networks (Chapter 2) are DAGs; search trees (Appendix E) and coordination graphs (Chapter 27) are graphs too.
+
+```{dot}
+//| label: fig-graph
+//| fig-width: 3.8
+//| fig-height: 1.71
+//| fig-cap: "A directed acyclic graph. A and B are parents of C; D is a child of C. One topological order is A, B, C, D."
+//| fig-alt: "Diagram. Four nodes, A, B, C and D. Arrows go from A to C, from B to C, and from C to D. There are no cycles."
+digraph dag {
+  rankdir=LR; bgcolor="#fcfcfb"; pad=0.2; nodesep=0.3; ranksep=0.6;
+  node [shape=circle, style="filled", fillcolor="#cde2fb", color="#2a78d6", fontname="Helvetica", fontsize=13];
+  edge [color="#52514e", penwidth=1.2, arrowsize=0.7, fontname="Helvetica", fontsize=10, fontcolor="#52514e"];
+  A -> C [label="parent"]; B -> C; C -> D [label="child"];
+}
+```
+
+## Figures
+
+```{python}
+#| label: fig-norms
+#| fig-cap: "Left: the unit balls (all vectors of norm 1) of the 1-, 2- and max norms. Right: the entropy of a coin, in bits, against its probability of heads."
+#| fig-alt: "Two charts. Left: a diamond (1-norm), a circle (2-norm) and a square (max norm), all centered at the origin and touching the axes at plus and minus 1. Right: a symmetric arch from 0 bits at probability 0, up to 1 bit at 0.5, and back to 0 at 1."
+fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(9, 3.6))
+t = np.linspace(0, 2 * np.pi, 400)
+for p, c, lab in ((1, blue, "1-norm"), (2, orange, "2-norm"), (np.inf, green, "max norm")):
+    u = np.stack([np.cos(t), np.sin(t)])
+    n = np.linalg.norm(u, ord=p, axis=0)
+    ax1.plot(u[0] / n, u[1] / n, color=c, lw=2, label=lab)
+ax1.set_aspect("equal"); ax1.set_title("unit balls")
+ax1.legend(fontsize=8, loc="center left", bbox_to_anchor=(1.02, 0.5), frameon=False)
+ps = np.linspace(0.001, 0.999, 300)
+ax2.plot(ps, [C.entropy([p, 1 - p]) for p in ps], color=blue, lw=2)
+ax2.set_xlabel("P(heads)"); ax2.set_ylabel("entropy (bits)"); ax2.set_title("entropy of a coin")
+plt.tight_layout()
+plt.show()
+```
+
+```{python}
+#| label: fig-gradient
+#| fig-cap: "Gradient ascent on f(x, y) = −(x − 1)² − 2(y + 0.5)², from (−2, 2), for 30 steps with step sizes 0.1, 0.45 and 0.55. Contours of f are gray; the maximum is at (1, −0.5)."
+#| fig-alt: "Contour plot of elliptical contours centered at (1, minus 0.5). The step-0.1 path curves smoothly to the center. The step-0.45 path zigzags vertically but reaches the center. The step-0.55 path zigzags with growing vertical swings and leaves the plot."
+fig, ax = plt.subplots(figsize=(6.4, 4))
+gx, gy = np.meshgrid(np.linspace(-3, 3, 200), np.linspace(-3, 3, 200))
+ax.contour(gx, gy, -(gx - 1) ** 2 - 2 * (gy + 0.5) ** 2, levels=12, colors="#c8c7c2", linewidths=0.8, linestyles="solid")
+for (a, xs), c in zip(GA.items(), (blue, green, red)):
+    ax.plot(xs[:, 0], np.clip(xs[:, 1], -3.2, 3.2), "o-", ms=3, color=c, lw=1.2, label=f"step {a}")
+ax.scatter([1], [-0.5], marker="*", s=120, color=style.INK, zorder=4)
+ax.set_xlim(-3, 3); ax.set_ylim(-3, 3); ax.set_xlabel("x"); ax.set_ylabel("y")
+ax.legend(fontsize=8, loc="upper right")
+plt.tight_layout()
+plt.show()
+```
+
+At step 0.1 the path converged (distance `{python} f"{np.linalg.norm(GA[0.1][-1] - [1, -0.5]):.4f}"` after 30 steps); at 0.45 it converged while zigzagging along $y$; at 0.55, above the limit $2/4 = 0.5$, $y$ reached `{python} fmt(GA[0.55][-1][1], 0)`.
+
+```{python}
+#| label: fig-sampling
+#| fig-cap: "Left: root-mean-square error of the Monte Carlo estimate of E[X²] = 1 for X ~ N(0, 1), against the number of samples (300 repeats each, log-log), with the slope −1/2 line. Right: 500 estimates of P(X > 3) from 1000 samples each, by plain Monte Carlo and by importance sampling from N(3, 1); the true value is dashed."
+#| fig-alt: "Two charts. Left: points falling in a straight line on log-log axes from about 0.45 at 10 samples to about 0.014 at 10,000, following a dashed reference line of slope minus one half. Right: two strips of points; plain Monte Carlo estimates spread widely from 0 to about 0.005, many exactly 0; importance sampling estimates cluster tightly around the dashed line at 0.00135."
+fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(9.5, 3.6))
+ax1.loglog(NS, MC_ERR, "o", color=blue)
+ax1.loglog(NS, MC_ERR[0] * np.sqrt(NS[0] / np.array(NS)), "--", color=style.MUTED, label=r"$\propto 1/\sqrt{n}$")
+ax1.set_xlabel("samples n"); ax1.set_ylabel("RMS error"); ax1.legend(fontsize=8)
+jit = np.random.default_rng(1)
+ax2.scatter(jit.uniform(-0.2, 0.2, len(PLAIN)), PLAIN, s=6, color=orange, alpha=0.6)
+ax2.scatter(1 + jit.uniform(-0.2, 0.2, len(WEIGHTED)), WEIGHTED, s=6, color=blue, alpha=0.6)
+ax2.axhline(TAIL, color=style.INK, ls="--", lw=1)
+ax2.set_xticks([0, 1], ["plain", "importance"]); ax2.set_ylabel("estimate of P(X > 3)")
+plt.tight_layout()
+plt.show()
+```
+
+```{python}
+#| label: fig-contraction
+#| fig-cap: "The Bellman backup of Hex World as a contraction: for 1000 random pairs of value functions, the max-norm distance after one backup against the distance before. Every point lies below the line with slope γ = 0.9 (dashed)."
+#| fig-alt: "Scatter plot of distance after (about 7 to 44) against distance before (about 12 to 63). All points lie below a dashed line of slope 0.9, many well below it."
+fig, ax = plt.subplots(figsize=(5.6, 3.8))
+ax.scatter(PAIRS[:, 0], PAIRS[:, 1], s=8, color=blue, alpha=0.5)
+lim = PAIRS[:, 0].max() * 1.05
+ax.plot([0, lim], [0, HW.gamma * lim], "--", color=style.INK, lw=1, label=r"slope $\gamma = 0.9$")
+ax.set_xlabel(r"$\|U - V\|_\infty$ before"); ax.set_ylabel(r"$\|BU - BV\|_\infty$ after"); ax.legend(fontsize=8)
+plt.tight_layout()
+plt.show()
+```
+
+## Code
+
+::: {.panel-tabset group="lang"}
+## Python
+```{python}
+#| output: asis
+show_source(C.entropy, C.cross_entropy, C.kl_divergence, C.gradient_ascent, C.bellman_backup)
+```
+## Julia
+```{.julia .snippet}
+using LinearAlgebra
+
+# Entropy, cross entropy and KL divergence in bits; 0 log 0 counts as 0.
+entropy(p) = -sum(x * log2(x) for x in p if x > 0)
+cross_entropy(p, q) = -sum(pi * log2(qi) for (pi, qi) in zip(p, q) if pi > 0)
+kl(p, q) = cross_entropy(p, q) - entropy(p)
+
+p, q = [0.5, 0.3, 0.2], [0.4, 0.4, 0.2]
+println("H(P) = ", round(entropy(p); digits = 3), ", KL(P||Q) = ", round(kl(p, q); digits = 4),
+        ", KL(Q||P) = ", round(kl(q, p); digits = 4))
+@assert entropy([0.5, 0.5]) == 1 && kl(p, p) == 0 && kl(p, q) != kl(q, p)
+
+# Gradient ascent on f(x, y) = -(x - 1)^2 - 2(y + 1/2)^2: stable only for α < 2/4.
+∇f(x) = [-2(x[1] - 1), -4(x[2] + 0.5)]
+function ascend(α; k = 60)
+    x = [-2.0, 2.0]
+    for _ in 1:k
+        x = x .+ α .* ∇f(x)
+    end
+    return x
+end
+@assert norm(ascend(0.45) - [1, -0.5]) < 1e-3 && abs(ascend(0.55)[2]) > 100
+```
+:::
+
+## Where these are used
+
+| Concept | Used in |
+|---|---|
+| Norms, distances | [Ch 7](../part2/ch07-exact-solution-methods.qmd) (convergence), [Ch 8](../part2/ch08-approximate-value-functions.qmd) (nearest neighbors), [Ch 21](../part4/ch21-offline-belief-state-planning.qmd) (belief spacing) |
+| Positive definiteness | [Ch 19](../part4/ch19-beliefs.qmd) (covariances), [Ch 10](../part2/ch10-policy-search.qmd) (cross-entropy method covariances) |
+| Convexity | [Ch 20](../part4/ch20-exact-belief-state-planning.qmd)–[21](../part4/ch21-offline-belief-state-planning.qmd) (value functions over beliefs) |
+| Entropy, KL | [Ch 4](../part1/ch04-parameter-learning.qmd)–[5](../part1/ch05-structure-learning.qmd), [Ch 12](../part2/ch12-policy-gradient-optimization.qmd), [Ch 18](../part3/ch18-imitation-learning.qmd) |
+| Gradient ascent | [Ch 11](../part2/ch11-policy-gradient-estimation.qmd)–[13](../part2/ch13-actor-critic-methods.qmd), [Ch 23](../part4/ch23-controller-abstractions.qmd), [Ch 24](../part5/ch24-multiagent-reasoning.qmd) |
+| Monte Carlo, importance sampling | [Ch 3](../part1/ch03-inference.qmd), [Ch 9](../part2/ch09-online-planning.qmd), [Ch 11](../part2/ch11-policy-gradient-estimation.qmd), [Ch 14](../part2/ch14-policy-validation.qmd) |
+| Contraction | [Ch 7](../part2/ch07-exact-solution-methods.qmd) (value iteration), [Ch 8](../part2/ch08-approximate-value-functions.qmd) |
+| Graphs | [Ch 2](../part1/ch02-representation.qmd)–[5](../part1/ch05-structure-learning.qmd), [Appendix E](e-search-algorithms.qmd), [Ch 27](../part5/ch27-collaborative-agents.qmd) |
+
+: Where each concept appears on this site. {#tbl-used}

@@ -908,4 +908,5 @@ Swap the roles in @eq-gaussian-condition. The shift is $\rho\, \sigma_m / \sigma
 - [Ch 2 · Representation](ch02-representation.qmd) defines the networks queried here.
 - [Ch 4 · Parameter Learning](ch04-parameter-learning.qmd) needs inference to learn from data with missing values.
 - [Ch 6 · Simple Decisions](ch06-simple-decisions.qmd) uses inference to compute expected utilities and the value of information.
+- [Appendix C · Computational Complexity](../appendices/c-computational-complexity.qmd): why exact inference is NP-hard, via a reduction from 3SAT.
 - [Ch 19 · Beliefs](../part4/ch19-beliefs.qmd): the discrete filter is variable elimination over time, the Kalman filter is Gaussian conditioning, and the particle filter is likelihood weighting with resampling.

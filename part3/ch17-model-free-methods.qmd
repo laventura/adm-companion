@@ -950,3 +950,4 @@ Q-learning's target, $r + \gamma\max_{a'} Q(s', a')$, uses only $(s, a, r, s')$ 
 - [Ch 8 · Approximate Value Functions](../part2/ch08-approximate-value-functions.qmd): the Fourier features and the mountain car.
 - [Ch 13 · Actor-Critic Methods](../part2/ch13-actor-critic-methods.qmd): TD errors and λ-weighted returns (GAE) for training a critic.
 - [Ch 18 · Imitation Learning](ch18-imitation-learning.qmd): learning from demonstrations when rewards are hard to specify.
+- [Appendix D · Neural Representations](../appendices/d-neural-representations.qmd): the networks that replace linear features in deep Q-learning.

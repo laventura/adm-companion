@@ -894,3 +894,4 @@ With equal spreads, $D_{\text{KL}} = (\Delta\mu)^2/(2\sigma^2)$, and $\Delta\mu 
 - [Ch 13 · Actor-Critic Methods](ch13-actor-critic-methods.qmd): a learned critic supplies the advantages for TRPO and PPO.
 - [Ch 3 · Inference](../part1/ch03-inference.qmd): likelihood weighting is importance sampling.
 - [Appendix F · Simple regulator](../appendices/f-problems.qmd#simple-regulator): the problem used here.
+- [Appendix A · Mathematical Concepts](../appendices/a-mathematical-concepts.qmd): entropy, cross entropy and the KL divergence behind the trust regions.

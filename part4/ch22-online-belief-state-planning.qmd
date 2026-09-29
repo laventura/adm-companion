@@ -880,3 +880,4 @@ The "gap" is $-19.8 - (-12) = -7.8$, below any threshold $\delta$, so the search
 - [Ch 19 · Beliefs](ch19-beliefs.qmd): the belief update applied after every real step.
 - [Ch 14 · Policy Validation](../part2/ch14-policy-validation.qmd): common random numbers, the idea behind determinized scenarios.
 - [Ch 23 · Controller Abstractions](ch23-controller-abstractions.qmd): policies represented as finite controllers instead of searched online.
+- [Appendix E · Search Algorithms](../appendices/e-search-algorithms.qmd): the deterministic versions of forward search, branch and bound and heuristic search.

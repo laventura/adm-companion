@@ -1032,3 +1032,4 @@ The collision path's log-likelihood is $k \log 2$ below the calm path's. The adv
 - [Ch 4 · Parameter Learning](../part1/ch04-parameter-learning.qmd): the Beta posterior behind the Bayesian interval.
 - [Ch 9 · Online Planning](ch09-online-planning.qmd): search methods that can find adversarial trajectories in problems too large for dynamic programming.
 - [Ch 15 · Exploration and Exploitation](../part3/ch15-exploration-and-exploitation.qmd): Part III begins, where the model itself must be learned.
+- [Appendix A · Mathematical Concepts](../appendices/a-mathematical-concepts.qmd): Monte Carlo and importance sampling from first principles. [Appendix B · Probability Distributions](../appendices/b-probability-distributions.qmd): the Beta distribution behind the failure-probability intervals.

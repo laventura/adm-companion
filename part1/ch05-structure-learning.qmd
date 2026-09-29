@@ -769,3 +769,4 @@ $$
 - [Ch 4 · Parameter Learning](ch04-parameter-learning.qmd) supplies the counts and Dirichlet priors inside the score.
 - [Ch 6 · Simple Decisions](ch06-simple-decisions.qmd) builds decision networks on learned or designed structures.
 - [Ch 10 · Policy Search](../part2/ch10-policy-search.qmd) uses the same local-search ideas to search over policies instead of graphs.
+- [Appendix C · Computational Complexity](../appendices/c-computational-complexity.qmd): why finding the best structure is NP-complete, which is why this page searches locally.

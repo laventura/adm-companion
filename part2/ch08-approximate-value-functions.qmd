@@ -1141,3 +1141,4 @@ Inverse distance gave 6.27, because it gave the far sample more weight (0.091 ve
 - [Ch 17 · Model-Free Methods](../part3/ch17-model-free-methods.qmd): learns approximate action values from experience.
 - [Ch 21 · Offline Belief State Planning](../part4/ch21-offline-belief-state-planning.qmd): approximates value functions over the continuous space of beliefs.
 - [Appendix F · Mountain car](../appendices/f-problems.qmd#mountain-car): the problem used on this page.
+- [Appendix D · Neural Representations](../appendices/d-neural-representations.qmd): deeper networks and backpropagation, the general form of this page's one-hidden-layer network.

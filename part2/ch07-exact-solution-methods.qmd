@@ -976,3 +976,4 @@ The key points of this chapter, and why each matters beyond it:
 - [Ch 9 · Online Planning](ch09-online-planning.qmd) applies lookahead from the current state only, instead of solving for every state.
 - [Ch 16 · Model-Based Methods](../part3/ch16-model-based-methods.qmd) learns $T$ and $R$ from experience, then uses the methods on this page.
 - [Ch 20 · Exact Belief State Planning](../part4/ch20-exact-belief-state-planning.qmd) runs value iteration over beliefs when the state isn't observed.
+- [Appendix A · Mathematical Concepts](../appendices/a-mathematical-concepts.qmd#eq-contraction) shows why value iteration converges: the Bellman backup is a contraction. [Appendix E · Search Algorithms](../appendices/e-search-algorithms.qmd) covers the deterministic special case.

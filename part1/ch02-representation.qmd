@@ -840,3 +840,4 @@ So $P(s^1 \mid j^1) = 0.08 / 0.395 \approx$ **0.20**, which is *lower* than 0.29
 - [Ch 5 · Structure Learning](../part1/ch05-structure-learning.qmd) learns the graph itself.
 - [Ch 6 · Simple Decisions](../part1/ch06-simple-decisions.qmd) adds decision and utility nodes to make decision networks.
 - [Ch 19 · Beliefs](../part4/ch19-beliefs.qmd) uses the same conditional-distribution building blocks for dynamics and sensors.
+- [Appendix B · Probability Distributions](../appendices/b-probability-distributions.qmd): the uniform, Gaussian, Beta and Dirichlet families, with plots.

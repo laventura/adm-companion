@@ -777,3 +777,4 @@ QMDP would value waiting at $-2 + 0.95 \times 200 = 188$ and asking at $189$, so
 - [Ch 9 · Online Planning](../part2/ch09-online-planning.qmd): heuristic search with bounds in fully observed problems.
 - [Ch 15 · Exploration and Exploitation](../part3/ch15-exploration-and-exploitation.qmd): the value of information, which QMDP ignores.
 - [Ch 22 · Online Belief State Planning](ch22-online-belief-state-planning.qmd): planning from the current belief, using these bounds as heuristics.
+- [Appendix C · Computational Complexity](../appendices/c-computational-complexity.qmd): why general infinite-horizon POMDPs can't be solved exactly, which is why this chapter computes bounds.

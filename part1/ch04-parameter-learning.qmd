@@ -766,3 +766,4 @@ $P(s^1 \mid \text{record}) = 0.0045 / 0.5337 \approx$ **0.008**. The missing rad
 - [Ch 5 · Structure Learning](ch05-structure-learning.qmd) scores whole graphs with the same Dirichlet counts.
 - [Ch 15 · Exploration and Exploitation](../part3/ch15-exploration-and-exploitation.qmd) uses Beta posteriors to decide which option to try next.
 - [Ch 16 · Model-Based Methods](../part3/ch16-model-based-methods.qmd) learns an MDP's transition probabilities by exactly this kind of counting.
+- [Appendix B · Probability Distributions](../appendices/b-probability-distributions.qmd): the Beta and Dirichlet priors and their conjugate updates.

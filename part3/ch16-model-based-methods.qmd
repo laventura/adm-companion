@@ -872,3 +872,4 @@ With a uniform prior over six outcomes, the predictive probability is $1/6$. A s
 - [Ch 4 · Parameter Learning](../part1/ch04-parameter-learning.qmd): maximum likelihood and Dirichlet posteriors for categorical distributions.
 - [Ch 17 · Model-Free Methods](ch17-model-free-methods.qmd): learning values without a model, on the same trail.
 - [Part IV · Beliefs](../part4/ch19-beliefs.qmd): planning with beliefs, of which the Bayes-adaptive MDP is an instance.
+- [Appendix B · Probability Distributions](../appendices/b-probability-distributions.qmd): the Dirichlet distribution used for Bayesian transition models.

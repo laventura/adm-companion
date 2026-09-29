@@ -777,3 +777,4 @@ $a = -0.8 \times 2 = -1.6$. A larger variance wouldn't change the action. It wou
 - [Ch 15 · Exploration and Exploitation](../part3/ch15-exploration-and-exploitation.qmd): the Bayes-optimal bandit, a POMDP whose hidden state is the arms' payoff probabilities.
 - [Ch 21 · Offline Belief State Planning](ch21-offline-belief-state-planning.qmd): approximate value functions over beliefs, including point-based value iteration.
 - [Ch 22 · Online Belief State Planning](ch22-online-belief-state-planning.qmd): planning from the current belief only, with lookahead and tree search.
+- [Appendix C · Computational Complexity](../appendices/c-computational-complexity.qmd): why exact finite-horizon POMDP planning is PSPACE-complete.

@@ -832,3 +832,4 @@ Early, a poor critic makes small $\lambda$ badly biased (@fig-gae-tradeoff), so 
 - [Ch 8 · Approximate Value Functions](ch08-approximate-value-functions.qmd): the critic is a fitted value function.
 - [Ch 9 · Online Planning](ch09-online-planning.qmd): Monte Carlo tree search, here guided by a learned policy and value.
 - [Ch 17 · Model-Free Methods](../part3/ch17-model-free-methods.qmd): TD learning, replay buffers and target networks.
+- [Appendix D · Neural Representations](../appendices/d-neural-representations.qmd): the networks usually used for actors and critics.

@@ -1192,3 +1192,4 @@ UCB1 adds $Q(s, a)$, which would scale by 100, to $c \sqrt{\log N(s)/N(s, a)}$, 
 - [Ch 15 · Exploration and Exploitation](../part3/ch15-exploration-and-exploitation.qmd): UCB1 and optimism in the face of uncertainty.
 - [Ch 22 · Online Belief State Planning](../part4/ch22-online-belief-state-planning.qmd): the same planners over beliefs.
 - [Appendix F · Hex World](../appendices/f-problems.qmd#hex-world) and [Mountain car](../appendices/f-problems.qmd#mountain-car): the problems used here.
+- [Appendix E · Search Algorithms](../appendices/e-search-algorithms.qmd): forward search, branch and bound and heuristic search without randomness, compared on a maze.

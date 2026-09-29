@@ -588,3 +588,4 @@ Up to `{python} fmt(CENTRAL[3] - OPT[3], 2)`, the value of communication: the po
 - [Ch 23 · Controller Abstractions](../part4/ch23-controller-abstractions.qmd): fixed-size controllers and their optimization.
 - [Ch 24 · Multiagent Reasoning](ch24-multiagent-reasoning.qmd): best responses; the optimum of a team game is also an equilibrium.
 - [Ch 26 · State Uncertainty](ch26-state-uncertainty.qmd): POMGs, joint evaluation and pruning, used here with a shared reward.
+- [Appendix C · Computational Complexity](../appendices/c-computational-complexity.qmd): what NEXP-completeness means, next to the other complexity classes in the book.

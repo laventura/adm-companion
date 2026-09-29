@@ -857,3 +857,4 @@ If the demonstrations never face a choice involving mud, any mud weight that kee
 - [Ch 11 · Policy Gradient Estimation](../part2/ch11-policy-gradient-estimation.qmd) and [Ch 12](../part2/ch12-policy-gradient-optimization.qmd): the policy optimizers GAIL uses.
 - [Ch 7 · Exact Solution Methods](../part2/ch07-exact-solution-methods.qmd): planning with a learned reward, and exact policy evaluation.
 - [Ch 19 · Beliefs](../part4/ch19-beliefs.qmd): Part IV begins, with uncertainty about the state itself.
+- [Appendix D · Neural Representations](../appendices/d-neural-representations.qmd): networks and adversarial training, as used by GAIL.

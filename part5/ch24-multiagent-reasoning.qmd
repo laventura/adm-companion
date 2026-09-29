@@ -744,3 +744,4 @@ Against a claim of $c > 2$, claiming $c - 1$ earns $c + 1$, the most possible: c
 - [Ch 16 · Model-Based Methods](../part3/ch16-model-based-methods.qmd): maximum likelihood models, used by fictitious play.
 - [Ch 23 · Controller Abstractions](../part4/ch23-controller-abstractions.qmd): projection onto the simplex, used by gradient ascent.
 - [Ch 25 · Sequential Problems](ch25-sequential-problems.qmd): games with states: Markov games and Nash Q-learning.
+- [Appendix C · Computational Complexity](../appendices/c-computational-complexity.qmd): computing a Nash equilibrium is PPAD-complete, which is why this page searches numerically on small games.

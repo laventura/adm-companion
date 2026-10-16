@@ -1,0 +1,2816 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en"><head>
+
+<meta charset="utf-8">
+<meta name="generator" content="quarto-1.9.38">
+
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+
+
+<title>F · Problems – ADM Companion</title>
+<style>
+/* Default styles provided by pandoc.
+** See https://pandoc.org/MANUAL.html#variables-for-html for config info.
+*/
+code{white-space: pre-wrap;}
+span.smallcaps{font-variant: small-caps;}
+div.columns{display: flex; gap: min(4vw, 1.5em);}
+div.column{flex: auto; overflow-x: auto;}
+div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+ul.task-list{list-style: none;}
+ul.task-list li input[type="checkbox"] {
+  width: 0.8em;
+  margin: 0 0.8em 0.2em -1em; /* quarto-specific, see https://github.com/quarto-dev/quarto-cli/issues/4556 */ 
+  vertical-align: middle;
+}
+/* CSS for syntax highlighting */
+html { -webkit-text-size-adjust: 100%; }
+pre > code.sourceCode { white-space: pre; position: relative; }
+pre > code.sourceCode > span { display: inline-block; line-height: 1.25; }
+pre > code.sourceCode > span:empty { height: 1.2em; }
+.sourceCode { overflow: visible; }
+code.sourceCode > span { color: inherit; text-decoration: inherit; }
+div.sourceCode { margin: 1em 0; }
+pre.sourceCode { margin: 0; }
+@media screen {
+div.sourceCode { overflow: auto; }
+}
+@media print {
+pre > code.sourceCode { white-space: pre-wrap; }
+pre > code.sourceCode > span { text-indent: -5em; padding-left: 5em; }
+}
+pre.numberSource code
+  { counter-reset: source-line 0; }
+pre.numberSource code > span
+  { position: relative; left: -4em; counter-increment: source-line; }
+pre.numberSource code > span > a:first-child::before
+  { content: counter(source-line);
+    position: relative; left: -1em; text-align: right; vertical-align: baseline;
+    border: none; display: inline-block;
+    -webkit-touch-callout: none; -webkit-user-select: none;
+    -khtml-user-select: none; -moz-user-select: none;
+    -ms-user-select: none; user-select: none;
+    padding: 0 4px; width: 4em;
+  }
+pre.numberSource { margin-left: 3em;  padding-left: 4px; }
+div.sourceCode
+  {   }
+@media screen {
+pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+}
+</style>
+
+
+<script src="../site_libs/quarto-nav/quarto-nav.js"></script>
+<script src="../site_libs/quarto-nav/headroom.min.js"></script>
+<script src="../site_libs/clipboard/clipboard.min.js"></script>
+<script src="../site_libs/quarto-search/autocomplete.umd.js"></script>
+<script src="../site_libs/quarto-search/fuse.min.js"></script>
+<script src="../site_libs/quarto-search/quarto-search.js"></script>
+<meta name="quarto:offset" content="../">
+<link href="../appendices/e-search-algorithms.html" rel="prev">
+<script src="../site_libs/quarto-html/quarto.js" type="module"></script>
+<script src="../site_libs/quarto-html/tabsets/tabsets.js" type="module"></script>
+<script src="../site_libs/quarto-html/popper.min.js"></script>
+<script src="../site_libs/quarto-html/tippy.umd.min.js"></script>
+<script src="../site_libs/quarto-html/anchor.min.js"></script>
+<link href="../site_libs/quarto-html/tippy.css" rel="stylesheet">
+<link href="../site_libs/quarto-html/quarto-syntax-highlighting-de63f62b328812d8e578a4d74e282472.css" rel="stylesheet" class="quarto-color-scheme" id="quarto-text-highlighting-styles">
+<link href="../site_libs/quarto-html/quarto-syntax-highlighting-dark-6b6957c917596b414ec0b78690761e87.css" rel="stylesheet" class="quarto-color-scheme quarto-color-alternate" id="quarto-text-highlighting-styles">
+<link href="../site_libs/quarto-html/quarto-syntax-highlighting-de63f62b328812d8e578a4d74e282472.css" rel="stylesheet" class="quarto-color-scheme-extra" id="quarto-text-highlighting-styles">
+<script src="../site_libs/bootstrap/bootstrap.min.js"></script>
+<link href="../site_libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
+<link href="../site_libs/bootstrap/bootstrap-d1de39f35053749ff84d2df96798693d.min.css" rel="stylesheet" append-hash="true" class="quarto-color-scheme" id="quarto-bootstrap" data-mode="light">
+<link href="../site_libs/bootstrap/bootstrap-dark-a6f4e11c7ca7fab1bededaf21cc7b528.min.css" rel="stylesheet" append-hash="true" class="quarto-color-scheme quarto-color-alternate" id="quarto-bootstrap" data-mode="dark">
+<link href="../site_libs/bootstrap/bootstrap-d1de39f35053749ff84d2df96798693d.min.css" rel="stylesheet" append-hash="true" class="quarto-color-scheme-extra" id="quarto-bootstrap" data-mode="light">
+<script id="quarto-search-options" type="application/json">{
+  "location": "sidebar",
+  "copy-button": false,
+  "collapse-after": 3,
+  "panel-placement": "start",
+  "type": "textbox",
+  "limit": 50,
+  "keyboard-shortcut": [
+    "f",
+    "/",
+    "s"
+  ],
+  "show-item-context": false,
+  "language": {
+    "search-no-results-text": "No results",
+    "search-matching-documents-text": "matching documents",
+    "search-copy-link-title": "Copy link to search",
+    "search-hide-matches-text": "Hide additional matches",
+    "search-more-match-text": "more match in this document",
+    "search-more-matches-text": "more matches in this document",
+    "search-clear-button-title": "Clear",
+    "search-text-placeholder": "",
+    "search-detached-cancel-button-title": "Cancel",
+    "search-submit-button-title": "Submit",
+    "search-label": "Search"
+  }
+}</script>
+
+  <script src="https://cdnjs.cloudflare.com/polyfill/v3/polyfill.min.js?features=es6"></script>
+  <script defer="" src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml-full.js" type="text/javascript"></script>
+
+<script type="text/javascript">
+const typesetMath = (el) => {
+  if (window.MathJax) {
+    // MathJax Typeset
+    window.MathJax.typeset([el]);
+  } else if (window.katex) {
+    // KaTeX Render
+    var mathElements = el.getElementsByClassName("math");
+    var macros = [];
+    for (var i = 0; i < mathElements.length; i++) {
+      var texText = mathElements[i].firstChild;
+      if (mathElements[i].tagName == "SPAN" && texText && texText.data) {
+        window.katex.render(texText.data, mathElements[i], {
+          displayMode: mathElements[i].classList.contains('display'),
+          throwOnError: false,
+          macros: macros,
+          fleqn: false
+        });
+      }
+    }
+  }
+}
+window.Quarto = {
+  typesetMath
+};
+</script>
+
+</head>
+
+<body class="nav-sidebar docked quarto-light"><script id="quarto-html-before-body" type="application/javascript">
+    const toggleBodyColorMode = (bsSheetEl) => {
+      const mode = bsSheetEl.getAttribute("data-mode");
+      const bodyEl = window.document.querySelector("body");
+      if (mode === "dark") {
+        bodyEl.classList.add("quarto-dark");
+        bodyEl.classList.remove("quarto-light");
+      } else {
+        bodyEl.classList.add("quarto-light");
+        bodyEl.classList.remove("quarto-dark");
+      }
+    }
+    const toggleBodyColorPrimary = () => {
+      const bsSheetEl = window.document.querySelector("link#quarto-bootstrap:not([rel=disabled-stylesheet])");
+      if (bsSheetEl) {
+        toggleBodyColorMode(bsSheetEl);
+      }
+    }
+    const setColorSchemeToggle = (alternate) => {
+      const toggles = window.document.querySelectorAll('.quarto-color-scheme-toggle');
+      for (let i=0; i < toggles.length; i++) {
+        const toggle = toggles[i];
+        if (toggle) {
+          if (alternate) {
+            toggle.classList.add("alternate");
+          } else {
+            toggle.classList.remove("alternate");
+          }
+        }
+      }
+    };
+    const toggleColorMode = (alternate) => {
+      // Switch the stylesheets
+      const primaryStylesheets = window.document.querySelectorAll('link.quarto-color-scheme:not(.quarto-color-alternate)');
+      const alternateStylesheets = window.document.querySelectorAll('link.quarto-color-scheme.quarto-color-alternate');
+      manageTransitions('#quarto-margin-sidebar .nav-link', false);
+      if (alternate) {
+        // note: dark is layered on light, we don't disable primary!
+        enableStylesheet(alternateStylesheets);
+        for (const sheetNode of alternateStylesheets) {
+          if (sheetNode.id === "quarto-bootstrap") {
+            toggleBodyColorMode(sheetNode);
+          }
+        }
+      } else {
+        disableStylesheet(alternateStylesheets);
+        enableStylesheet(primaryStylesheets)
+        toggleBodyColorPrimary();
+      }
+      manageTransitions('#quarto-margin-sidebar .nav-link', true);
+      // Switch the toggles
+      setColorSchemeToggle(alternate)
+      // Hack to workaround the fact that safari doesn't
+      // properly recolor the scrollbar when toggling (#1455)
+      if (navigator.userAgent.indexOf('Safari') > 0 && navigator.userAgent.indexOf('Chrome') == -1) {
+        manageTransitions("body", false);
+        window.scrollTo(0, 1);
+        setTimeout(() => {
+          window.scrollTo(0, 0);
+          manageTransitions("body", true);
+        }, 40);
+      }
+    }
+    const disableStylesheet = (stylesheets) => {
+      for (let i=0; i < stylesheets.length; i++) {
+        const stylesheet = stylesheets[i];
+        stylesheet.rel = 'disabled-stylesheet';
+      }
+    }
+    const enableStylesheet = (stylesheets) => {
+      for (let i=0; i < stylesheets.length; i++) {
+        const stylesheet = stylesheets[i];
+        if(stylesheet.rel !== 'stylesheet') { // for Chrome, which will still FOUC without this check
+          stylesheet.rel = 'stylesheet';
+        }
+      }
+    }
+    const manageTransitions = (selector, allowTransitions) => {
+      const els = window.document.querySelectorAll(selector);
+      for (let i=0; i < els.length; i++) {
+        const el = els[i];
+        if (allowTransitions) {
+          el.classList.remove('notransition');
+        } else {
+          el.classList.add('notransition');
+        }
+      }
+    }
+    const isFileUrl = () => {
+      return window.location.protocol === 'file:';
+    }
+    const hasAlternateSentinel = () => {
+      let styleSentinel = getColorSchemeSentinel();
+      if (styleSentinel !== null) {
+        return styleSentinel === "alternate";
+      } else {
+        return false;
+      }
+    }
+    const setStyleSentinel = (alternate) => {
+      const value = alternate ? "alternate" : "default";
+      if (!isFileUrl()) {
+        window.localStorage.setItem("quarto-color-scheme", value);
+      } else {
+        localAlternateSentinel = value;
+      }
+    }
+    const getColorSchemeSentinel = () => {
+      if (!isFileUrl()) {
+        const storageValue = window.localStorage.getItem("quarto-color-scheme");
+        return storageValue != null ? storageValue : localAlternateSentinel;
+      } else {
+        return localAlternateSentinel;
+      }
+    }
+    const toggleGiscusIfUsed = (isAlternate, darkModeDefault) => {
+      const baseTheme = document.querySelector('#giscus-base-theme')?.value ?? 'light';
+      const alternateTheme = document.querySelector('#giscus-alt-theme')?.value ?? 'dark';
+      let newTheme = '';
+      if(authorPrefersDark) {
+        newTheme = isAlternate ? baseTheme : alternateTheme;
+      } else {
+        newTheme = isAlternate ? alternateTheme : baseTheme;
+      }
+      const changeGiscusTheme = () => {
+        // From: https://github.com/giscus/giscus/issues/336
+        const sendMessage = (message) => {
+          const iframe = document.querySelector('iframe.giscus-frame');
+          if (!iframe) return;
+          iframe.contentWindow.postMessage({ giscus: message }, 'https://giscus.app');
+        }
+        sendMessage({
+          setConfig: {
+            theme: newTheme
+          }
+        });
+      }
+      const isGiscussLoaded = window.document.querySelector('iframe.giscus-frame') !== null;
+      if (isGiscussLoaded) {
+        changeGiscusTheme();
+      }
+    };
+    const authorPrefersDark = false;
+    const darkModeDefault = authorPrefersDark;
+      document.querySelector('link#quarto-text-highlighting-styles.quarto-color-scheme-extra').rel = 'disabled-stylesheet';
+      document.querySelector('link#quarto-bootstrap.quarto-color-scheme-extra').rel = 'disabled-stylesheet';
+    let localAlternateSentinel = darkModeDefault ? 'alternate' : 'default';
+    // Dark / light mode switch
+    window.quartoToggleColorScheme = () => {
+      // Read the current dark / light value
+      let toAlternate = !hasAlternateSentinel();
+      toggleColorMode(toAlternate);
+      setStyleSentinel(toAlternate);
+      toggleGiscusIfUsed(toAlternate, darkModeDefault);
+      window.dispatchEvent(new Event('resize'));
+    };
+    // Switch to dark mode if need be
+    if (hasAlternateSentinel()) {
+      toggleColorMode(true);
+    } else {
+      toggleColorMode(false);
+    }
+  </script>
+
+<div id="quarto-search-results"></div>
+  <header id="quarto-header" class="headroom fixed-top">
+  <nav class="quarto-secondary-nav">
+    <div class="container-fluid d-flex">
+      <button type="button" class="quarto-btn-toggle btn" data-bs-toggle="collapse" role="button" data-bs-target=".quarto-sidebar-collapse-item" aria-controls="quarto-sidebar" aria-expanded="false" aria-label="Toggle sidebar navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">
+        <i class="bi bi-layout-text-sidebar-reverse"></i>
+      </button>
+        <nav class="quarto-page-breadcrumbs" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="../appendices/a-mathematical-concepts.html">Appendices</a></li><li class="breadcrumb-item"><a href="../appendices/f-problems.html">F · Problems</a></li></ol></nav>
+        <a class="flex-grow-1" role="navigation" data-bs-toggle="collapse" data-bs-target=".quarto-sidebar-collapse-item" aria-controls="quarto-sidebar" aria-expanded="false" aria-label="Toggle sidebar navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">      
+        </a>
+      <button type="button" class="btn quarto-search-button" aria-label="Search" onclick="window.quartoOpenSearch();">
+        <i class="bi bi-search"></i>
+      </button>
+    </div>
+  </nav>
+</header>
+<!-- content -->
+<div id="quarto-content" class="quarto-container page-columns page-rows-contents page-layout-article">
+<!-- sidebar -->
+  <nav id="quarto-sidebar" class="sidebar collapse collapse-horizontal quarto-sidebar-collapse-item sidebar-navigation docked overflow-auto">
+    <div class="pt-lg-2 mt-2 text-left sidebar-header">
+    <div class="sidebar-title mb-0 py-0">
+      <a href="../">ADM Companion</a> 
+        <div class="sidebar-tools-main">
+  <a href="" class="quarto-color-scheme-toggle quarto-navigation-tool  px-1" onclick="window.quartoToggleColorScheme(); return false;" title="Toggle dark mode"><i class="bi"></i></a>
+</div>
+    </div>
+      </div>
+        <div class="mt-2 flex-shrink-0 align-items-center">
+        <div class="sidebar-search">
+        <div id="quarto-search" class="" title="Search"></div>
+        </div>
+        </div>
+    <div class="sidebar-menu-container"> 
+    <ul class="list-unstyled mt-1">
+        <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../index.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Algorithms for Decision Making - Companion</span></a>
+  </div>
+</li>
+        <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../notation.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Notation</span></a>
+  </div>
+</li>
+        <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../cheatsheets.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Cheat sheets</span></a>
+  </div>
+</li>
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-1" role="navigation" aria-expanded="false">
+ <span class="menu-text">Introduction</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-1" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-1" class="collapse list-unstyled sidebar-section depth1 ">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../intro/ch01-introduction.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">1 · Introduction</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-2" role="navigation" aria-expanded="false">
+ <span class="menu-text">Part I — Probabilistic Reasoning</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-2" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-2" class="collapse list-unstyled sidebar-section depth1 ">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../part1/ch02-representation.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">2 · Representation</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../part1/ch03-inference.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">3 · Inference</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../part1/ch04-parameter-learning.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">4 · Parameter Learning</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../part1/ch05-structure-learning.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">5 · Structure Learning</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../part1/ch06-simple-decisions.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">6 · Simple Decisions</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-3" role="navigation" aria-expanded="false">
+ <span class="menu-text">Part II — Sequential Problems</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-3" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-3" class="collapse list-unstyled sidebar-section depth1 ">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../part2/ch07-exact-solution-methods.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">7 · Exact Solution Methods</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../part2/ch08-approximate-value-functions.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">8 · Approximate Value Functions</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../part2/ch09-online-planning.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">9 · Online Planning</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../part2/ch10-policy-search.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">10 · Policy Search</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../part2/ch11-policy-gradient-estimation.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">11 · Policy Gradient Estimation</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../part2/ch12-policy-gradient-optimization.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">12 · Policy Gradient Optimization</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../part2/ch13-actor-critic-methods.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">13 · Actor-Critic Methods</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../part2/ch14-policy-validation.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">14 · Policy Validation</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-4" role="navigation" aria-expanded="false">
+ <span class="menu-text">Part III — Model Uncertainty</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-4" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-4" class="collapse list-unstyled sidebar-section depth1 ">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../part3/ch15-exploration-and-exploitation.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">15 · Exploration and Exploitation</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../part3/ch16-model-based-methods.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">16 · Model-Based Methods</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../part3/ch17-model-free-methods.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">17 · Model-Free Methods</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../part3/ch18-imitation-learning.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">18 · Imitation Learning</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-5" role="navigation" aria-expanded="false">
+ <span class="menu-text">Part IV — State Uncertainty</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-5" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-5" class="collapse list-unstyled sidebar-section depth1 ">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../part4/ch19-beliefs.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">19 · Beliefs</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../part4/ch20-exact-belief-state-planning.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">20 · Exact Belief State Planning</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../part4/ch21-offline-belief-state-planning.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">21 · Offline Belief State Planning</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../part4/ch22-online-belief-state-planning.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">22 · Online Belief State Planning</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../part4/ch23-controller-abstractions.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">23 · Controller Abstractions</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-6" role="navigation" aria-expanded="false">
+ <span class="menu-text">Part V — Multiagent Systems</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-6" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-6" class="collapse list-unstyled sidebar-section depth1 ">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../part5/ch24-multiagent-reasoning.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">24 · Multiagent Reasoning</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../part5/ch25-sequential-problems.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">25 · Sequential Problems</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../part5/ch26-state-uncertainty.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">26 · State Uncertainty</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../part5/ch27-collaborative-agents.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">27 · Collaborative Agents</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-7" role="navigation" aria-expanded="true">
+ <span class="menu-text">Appendices</span></a>
+          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-7" role="navigation" aria-expanded="true" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-7" class="collapse list-unstyled sidebar-section depth1 show">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../appendices/a-mathematical-concepts.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">A · Mathematical Concepts</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../appendices/b-probability-distributions.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">B · Probability Distributions</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../appendices/c-computational-complexity.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">C · Computational Complexity</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../appendices/d-neural-representations.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">D · Neural Representations</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../appendices/e-search-algorithms.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">E · Search Algorithms</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../appendices/f-problems.html" class="sidebar-item-text sidebar-link active">
+ <span class="menu-text">F · Problems</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+    </ul>
+    </div>
+</nav>
+<div id="quarto-sidebar-glass" class="quarto-sidebar-collapse-item" data-bs-toggle="collapse" data-bs-target=".quarto-sidebar-collapse-item"></div>
+<!-- margin-sidebar -->
+    <div id="quarto-margin-sidebar" class="sidebar margin-sidebar">
+        <nav id="TOC" role="doc-toc" class="toc-active">
+    <h2 id="toc-title">On this page</h2>
+   
+  <ul>
+  <li><a href="#how-problems-are-packaged" id="toc-how-problems-are-packaged" class="nav-link active" data-scroll-target="#how-problems-are-packaged">How problems are packaged</a></li>
+  <li><a href="#hex-world" id="toc-hex-world" class="nav-link" data-scroll-target="#hex-world">Hex World</a>
+  <ul class="collapse">
+  <li><a href="#straight-line-hex-world" id="toc-straight-line-hex-world" class="nav-link" data-scroll-target="#straight-line-hex-world">Straight-line Hex World</a></li>
+  </ul></li>
+  <li><a href="#mountain-car" id="toc-mountain-car" class="nav-link" data-scroll-target="#mountain-car">Mountain car</a></li>
+  <li><a href="#simple-regulator" id="toc-simple-regulator" class="nav-link" data-scroll-target="#simple-regulator">Simple regulator</a></li>
+  <li><a href="#collision-avoidance" id="toc-collision-avoidance" class="nav-link" data-scroll-target="#collision-avoidance">Aircraft collision avoidance</a></li>
+  <li><a href="#crying-baby" id="toc-crying-baby" class="nav-link" data-scroll-target="#crying-baby">Crying baby</a></li>
+  <li><a href="#simple-games" id="toc-simple-games" class="nav-link" data-scroll-target="#simple-games">Simple games</a></li>
+  <li><a href="#predator-prey" id="toc-predator-prey" class="nav-link" data-scroll-target="#predator-prey">Predator-prey hex world</a></li>
+  <li><a href="#multicaregiver" id="toc-multicaregiver" class="nav-link" data-scroll-target="#multicaregiver">Multicaregiver crying baby</a></li>
+  <li><a href="#problems-made-for-this-site" id="toc-problems-made-for-this-site" class="nav-link" data-scroll-target="#problems-made-for-this-site">Problems made for this site</a>
+  <ul class="collapse">
+  <li><a href="#morning-commute" id="toc-morning-commute" class="nav-link" data-scroll-target="#morning-commute">Morning commute</a></li>
+  <li><a href="#commute-decision" id="toc-commute-decision" class="nav-link" data-scroll-target="#commute-decision">Commute decision</a></li>
+  <li><a href="#coffee-machine" id="toc-coffee-machine" class="nav-link" data-scroll-target="#coffee-machine">Coffee machine</a></li>
+  <li><a href="#commute-times" id="toc-commute-times" class="nav-link" data-scroll-target="#commute-times">Commute times</a></li>
+  <li><a href="#mountain-trail" id="toc-mountain-trail" class="nav-link" data-scroll-target="#mountain-trail">Mountain trail</a></li>
+  <li><a href="#the-park" id="toc-the-park" class="nav-link" data-scroll-target="#the-park">The park</a></li>
+  <li><a href="#the-fork" id="toc-the-fork" class="nav-link" data-scroll-target="#the-fork">The fork</a></li>
+  <li><a href="#the-intersection" id="toc-the-intersection" class="nav-link" data-scroll-target="#the-intersection">The intersection</a></li>
+  <li><a href="#the-lake" id="toc-the-lake" class="nav-link" data-scroll-target="#the-lake">The lake</a></li>
+  <li><a href="#the-lost-hiker" id="toc-the-lost-hiker" class="nav-link" data-scroll-target="#the-lost-hiker">The lost hiker</a></li>
+  <li><a href="#other-problems-on-this-site" id="toc-other-problems-on-this-site" class="nav-link" data-scroll-target="#other-problems-on-this-site">Other problems on this site</a></li>
+  </ul></li>
+  </ul>
+</nav>
+    </div>
+<!-- main -->
+<main class="content" id="quarto-document-content">
+
+
+<header id="title-block-header" class="quarto-title-block default"><nav class="quarto-page-breadcrumbs quarto-title-breadcrumbs d-none d-lg-block" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="../appendices/a-mathematical-concepts.html">Appendices</a></li><li class="breadcrumb-item"><a href="../appendices/f-problems.html">F · Problems</a></li></ol></nav>
+<div class="quarto-title">
+<h1 class="title">F · Problems</h1>
+<p class="subtitle lead">Appendices</p>
+</div>
+
+
+
+<div class="quarto-title-meta">
+
+    
+  
+    
+  </div>
+  
+
+
+</header>
+
+
+<div class="callout callout-style-simple callout-note no-icon">
+<div class="callout-body d-flex">
+<div class="callout-icon-container">
+<i class="callout-icon no-icon"></i>
+</div>
+<div class="callout-body-container">
+<p><strong>Executed in:</strong> Python · <strong>Book:</strong> ADM Appendix F</p>
+</div>
+</div>
+</div>
+<p>This page collects every problem used on the site, implemented in both Python (<code>adm/problems/</code>) and Julia (<code>julia/src/problems/</code>), with tests that check the two languages agree. It has two parts: the benchmark problems from Appendix F of the book, implemented from their descriptions, and the <a href="#problems-made-for-this-site">small original problems</a> built for this site’s chapters. Each problem was added when a chapter first used it, so the five Appendix F problems that no chapter needed (2048, cart-pole, machine replacement, catch and collaborative predator-prey) are not implemented. The table shows the status of each.</p>
+<div id="tbl-problems" class="quarto-float quarto-figure quarto-figure-center anchored">
+<figure class="quarto-float quarto-float-tbl figure">
+<figcaption class="quarto-float-caption-top quarto-float-caption quarto-float-tbl" id="tbl-problems-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Table&nbsp;1: Appendix F problems on this site.
+</figcaption>
+<div aria-describedby="tbl-problems-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<table class="caption-top table">
+<thead>
+<tr class="header">
+<th>Problem</th>
+<th>Kind</th>
+<th>Status</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>F.1 Hex World</td>
+<td>MDP, discrete</td>
+<td>✅ <a href="#hex-world">below</a></td>
+</tr>
+<tr class="even">
+<td>F.2 2048</td>
+<td>MDP, discrete (huge)</td>
+<td>not implemented: no chapter uses it; the online planning chapter (Ch 9) uses Hex World and mountain car</td>
+</tr>
+<tr class="odd">
+<td>F.3 Cart-Pole</td>
+<td>MDP, continuous state</td>
+<td>not implemented: no chapter uses it; the continuous-state chapters (Ch 8–13) use mountain car and the simple regulator</td>
+</tr>
+<tr class="even">
+<td>F.4 Mountain Car</td>
+<td>MDP, continuous state</td>
+<td>✅ <a href="#mountain-car">below</a></td>
+</tr>
+<tr class="odd">
+<td>F.5 Simple Regulator</td>
+<td>MDP, linear-quadratic</td>
+<td>✅ <a href="#simple-regulator">below</a></td>
+</tr>
+<tr class="even">
+<td>F.6 Aircraft Collision Avoidance</td>
+<td>MDP, discrete</td>
+<td>✅ <a href="#collision-avoidance">below</a></td>
+</tr>
+<tr class="odd">
+<td>F.7 Crying Baby</td>
+<td>POMDP</td>
+<td>✅ <a href="#crying-baby">below</a></td>
+</tr>
+<tr class="even">
+<td>F.8 Machine Replacement</td>
+<td>POMDP</td>
+<td>not implemented: no chapter uses it; the POMDP chapters (Ch 20–23) use the crying baby and <a href="#the-fork">the fork</a></td>
+</tr>
+<tr class="odd">
+<td>F.9 Catch</td>
+<td>POMDP</td>
+<td>not implemented: no chapter uses it; the POMDP chapters (Ch 20–23) use the crying baby and <a href="#the-fork">the fork</a></td>
+</tr>
+<tr class="even">
+<td>F.10–F.12 Prisoner’s Dilemma, Rock-Paper-Scissors, Traveler’s Dilemma</td>
+<td>Simple games</td>
+<td>✅ <a href="#simple-games">below</a></td>
+</tr>
+<tr class="odd">
+<td>F.13 Predator-Prey Hex World</td>
+<td>Markov game</td>
+<td>✅ <a href="#predator-prey">below</a></td>
+</tr>
+<tr class="even">
+<td>F.14 Multicaregiver Crying Baby</td>
+<td>POMG</td>
+<td>✅ <a href="#multicaregiver">below</a></td>
+</tr>
+<tr class="odd">
+<td>F.15 Collaborative Predator-Prey</td>
+<td>Dec-POMDP</td>
+<td>not used: Ch 27 uses <a href="#the-lost-hiker">the lost hiker</a>, small enough for exact answers</td>
+</tr>
+</tbody>
+</table>
+</div>
+</figure>
+</div>
+<section id="how-problems-are-packaged" class="level2">
+<h2 class="anchored" data-anchor-id="how-problems-are-packaged">How problems are packaged</h2>
+<p>Every finite MDP comes as a <code>DiscreteMDP</code> with five fields:</p>
+<div id="tbl-fields" class="quarto-float quarto-figure quarto-figure-center anchored">
+<figure class="quarto-float quarto-float-tbl figure">
+<figcaption class="quarto-float-caption-top quarto-float-caption quarto-float-tbl" id="tbl-fields-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Table&nbsp;2: Fields of a <code>DiscreteMDP</code>. The arrays use the same layout as <a href="../part2/ch07-exact-solution-methods.html">Chapter 7</a>.
+</figcaption>
+<div aria-describedby="tbl-fields-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<table class="caption-top table">
+<colgroup>
+<col style="width: 50%">
+<col style="width: 50%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Field</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>T</code></td>
+<td>Transition array: <code>T[s, a, s′]</code> <span class="math inline">\(= T(s' \mid s, a)\)</span></td>
+</tr>
+<tr class="even">
+<td><code>R</code></td>
+<td>Reward array: <code>R[s, a]</code> <span class="math inline">\(= R(s, a)\)</span></td>
+</tr>
+<tr class="odd">
+<td><code>gamma</code> (Python), <code>γ</code> (Julia)</td>
+<td>Discount factor</td>
+</tr>
+<tr class="even">
+<td><code>states</code></td>
+<td>A readable label for each state index, such as a tile’s <code>(row, col)</code></td>
+</tr>
+<tr class="odd">
+<td><code>actions</code></td>
+<td>A readable label for each action index, such as <code>"NE"</code></td>
+</tr>
+</tbody>
+</table>
+</div>
+</figure>
+</div>
+<p>So any solver written for <code>(T, R, γ)</code> works on any problem. For example, here is Chapter 7’s value iteration solving Hex World:</p>
+<div class="tabset-margin-container"></div><div class="panel-tabset" data-group="lang">
+<ul class="nav nav-tabs" role="tablist"><li class="nav-item" role="presentation"><a class="nav-link active" id="tabset-1-1-tab" data-bs-toggle="tab" data-bs-target="#tabset-1-1" role="tab" aria-controls="tabset-1-1" aria-selected="true" href="" aria-current="page">Python</a></li><li class="nav-item" role="presentation"><a class="nav-link" id="tabset-1-2-tab" data-bs-toggle="tab" data-bs-target="#tabset-1-2" role="tab" aria-controls="tabset-1-2" aria-selected="false" href="">Julia</a></li></ul>
+<div class="tab-content" data-group="lang">
+<div id="tabset-1-1" class="tab-pane active" role="tabpanel" aria-labelledby="tabset-1-1-tab">
+<div id="cdaf4d07" class="cell" data-execution_count="2">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb1"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> adm.mdp <span class="im">import</span> greedy, value_iteration</span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> adm.problems.hex_world <span class="im">import</span> hex_world</span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a>mdp <span class="op">=</span> <span class="fu">hex_world</span>()</span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a>U, _ <span class="op">=</span> <span class="fu">value_iteration</span>(mdp.T, mdp.R, mdp.gamma)</span>
+<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a>policy, _ <span class="op">=</span> <span class="fu">greedy</span>(mdp.T, mdp.R, mdp.gamma, U)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</div>
+</div>
+<div id="tabset-1-2" class="tab-pane" role="tabpanel" aria-labelledby="tabset-1-2-tab">
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb2"><pre class="sourceCode julia snippet code-with-copy"><code class="sourceCode julia"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="im">using</span> <span class="bu">ADM</span></span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>mdp <span class="op">=</span> <span class="fu">hex_world</span>()    <span class="co"># fields: T, R, γ, states, actions</span></span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a><span class="co"># Value iteration (Ch 7): repeat Bellman backups until the values settle.</span></span>
+<span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a><span class="kw">function</span> <span class="fu">solve</span>(m; δ <span class="op">=</span> <span class="fl">1e-6</span>)</span>
+<span id="cb2-7"><a href="#cb2-7" aria-hidden="true" tabindex="-1"></a>    U <span class="op">=</span> <span class="fu">zeros</span>(<span class="fu">length</span>(m.states))</span>
+<span id="cb2-8"><a href="#cb2-8" aria-hidden="true" tabindex="-1"></a>    <span class="cf">while</span> <span class="cn">true</span></span>
+<span id="cb2-9"><a href="#cb2-9" aria-hidden="true" tabindex="-1"></a>        Q <span class="op">=</span> [m.R[s, a] <span class="op">+</span> m.γ <span class="op">*</span> <span class="fu">sum</span>(m.T[s, a, <span class="op">:</span>] <span class="op">.*</span> U) for s <span class="kw">in</span> <span class="fu">axes</span>(m.R, <span class="fl">1</span>), a <span class="kw">in</span> <span class="fu">axes</span>(m.R, <span class="fl">2</span>)]</span>
+<span id="cb2-10"><a href="#cb2-10" aria-hidden="true" tabindex="-1"></a>        U′ <span class="op">=</span> <span class="fu">vec</span>(<span class="fu">maximum</span>(Q, dims <span class="op">=</span> <span class="fl">2</span>))</span>
+<span id="cb2-11"><a href="#cb2-11" aria-hidden="true" tabindex="-1"></a>        <span class="fu">maximum</span>(<span class="fu">abs</span>.(U′ <span class="op">-</span> U)) <span class="op">&lt;</span> δ <span class="op">&amp;&amp;</span> <span class="cf">return</span> U′, <span class="fu">argmax</span>.(<span class="fu">eachrow</span>(Q))</span>
+<span id="cb2-12"><a href="#cb2-12" aria-hidden="true" tabindex="-1"></a>        U <span class="op">=</span> U′</span>
+<span id="cb2-13"><a href="#cb2-13" aria-hidden="true" tabindex="-1"></a>    <span class="cf">end</span></span>
+<span id="cb2-14"><a href="#cb2-14" aria-hidden="true" tabindex="-1"></a><span class="kw">end</span></span>
+<span id="cb2-15"><a href="#cb2-15" aria-hidden="true" tabindex="-1"></a>U, policy <span class="op">=</span> <span class="fu">solve</span>(mdp)</span>
+<span id="cb2-16"><a href="#cb2-16" aria-hidden="true" tabindex="-1"></a><span class="pp">@assert</span> mdp.states[<span class="fu">argmax</span>(U)] <span class="op">==</span> (<span class="fl">2</span>, <span class="fl">9</span>)    <span class="co"># the +10 tile is worth the most</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</div>
+</div>
+</div>
+<div id="6997c52f" class="cell" data-execution_count="3">
+<div class="cell-output cell-output-stdout">
+<pre><code>25 states (24 tiles + terminal), 6 actions, γ = 0.9
+Most valuable tile: (2, 9) with U* = 10.00</code></pre>
+</div>
+</div>
+</section>
+<section id="hex-world" class="level2">
+<h2 class="anchored" data-anchor-id="hex-world">Hex World</h2>
+<p><strong>The story.</strong> A robot crosses a floor of hexagonal tiles. Three tiles are special: one pays +10, one pays +5, and one costs −10. Acting on a special tile collects its value and ends the episode. The floor is slippery, so a move sometimes veers off course, and walking into the edge of the map wastes a turn and costs 1.</p>
+<p>It is a good first benchmark because it is small enough to solve exactly (25 states), yet it has real trade-offs. The +5 is closer than the +10 for part of the map, and the −10 sits beside a useful path.</p>
+<div id="tbl-hex" class="quarto-float quarto-figure quarto-figure-center anchored">
+<figure class="quarto-float quarto-float-tbl figure">
+<figcaption class="quarto-float-caption-top quarto-float-caption quarto-float-tbl" id="tbl-hex-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Table&nbsp;3: Hex World at a glance (ADM §F.1).
+</figcaption>
+<div aria-describedby="tbl-hex-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<table class="caption-top table">
+<colgroup>
+<col style="width: 50%">
+<col style="width: 50%">
+</colgroup>
+<tbody>
+<tr class="odd">
+<td>States</td>
+<td>24 tiles, plus one terminal state reached after collecting a reward</td>
+</tr>
+<tr class="even">
+<td>Actions</td>
+<td>Move in one of 6 directions: E, NE, NW, W, SW, SE</td>
+</tr>
+<tr class="odd">
+<td>Rewards</td>
+<td>+10, +5 and −10 on three tiles; −1 for bumping into the edge</td>
+</tr>
+<tr class="even">
+<td>Discount</td>
+<td><span class="math inline">\(\gamma = 0.9\)</span></td>
+</tr>
+</tbody>
+</table>
+</div>
+</figure>
+</div>
+<div class="key-equation" data-name="Hex World transition model">
+<p><span id="eq-hex-transition"><span class="math display">\[
+T(s' \mid s, a) = 0.7\,\big[s' = \mathrm{step}(s, a)\big] + 0.15\,\big[s' = \mathrm{step}(s, a^{-})\big] + 0.15\,\big[s' = \mathrm{step}(s, a^{+})\big]
+\tag{1}\]</span></span></p>
+</div>
+<p><strong>In words.</strong> The robot goes the way it chose 70% of the time. Otherwise it veers 60° to the left or to the right, 15% each.</p>
+<p><strong>Term by term.</strong></p>
+<ul>
+<li><span class="math inline">\(\mathrm{step}(s, a)\)</span> is the tile one step from <span class="math inline">\(s\)</span> in direction <span class="math inline">\(a\)</span>. If that step would leave the map, <span class="math inline">\(\mathrm{step}(s, a) = s\)</span>: the robot stays put.</li>
+<li><span class="math inline">\(a^{-}\)</span> and <span class="math inline">\(a^{+}\)</span> are the two directions next to <span class="math inline">\(a\)</span>. For <span class="math inline">\(a = \text{E}\)</span> they are NE and SE.</li>
+<li><span class="math inline">\([\cdot]\)</span> is 1 if the condition inside is true and 0 otherwise, so the three terms add up the ways of landing on <span class="math inline">\(s'\)</span>.</li>
+<li>On a reward tile, every action instead moves to the terminal state with probability 1.</li>
+</ul>
+<p>The reward is <span class="math inline">\(R(s, a) = r(s)\)</span> on a reward tile. Elsewhere it is <span class="math inline">\(-1\)</span> times the probability of bumping into the edge. For example, heading east from the top-left tile veers off the map with probability 0.15, so <span class="math inline">\(R = -0.15\)</span>.</p>
+<p><a href="#fig-hex-world" class="quarto-xref">Figure&nbsp;1</a> shows the map and its optimal policy.</p>
+<div id="cell-fig-hex-world" class="cell" data-execution_count="4">
+<div class="cell-output cell-output-display">
+<div id="fig-hex-world" class="quarto-float quarto-figure quarto-figure-center anchored" alt="Two hex maps side by side, each with three rows of hexagonal tiles: ten on top, six in the middle, eight on the bottom. On the left map, a +5 tile at the left of the middle row is light blue, a −10 tile in the bottom row is red, and a +10 tile at the bottom right is dark blue. On the right map, every tile is shaded by its value, from pale near the −10 to darker blue near the +10, and arrows show the best move. Tiles in the left third point toward the +5, tiles in the right two-thirds point toward the +10, and no tile next to the −10 aims at it.">
+<figure class="quarto-float quarto-float-fig figure">
+<div aria-describedby="fig-hex-world-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<img src="f-problems_files/figure-html/fig-hex-world-output-1.png" alt="Two hex maps side by side, each with three rows of hexagonal tiles: ten on top, six in the middle, eight on the bottom. On the left map, a +5 tile at the left of the middle row is light blue, a −10 tile in the bottom row is red, and a +10 tile at the bottom right is dark blue. On the right map, every tile is shaded by its value, from pale near the −10 to darker blue near the +10, and arrows show the best move. Tiles in the left third point toward the +5, tiles in the right two-thirds point toward the +10, and no tile next to the −10 aims at it." width="716" height="198" class="figure-img">
+</div>
+<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-hex-world-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Figure&nbsp;1: Hex World. Left: the map, with the three reward tiles colored. Right: the optimal values (color) and policy (arrows) from value iteration with γ = 0.9.
+</figcaption>
+</figure>
+</div>
+</div>
+</div>
+<section id="straight-line-hex-world" class="level3">
+<h3 class="anchored" data-anchor-id="straight-line-hex-world">Straight-line Hex World</h3>
+<p>A smaller variant has seven tiles in a row, with +10 on the rightmost tile. Its only purpose is to make one thing visible: how value iteration spreads reward backward, one tile per sweep (<a href="#fig-hex-line" class="quarto-xref">Figure&nbsp;2</a>).</p>
+<div id="cell-fig-hex-line" class="cell" data-execution_count="5">
+<div class="cell-output cell-output-display">
+<div id="fig-hex-line" class="quarto-float quarto-figure quarto-figure-center anchored" alt="Seven stacked rows of seven hexagons each, labeled sweep 1 to sweep 7. In sweep 1 the rightmost tile, labeled +10, is dark blue and the other six are faintly red. In each later row, blue reaches one more tile to the left, each tile paler than the one to its right. By sweep 7 every tile except the leftmost is blue.">
+<figure class="quarto-float quarto-float-fig figure">
+<div aria-describedby="fig-hex-line-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<img src="f-problems_files/figure-html/fig-hex-line-output-1.png" alt="Seven stacked rows of seven hexagons each, labeled sweep 1 to sweep 7. In sweep 1 the rightmost tile, labeled +10, is dark blue and the other six are faintly red. In each later row, blue reaches one more tile to the left, each tile paler than the one to its right. By sweep 7 every tile except the leftmost is blue." width="322" height="359" class="figure-img">
+</div>
+<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-hex-line-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Figure&nbsp;2: Value iteration on straight-line Hex World (γ = 0.9). Each row is one sweep. The +10 reaches one more tile to the left per sweep, fading as it goes. Tiles it hasn’t reached yet are slightly negative: in a single row every move risks veering off the edge, which costs 1. The values settle after 26 sweeps.
+</figcaption>
+</figure>
+</div>
+</div>
+</div>
+<p><strong>Where it’s used.</strong> <a href="../part2/ch09-online-planning.html">Ch 9</a>: every online planner is scored against the exact solution. <a href="../part2/ch13-actor-critic-methods.html">Ch 13</a>: a tabular policy and value table learned from guided tree search. <code>optimistic_values</code> in <code>adm/problems/hex_world.py</code> gives an upper bound on the optimal values (each positive reward discounted by the fewest moves to reach it), used by branch and bound and heuristic search.</p>
+</section>
+</section>
+<section id="mountain-car" class="level2">
+<h2 class="anchored" data-anchor-id="mountain-car">Mountain car</h2>
+<p><strong>The story.</strong> A car sits in a valley between two hills and must reach the top of the right one. Its engine is too weak to drive straight up, so it has to rock back and forth, using gravity to build speed. It is the classic example of a <em>delayed reward</em>: every step costs the same, and the only way to do well is to first drive <em>away</em> from the goal. The problem goes back to A. Moore’s 1990 PhD thesis; this discrete-action version is from S. Singh and R. Sutton, “Reinforcement Learning with Replacing Eligibility Traces,” <em>Machine Learning</em>, 1996.</p>
+<div id="tbl-mountain-car" class="quarto-float quarto-figure quarto-figure-center anchored">
+<figure class="quarto-float quarto-float-tbl figure">
+<figcaption class="quarto-float-caption-top quarto-float-caption quarto-float-tbl" id="tbl-mountain-car-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Table&nbsp;4: Mountain car. The cos(3x) term is gravity along a valley shaped like sin(3x).
+</figcaption>
+<div aria-describedby="tbl-mountain-car-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<table class="caption-top table">
+<colgroup>
+<col style="width: 50%">
+<col style="width: 50%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Part</th>
+<th>Definition</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>State</td>
+<td>position <span class="math inline">\(x \in [-1.2, 0.6]\)</span> and speed <span class="math inline">\(v \in [-0.07, 0.07]\)</span></td>
+</tr>
+<tr class="even">
+<td>Actions</td>
+<td>accelerate left (<span class="math inline">\(a = -1\)</span>), coast (<span class="math inline">\(0\)</span>), accelerate right (<span class="math inline">\(+1\)</span>)</td>
+</tr>
+<tr class="odd">
+<td>Transition (deterministic)</td>
+<td><span class="math inline">\(v' = v + 0.001a - 0.0025\cos(3x)\)</span>, then <span class="math inline">\(x' = x + v'\)</span>; both clamped to their ranges</td>
+</tr>
+<tr class="even">
+<td>Reward</td>
+<td><span class="math inline">\(-1\)</span> per step; the episode ends when <span class="math inline">\(x\)</span> reaches <span class="math inline">\(0.6\)</span></td>
+</tr>
+<tr class="odd">
+<td>Discount</td>
+<td><span class="math inline">\(\gamma = 1\)</span> on this site, so a state’s value is minus the number of steps to the goal</td>
+</tr>
+</tbody>
+</table>
+</div>
+</figure>
+</div>
+<div class="tabset-margin-container"></div><div class="panel-tabset" data-group="lang">
+<ul class="nav nav-tabs" role="tablist"><li class="nav-item" role="presentation"><a class="nav-link active" id="tabset-2-1-tab" data-bs-toggle="tab" data-bs-target="#tabset-2-1" role="tab" aria-controls="tabset-2-1" aria-selected="true" href="">Python</a></li><li class="nav-item" role="presentation"><a class="nav-link" id="tabset-2-2-tab" data-bs-toggle="tab" data-bs-target="#tabset-2-2" role="tab" aria-controls="tabset-2-2" aria-selected="false" href="">Julia</a></li></ul>
+<div class="tab-content" data-group="lang">
+<div id="tabset-2-1" class="tab-pane active" role="tabpanel" aria-labelledby="tabset-2-1-tab">
+<div id="ed11e274" class="cell" data-execution_count="6">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb4"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> adm.problems <span class="im">import</span> mountain_car <span class="im">as</span> mc</span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a>s <span class="op">=</span> mc.<span class="fu">step</span>([<span class="op">-</span><span class="fl">0.5</span>, <span class="fl">0.0</span>], <span class="dv">1</span>)          <span class="co"># one step accelerating right from rest at x = -0.5</span></span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a><span class="co"># mc.step also works on arrays of states: s[..., 0] is x and s[..., 1] is v</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</div>
+</div>
+<div id="tabset-2-2" class="tab-pane" role="tabpanel" aria-labelledby="tabset-2-2-tab">
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb5"><pre class="sourceCode julia snippet code-with-copy"><code class="sourceCode julia"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="im">using</span> <span class="bu">ADM</span></span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a>s <span class="op">=</span> <span class="fu">mountain_car_step</span>([<span class="op">-</span><span class="fl">0.5</span>, <span class="fl">0.0</span>], <span class="fl">1</span>)          <span class="co"># s = [x, v]</span></span>
+<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a><span class="pp">@assert</span> s[<span class="fl">2</span>] <span class="op">≈</span> <span class="fl">0.001</span> <span class="op">-</span> <span class="fl">0.0025</span><span class="fu">cos</span>(<span class="op">-</span><span class="fl">1.5</span>) <span class="op">&amp;&amp;</span> !<span class="fu">mountain_car_goal</span>(s)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</div>
+</div>
+</div>
+<p><strong>Where it’s used.</strong> <a href="../part2/ch08-approximate-value-functions.html">Ch 8</a>: approximate value iteration with seven kinds of value function approximation. From rest at <span class="math inline">\(x = -0.5\)</span>, a policy from a fine 201 × 201 grid takes 106 steps: right, then left, then right. <a href="../part2/ch09-online-planning.html">Ch 9</a>: receding-horizon forward search, with and without Ch 8’s value function beyond the horizon. <a href="../part2/ch10-policy-search.html">Ch 10</a>: policy search over the two-parameter rule “accelerate right if <span class="math inline">\(v + \theta_1 x + \theta_2 &gt; 0\)</span>” (<code>switching_rule</code>), scored from ten standard starts at rest (<code>STANDARD_STARTS</code>).</p>
+</section>
+<section id="simple-regulator" class="level2">
+<h2 class="anchored" data-anchor-id="simple-regulator">Simple regulator</h2>
+<p><strong>The story.</strong> Keep a single number <span class="math inline">\(s\)</span> close to zero. Each step you choose an amount <span class="math inline">\(a\)</span> to add to it, and the world adds a little noise of its own. It is the smallest possible <em>linear-quadratic</em> control problem, and small enough that the value of any linear policy can be written down exactly. That makes it a clean benchmark for policy search: every method’s answer can be scored without simulation noise.</p>
+<div id="tbl-regulator" class="quarto-float quarto-figure quarto-figure-center anchored">
+<figure class="quarto-float quarto-float-tbl figure">
+<figcaption class="quarto-float-caption-top quarto-float-caption quarto-float-tbl" id="tbl-regulator-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Table&nbsp;5: The simple regulator. With a linear Gaussian policy, E[s²] evolves as (1 + θ₁)² E[s²] + θ₂² + 0.1², which gives the exact value.
+</figcaption>
+<div aria-describedby="tbl-regulator-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<table class="caption-top table">
+<colgroup>
+<col style="width: 50%">
+<col style="width: 50%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Part</th>
+<th>Definition</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>State and action</td>
+<td>real numbers <span class="math inline">\(s\)</span> and <span class="math inline">\(a\)</span></td>
+</tr>
+<tr class="even">
+<td>Transition</td>
+<td><span class="math inline">\(s' \sim \mathcal{N}(s + a,\ 0.1^2)\)</span></td>
+</tr>
+<tr class="odd">
+<td>Reward</td>
+<td><span class="math inline">\(R(s, a) = -s^2\)</span> (the action is free)</td>
+</tr>
+<tr class="even">
+<td>Start</td>
+<td><span class="math inline">\(s \sim \mathcal{N}(0.3,\ 0.1^2)\)</span></td>
+</tr>
+<tr class="odd">
+<td>Discount, horizon</td>
+<td><span class="math inline">\(\gamma = 0.9\)</span> and 10 steps on this site</td>
+</tr>
+<tr class="even">
+<td>Policy family used</td>
+<td><span class="math inline">\(a \sim \mathcal{N}(\theta_1 s,\ \theta_2^2)\)</span>; best: <span class="math inline">\(\theta = (-1, 0)\)</span></td>
+</tr>
+</tbody>
+</table>
+</div>
+</figure>
+</div>
+<div class="tabset-margin-container"></div><div class="panel-tabset" data-group="lang">
+<ul class="nav nav-tabs" role="tablist"><li class="nav-item" role="presentation"><a class="nav-link active" id="tabset-3-1-tab" data-bs-toggle="tab" data-bs-target="#tabset-3-1" role="tab" aria-controls="tabset-3-1" aria-selected="true" href="">Python</a></li><li class="nav-item" role="presentation"><a class="nav-link" id="tabset-3-2-tab" data-bs-toggle="tab" data-bs-target="#tabset-3-2" role="tab" aria-controls="tabset-3-2" aria-selected="false" href="">Julia</a></li></ul>
+<div class="tab-content" data-group="lang">
+<div id="tabset-3-1" class="tab-pane active" role="tabpanel" aria-labelledby="tabset-3-1-tab">
+<div id="85abf5a2" class="cell" data-execution_count="7">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb6"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> adm.problems <span class="im">import</span> simple_regulator <span class="im">as</span> sr</span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a>rng <span class="op">=</span> np.random.<span class="fu">default_rng</span>(<span class="dv">0</span>)</span>
+<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a>estimate <span class="op">=</span> sr.<span class="fu">rollout_returns</span>(np.<span class="fu">array</span>([<span class="op">-</span><span class="fl">1.0</span>, <span class="fl">0.0</span>]), <span class="dv">1000</span>, rng).<span class="fu">mean</span>()   <span class="co"># Monte Carlo</span></span>
+<span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a>exact <span class="op">=</span> sr.<span class="fu">exact_value</span>([<span class="op">-</span><span class="fl">1.0</span>, <span class="fl">0.0</span>])                                     <span class="co"># no sampling</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</div>
+</div>
+<div id="tabset-3-2" class="tab-pane" role="tabpanel" aria-labelledby="tabset-3-2-tab">
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb7"><pre class="sourceCode julia snippet code-with-copy"><code class="sourceCode julia"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="im">using</span> <span class="bu">ADM</span></span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a><span class="pp">@assert</span> <span class="fu">regulator_exact_value</span>([<span class="op">-</span><span class="fl">1.0</span>, <span class="fl">0.0</span>]) <span class="op">≈</span> <span class="fu">-</span>(<span class="fl">0.1</span> <span class="op">+</span> <span class="fl">0.01</span> <span class="op">*</span> <span class="fu">sum</span>(<span class="fl">0.9</span><span class="op">^</span>t <span class="cf">for</span> t <span class="kw">in</span> <span class="fl">1</span><span class="op">:</span><span class="fl">9</span>))</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</div>
+</div>
+</div>
+<p><strong>Where it’s used.</strong> <a href="../part2/ch10-policy-search.html">Ch 10</a>: every policy search method is scored by the exact value of the policy it finds. <a href="../part2/ch11-policy-gradient-estimation.html">Ch 11</a>: the exact gradient (<code>exact_gradient</code>, from differentiating the same recursion) scores every gradient estimator’s bias and variance. <a href="../part2/ch12-policy-gradient-optimization.html">Ch 12</a>: the policy’s <code>log_policy</code> and <code>policy_kl</code> drive TRPO and PPO, and exact values score every update rule. <a href="../part2/ch13-actor-critic-methods.html">Ch 13</a>: actor-critic with a quadratic critic, and the deterministic policy gradient.</p>
+</section>
+<section id="collision-avoidance" class="level2">
+<h2 class="anchored" data-anchor-id="collision-avoidance">Aircraft collision avoidance</h2>
+<p><strong>The story.</strong> Our aircraft flies head on toward an intruder and will meet it in 40 seconds. Each second, a collision avoidance system can advise the pilot to climb, to descend, or nothing. Gusts nudge the vertical rate, and the pilot can change it only gradually. The system must avoid passing within 50 m of the intruder vertically, without issuing needless or frequently changing advisories. It is a highly simplified version of the problem behind airborne collision avoidance systems.</p>
+<div id="tbl-collision" class="quarto-float quarto-figure quarto-figure-center anchored">
+<figure class="quarto-float quarto-float-tbl figure">
+<figcaption class="quarto-float-caption-top quarto-float-caption quarto-float-tbl" id="tbl-collision-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Table&nbsp;6: Aircraft collision avoidance.
+</figcaption>
+<div aria-describedby="tbl-collision-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<table class="caption-top table">
+<colgroup>
+<col style="width: 50%">
+<col style="width: 50%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Part</th>
+<th>Definition</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>State</td>
+<td>altitude relative to the intruder <span class="math inline">\(h\)</span> (m), vertical rate <span class="math inline">\(\dot h\)</span> (m/s), previous advisory, time to collision <span class="math inline">\(t_{\text{col}}\)</span> (s)</td>
+</tr>
+<tr class="even">
+<td>Actions</td>
+<td>no advisory; descend at 5 m/s; climb at 5 m/s</td>
+</tr>
+<tr class="odd">
+<td>Transition, each second</td>
+<td><span class="math inline">\(h \leftarrow h + \dot h\)</span>, <span class="math inline">\(\ \dot h \leftarrow \dot h + \ddot h + \nu\)</span>, <span class="math inline">\(\ t_{\text{col}} \leftarrow t_{\text{col}} - 1\)</span></td>
+</tr>
+<tr class="even">
+<td>Pilot response <span class="math inline">\(\ddot h\)</span></td>
+<td>toward the advised rate, at most 1 m/s² (so <span class="math inline">\(\ddot h = \operatorname{clip}(\text{rate} - \dot h, -1, 1)\)</span>); 0 with no advisory</td>
+</tr>
+<tr class="odd">
+<td>Gusts <span class="math inline">\(\nu\)</span></td>
+<td>−2, 0, +2 m/s with probabilities ¼, ½, ¼</td>
+</tr>
+<tr class="even">
+<td>Costs</td>
+<td>1 if <span class="math inline">\(|h| &lt; 50\)</span> m at <span class="math inline">\(t_{\text{col}} = 0\)</span> (collision); 0.01 for each change of advisory</td>
+</tr>
+<tr class="odd">
+<td>Start (this site)</td>
+<td><span class="math inline">\(t_{\text{col}} = 40\)</span>, no advisory; <span class="math inline">\(h\)</span> and <span class="math inline">\(\dot h\)</span> uniform on the integers in ±200 m and ±10 m/s</td>
+</tr>
+</tbody>
+</table>
+</div>
+</figure>
+</div>
+<p>Two choices are this site’s. The book’s formula for <span class="math inline">\(\ddot h\)</span> reads <span class="math inline">\(a/\Delta t\)</span> when the advised rate is within reach; we take the step that reaches the advised rate, <span class="math inline">\((\text{rate} - \dot h)/\Delta t\)</span>. And starts are integers: then <span class="math inline">\(h\)</span> and <span class="math inline">\(\dot h\)</span> stay integers forever (every change is a whole number), so the problem is an exact finite MDP on an integer lattice. <code>optimal_policy</code> solves it by backward induction on that lattice in about 0.1 s, with no interpolation. That gives exact answers for every metric, which Ch 14 uses to check its sampling methods. The lattice is clamped at ±500 m and ±30 m/s; a lattice of ±800 m and ±50 m/s changes the collision probabilities by less than <span class="math inline">\(10^{-10}\)</span> (tested).</p>
+<p>The <code>Model</code> settings (<code>noise</code>, <code>p_noise</code>, <code>accel_limit</code>, <code>compliance</code>, the two costs) describe variants for robustness checks. For instance, <code>compliance = 0.8</code> is a pilot who follows each advisory only 80% of the time. <code>simple_policy</code> is a threshold policy for comparison: climb or descend away from the intruder when it is within 50 m vertically and less than 30 s away.</p>
+<div class="tabset-margin-container"></div><div class="panel-tabset" data-group="lang">
+<ul class="nav nav-tabs" role="tablist"><li class="nav-item" role="presentation"><a class="nav-link active" id="tabset-4-1-tab" data-bs-toggle="tab" data-bs-target="#tabset-4-1" role="tab" aria-controls="tabset-4-1" aria-selected="true" href="">Python</a></li><li class="nav-item" role="presentation"><a class="nav-link" id="tabset-4-2-tab" data-bs-toggle="tab" data-bs-target="#tabset-4-2" role="tab" aria-controls="tabset-4-2" aria-selected="false" href="">Julia</a></li></ul>
+<div class="tab-content" data-group="lang">
+<div id="tabset-4-1" class="tab-pane active" role="tabpanel" aria-labelledby="tabset-4-1-tab">
+<div id="11a2e4d0" class="cell" data-execution_count="8">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb8"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> adm.problems <span class="im">import</span> collision_avoidance <span class="im">as</span> ca</span>
+<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a>m <span class="op">=</span> ca.<span class="fu">Model</span>()</span>
+<span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a>policy, cost <span class="op">=</span> ca.<span class="fu">optimal_policy</span>(m)                          <span class="co"># policy[t][a_prev, i_h, i_hdot]</span></span>
+<span id="cb8-4"><a href="#cb8-4" aria-hidden="true" tabindex="-1"></a>p_collision <span class="op">=</span> ca.<span class="fu">start_average</span>(m, ca.<span class="fu">evaluate</span>(m, policy))    <span class="co"># exact, by policy evaluation</span></span>
+<span id="cb8-5"><a href="#cb8-5" aria-hidden="true" tabindex="-1"></a>p_simple <span class="op">=</span> ca.<span class="fu">start_average</span>(m, ca.<span class="fu">evaluate</span>(m, ca.<span class="fu">simple_policy</span>(m)))</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</div>
+<div id="43ef4f33" class="cell" data-execution_count="9">
+<div class="cell-output cell-output-stdout">
+<pre><code>collision probability: optimal 6.42e-04, simple 0.072</code></pre>
+</div>
+</div>
+</div>
+<div id="tabset-4-2" class="tab-pane" role="tabpanel" aria-labelledby="tabset-4-2-tab">
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb10"><pre class="sourceCode julia snippet code-with-copy"><code class="sourceCode julia"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="im">using</span> <span class="bu">ADM</span></span>
+<span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a>m <span class="op">=</span> <span class="fu">CAModel</span>()</span>
+<span id="cb10-3"><a href="#cb10-3" aria-hidden="true" tabindex="-1"></a>policy, cost <span class="op">=</span> <span class="fu">ca_optimal_policy</span>(m)                          <span class="co"># policy[t][a_prev, i_h, i_ḣ]</span></span>
+<span id="cb10-4"><a href="#cb10-4" aria-hidden="true" tabindex="-1"></a>p_collision <span class="op">=</span> <span class="fu">ca_start_average</span>(m, <span class="fu">ca_evaluate</span>(m, policy))</span>
+<span id="cb10-5"><a href="#cb10-5" aria-hidden="true" tabindex="-1"></a>p_simple <span class="op">=</span> <span class="fu">ca_start_average</span>(m, <span class="fu">ca_evaluate</span>(m, <span class="fu">ca_simple_policy</span>(m)))</span>
+<span id="cb10-6"><a href="#cb10-6" aria-hidden="true" tabindex="-1"></a><span class="pp">@assert</span> <span class="fl">6e-4</span> <span class="op">&lt;</span> p_collision <span class="op">&lt;</span> <span class="fl">7e-4</span> <span class="op">&amp;&amp;</span> <span class="fl">0.07</span> <span class="op">&lt;</span> p_simple <span class="op">&lt;</span> <span class="fl">0.075</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</div>
+</div>
+</div>
+<p><strong>Where it’s used.</strong> <a href="../part2/ch14-policy-validation.html">Ch 14</a>: exact evaluation of collision risk and advisory changes, Monte Carlo and importance sampling checked against it, robustness to pilot compliance and gusts, robust dynamic programming, trade-off curves, and the most likely failure found by an adversary.</p>
+</section>
+<section id="crying-baby" class="level2">
+<h2 class="anchored" data-anchor-id="crying-baby">Crying baby</h2>
+<p><strong>The story.</strong> A caregiver can’t tell whether a baby is hungry; it only hears whether the baby cries. Each hour it can feed the baby (effective but costly), sing to it (cheap, and more informative about hunger), or ignore it. It is the standard small POMDP: two hidden states, three actions and two observations. It is small enough to solve exactly and to draw every belief on a single axis, <span class="math inline">\(P(\text{hungry})\)</span>.</p>
+<div id="tbl-crying-baby" class="quarto-float quarto-figure quarto-figure-center anchored">
+<figure class="quarto-float quarto-float-tbl figure">
+<figcaption class="quarto-float-caption-top quarto-float-caption quarto-float-tbl" id="tbl-crying-baby-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Table&nbsp;7: The crying baby.
+</figcaption>
+<div aria-describedby="tbl-crying-baby-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<table class="caption-top table">
+<colgroup>
+<col style="width: 50%">
+<col style="width: 50%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Part</th>
+<th>Definition</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>States</td>
+<td>sated, hungry</td>
+</tr>
+<tr class="even">
+<td>Actions</td>
+<td>feed, sing, ignore</td>
+</tr>
+<tr class="odd">
+<td>Observations</td>
+<td>crying, quiet</td>
+</tr>
+<tr class="even">
+<td>Transitions</td>
+<td>feeding always sates; otherwise a sated baby becomes hungry w.p. 0.1, and a hungry one stays hungry</td>
+</tr>
+<tr class="odd">
+<td>Observations</td>
+<td><span class="math inline">\(P(\text{cry} \mid \text{hungry})\)</span> = 0.8 (feed, ignore), 0.9 (sing); <span class="math inline">\(P(\text{cry} \mid \text{sated})\)</span> = 0.1 (feed, ignore), 0 (sing); both depend on the state after the action</td>
+</tr>
+<tr class="even">
+<td>Rewards</td>
+<td>−10 while hungry, −5 more to feed, −0.5 more to sing; discount 0.9</td>
+</tr>
+</tbody>
+</table>
+</div>
+</figure>
+</div>
+<div class="tabset-margin-container"></div><div class="panel-tabset" data-group="lang">
+<ul class="nav nav-tabs" role="tablist"><li class="nav-item" role="presentation"><a class="nav-link active" id="tabset-5-1-tab" data-bs-toggle="tab" data-bs-target="#tabset-5-1" role="tab" aria-controls="tabset-5-1" aria-selected="true" href="">Python</a></li><li class="nav-item" role="presentation"><a class="nav-link" id="tabset-5-2-tab" data-bs-toggle="tab" data-bs-target="#tabset-5-2" role="tab" aria-controls="tabset-5-2" aria-selected="false" href="">Julia</a></li></ul>
+<div class="tab-content" data-group="lang">
+<div id="tabset-5-1" class="tab-pane active" role="tabpanel" aria-labelledby="tabset-5-1-tab">
+<div id="76473c27" class="cell" data-execution_count="10">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb11"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> adm.problems.crying_baby <span class="im">import</span> belief_update, crying_baby</span>
+<span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a>pomdp <span class="op">=</span> <span class="fu">crying_baby</span>()                    <span class="co"># T[s, a, s2], R[s, a], O[a, s2, o]; 0 = sated / feed / crying</span></span>
+<span id="cb11-3"><a href="#cb11-3" aria-hidden="true" tabindex="-1"></a>b <span class="op">=</span> <span class="fu">belief_update</span>(pomdp, np.<span class="fu">array</span>([<span class="fl">0.8</span>, <span class="fl">0.2</span>]), <span class="dv">2</span>, <span class="dv">0</span>)   <span class="co"># ignore, then hear crying</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</div>
+</div>
+<div id="tabset-5-2" class="tab-pane" role="tabpanel" aria-labelledby="tabset-5-2-tab">
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb12"><pre class="sourceCode julia snippet code-with-copy"><code class="sourceCode julia"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="im">using</span> <span class="bu">ADM</span></span>
+<span id="cb12-2"><a href="#cb12-2" aria-hidden="true" tabindex="-1"></a>p <span class="op">=</span> <span class="fu">crying_baby</span>()                        <span class="co"># 1-based: 1 = sated / feed / crying</span></span>
+<span id="cb12-3"><a href="#cb12-3" aria-hidden="true" tabindex="-1"></a>b <span class="op">=</span> <span class="fu">update_discrete</span>([<span class="fl">0.8</span>, <span class="fl">0.2</span>], p.T, p.O, <span class="fl">3</span>, <span class="fl">1</span>)       <span class="co"># ignore, then hear crying</span></span>
+<span id="cb12-4"><a href="#cb12-4" aria-hidden="true" tabindex="-1"></a><span class="pp">@assert</span> b[<span class="fl">2</span>] <span class="op">≈</span> <span class="fl">0.224</span> <span class="op">/</span> <span class="fl">0.296</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</div>
+</div>
+</div>
+<p><strong>Where it’s used.</strong> <a href="../part4/ch20-exact-belief-state-planning.html">Ch 20</a>: conditional plans, alpha vectors, pruning and exact value iteration. The long-horizon policy ignores the baby until <span class="math inline">\(P(\text{hungry})\)</span> reaches about 0.28, then feeds; with the problem as defined here, singing is never optimal. <a href="../part4/ch21-offline-belief-state-planning.html">Ch 21</a>: every offline bound is compared with the exact value. <a href="../part4/ch22-online-belief-state-planning.html">Ch 22</a>: forward search, branch and bound, sparse sampling, determinized search, Monte Carlo tree search and gap heuristic search, all scored against the exact solution. <a href="../part4/ch23-controller-abstractions.html">Ch 23</a>: a 2-node controller (“feed on crying, but not twice in a row”) is exactly optimal; policy iteration and gradient ascent find it.</p>
+</section>
+<section id="simple-games" class="level2">
+<h2 class="anchored" data-anchor-id="simple-games">Simple games</h2>
+<p><strong>The story.</strong> Three one-round games for two agents, who choose at the same time. In the <strong>prisoner’s dilemma</strong> (F.10), each prisoner can stay silent (cooperate) or blame the other (defect); rewards are minus the years served. In <strong>rock-paper-scissors</strong> (F.11), the winner gets 1 and the loser −1. In the <strong>traveler’s dilemma</strong> (F.12; K. Basu, 1994), two travelers claim between $2 and $100 for identical lost suitcases; equal claims are paid, otherwise both are paid the lower claim, plus $2 for the lower claimant and minus $2 for the higher. All three store <span class="math inline">\(R[i, a^1, a^2]\)</span>, agent <span class="math inline">\(i\)</span>’s reward, with discount 0.9 when repeated.</p>
+<div id="tbl-simple-games" class="quarto-float quarto-figure quarto-figure-center anchored">
+<figure class="quarto-float quarto-float-tbl figure">
+<figcaption class="quarto-float-caption-top quarto-float-caption quarto-float-tbl" id="tbl-simple-games-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Table&nbsp;8: The simple games.
+</figcaption>
+<div aria-describedby="tbl-simple-games-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<table class="caption-top table">
+<colgroup>
+<col style="width: 33%">
+<col style="width: 33%">
+<col style="width: 33%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Game</th>
+<th>Actions</th>
+<th>Rewards (agent 1, agent 2)</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Prisoner’s dilemma</td>
+<td>cooperate, defect</td>
+<td>(C, C) −1, −1; (C, D) −4, 0; (D, C) 0, −4; (D, D) −3, −3</td>
+</tr>
+<tr class="even">
+<td>Rock-paper-scissors</td>
+<td>rock, paper, scissors</td>
+<td>winner 1, loser −1, draw 0</td>
+</tr>
+<tr class="odd">
+<td>Traveler’s dilemma</td>
+<td>claims $2–$100 (99 actions)</td>
+<td>equal: both get the claim; else lower + 2 and lower − 2</td>
+</tr>
+</tbody>
+</table>
+</div>
+</figure>
+</div>
+<div class="tabset-margin-container"></div><div class="panel-tabset" data-group="lang">
+<ul class="nav nav-tabs" role="tablist"><li class="nav-item" role="presentation"><a class="nav-link active" id="tabset-6-1-tab" data-bs-toggle="tab" data-bs-target="#tabset-6-1" role="tab" aria-controls="tabset-6-1" aria-selected="true" href="">Python</a></li><li class="nav-item" role="presentation"><a class="nav-link" id="tabset-6-2-tab" data-bs-toggle="tab" data-bs-target="#tabset-6-2" role="tab" aria-controls="tabset-6-2" aria-selected="false" href="">Julia</a></li></ul>
+<div class="tab-content" data-group="lang">
+<div id="tabset-6-1" class="tab-pane active" role="tabpanel" aria-labelledby="tabset-6-1-tab">
+<div id="2aadc0ef" class="cell" data-execution_count="11">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb13"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> adm.problems.simple_games <span class="im">import</span> prisoners_dilemma, rock_paper_scissors, travelers_dilemma</span>
+<span id="cb13-2"><a href="#cb13-2" aria-hidden="true" tabindex="-1"></a>game <span class="op">=</span> <span class="fu">travelers_dilemma</span>()               <span class="co"># R[i, a1, a2]; action 0 = $2</span></span>
+<span id="cb13-3"><a href="#cb13-3" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(game.R[:, <span class="dv">97</span>, <span class="dv">98</span>])                 <span class="co"># claims $99 and $100: [101.  97.]</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>[101.  97.]</code></pre>
+</div>
+</div>
+</div>
+<div id="tabset-6-2" class="tab-pane" role="tabpanel" aria-labelledby="tabset-6-2-tab">
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb15"><pre class="sourceCode julia snippet code-with-copy"><code class="sourceCode julia"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true" tabindex="-1"></a><span class="im">using</span> <span class="bu">ADM</span></span>
+<span id="cb15-2"><a href="#cb15-2" aria-hidden="true" tabindex="-1"></a>g <span class="op">=</span> <span class="fu">travelers_dilemma</span>()                  <span class="co"># R[i, a1, a2]; action 1 = $2</span></span>
+<span id="cb15-3"><a href="#cb15-3" aria-hidden="true" tabindex="-1"></a><span class="pp">@assert</span> g.R[<span class="op">:</span>, <span class="fl">98</span>, <span class="fl">99</span>] <span class="op">==</span> [<span class="fl">101.0</span>, <span class="fl">97.0</span>]  <span class="co"># claims $99 and $100</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</div>
+</div>
+</div>
+<p><strong>Where it’s used.</strong> <a href="../part5/ch24-multiagent-reasoning.html">Ch 24</a>: defecting is a dominant strategy in the prisoner’s dilemma; rock-paper-scissors has only a mixed Nash equilibrium, and iterated best response cycles in it; in the traveler’s dilemma best responses unravel to $2, while a hierarchical softmax model predicts claims near $90.</p>
+</section>
+<section id="predator-prey" class="level2">
+<h2 class="anchored" data-anchor-id="predator-prey">Predator-prey hex world</h2>
+<p><strong>The story.</strong> A predator chases a prey across a small map of hexagonal tiles. Both move at once, as in Hex World: in the chosen direction with probability 0.7, or veering to a neighboring direction with probability 0.15 each; a move off the map stays put. When they share a tile, the prey is caught and reappears on a random tile. The predator pays 1 per move and gains 1 per capture; the prey loses 100 when caught. The map is the 12-tile one of the book’s figure F.16, transcribed as three rows (row 1: columns 0–2; row 2: columns 0, 2, 4, 5; row 3: columns 0–4, odd rows shifted right). The predator starts at (1, 2) and the prey at (3, 2).</p>
+<div id="tbl-predator-prey" class="quarto-float quarto-figure quarto-figure-center anchored">
+<figure class="quarto-float quarto-float-tbl figure">
+<figcaption class="quarto-float-caption-top quarto-float-caption quarto-float-tbl" id="tbl-predator-prey-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Table&nbsp;9: The predator-prey hex world.
+</figcaption>
+<div aria-describedby="tbl-predator-prey-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<table class="caption-top table">
+<thead>
+<tr class="header">
+<th>Part</th>
+<th>Definition</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Agents</td>
+<td>predator (agent 1), prey (agent 2)</td>
+</tr>
+<tr class="even">
+<td>States</td>
+<td>(predator’s tile, prey’s tile): 144 pairs</td>
+</tr>
+<tr class="odd">
+<td>Actions</td>
+<td>six hex directions each: E, NE, NW, W, SW, SE</td>
+</tr>
+<tr class="even">
+<td>Rewards</td>
+<td>predator −1 per step, +1 on capture; prey −100 on capture</td>
+</tr>
+<tr class="odd">
+<td>Discount</td>
+<td>0.9</td>
+</tr>
+</tbody>
+</table>
+</div>
+</figure>
+</div>
+<div class="tabset-margin-container"></div><div class="panel-tabset" data-group="lang">
+<ul class="nav nav-tabs" role="tablist"><li class="nav-item" role="presentation"><a class="nav-link active" id="tabset-7-1-tab" data-bs-toggle="tab" data-bs-target="#tabset-7-1" role="tab" aria-controls="tabset-7-1" aria-selected="true" href="">Python</a></li><li class="nav-item" role="presentation"><a class="nav-link" id="tabset-7-2-tab" data-bs-toggle="tab" data-bs-target="#tabset-7-2" role="tab" aria-controls="tabset-7-2" aria-selected="false" href="">Julia</a></li></ul>
+<div class="tab-content" data-group="lang">
+<div id="tabset-7-1" class="tab-pane active" role="tabpanel" aria-labelledby="tabset-7-1-tab">
+<div id="1eed02db" class="cell" data-execution_count="12">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb16"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> adm.problems.markov_games <span class="im">import</span> predator_prey</span>
+<span id="cb16-2"><a href="#cb16-2" aria-hidden="true" tabindex="-1"></a>game <span class="op">=</span> <span class="fu">predator_prey</span>()                     <span class="co"># T[s, a1, a2, s2], R[i, s, a1, a2]; s = pred * 12 + prey</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</div>
+</div>
+<div id="tabset-7-2" class="tab-pane" role="tabpanel" aria-labelledby="tabset-7-2-tab">
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb17"><pre class="sourceCode julia snippet code-with-copy"><code class="sourceCode julia"><span id="cb17-1"><a href="#cb17-1" aria-hidden="true" tabindex="-1"></a><span class="im">using</span> <span class="bu">ADM</span></span>
+<span id="cb17-2"><a href="#cb17-2" aria-hidden="true" tabindex="-1"></a>g <span class="op">=</span> <span class="fu">predator_prey</span>()                        <span class="co"># 1-based; s = (pred - 1) * 12 + prey</span></span>
+<span id="cb17-3"><a href="#cb17-3" aria-hidden="true" tabindex="-1"></a><span class="pp">@assert</span> <span class="fu">size</span>(g.T) <span class="op">==</span> (<span class="fl">144</span>, <span class="fl">6</span>, <span class="fl">6</span>, <span class="fl">144</span>) <span class="op">&amp;&amp;</span> <span class="fu">all</span>(<span class="fu">sum</span>(g.T; dims <span class="op">=</span> <span class="fl">4</span>) <span class="op">.≈</span> <span class="fl">1</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</div>
+</div>
+</div>
+<p><strong>Where it’s used.</strong> <a href="../part5/ch25-sequential-problems.html">Ch 25</a>: a predator’s best response to a random prey and the prey’s reply; iterated best response cycles without settling; fictitious play’s exploitability falls from about 67 after 1,000 steps to about 19 after 50,000.</p>
+</section>
+<section id="multicaregiver" class="level2">
+<h2 class="anchored" data-anchor-id="multicaregiver">Multicaregiver crying baby</h2>
+<p><strong>The story.</strong> Two caregivers look after one baby. Each hour, each can feed, sing to or ignore it. Either caregiver feeding sates the baby; otherwise a hungry baby stays hungry and a sated one stays sated with probability 0.5. Both hear the same thing: a hungry baby cries 90% of the time, a sated one never. Both pay 10 per hour while the baby is hungry; feeding costs caregiver 1 an extra 2.5 and caregiver 2 an extra 5; singing costs 0.5 and 0.25. It’s implemented exactly as Appendix F.14 defines it. Two consequences of that definition: singing is no more informative than ignoring, and there is no discount for both doing the same thing (the book’s Example 26.1 describes a variant where the cost is halved).</p>
+<div id="tbl-multicaregiver" class="quarto-float quarto-figure quarto-figure-center anchored">
+<figure class="quarto-float quarto-float-tbl figure">
+<figcaption class="quarto-float-caption-top quarto-float-caption quarto-float-tbl" id="tbl-multicaregiver-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Table&nbsp;10: The multicaregiver crying baby.
+</figcaption>
+<div aria-describedby="tbl-multicaregiver-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<table class="caption-top table">
+<colgroup>
+<col style="width: 50%">
+<col style="width: 50%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Part</th>
+<th>Definition</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>States</td>
+<td>sated, hungry</td>
+</tr>
+<tr class="even">
+<td>Actions (each)</td>
+<td>feed, sing, ignore</td>
+</tr>
+<tr class="odd">
+<td>Observations (each)</td>
+<td>crying, quiet; always the same for both</td>
+</tr>
+<tr class="even">
+<td>Transitions</td>
+<td>a feed by either sates; else hungry stays hungry, sated stays sated w.p. 0.5</td>
+</tr>
+<tr class="odd">
+<td>Rewards (each)</td>
+<td>−10 while hungry; feeding −2.5 (caregiver 1) or −5 (caregiver 2); singing −0.5 or −0.25</td>
+</tr>
+<tr class="even">
+<td>Discount</td>
+<td>0.9</td>
+</tr>
+</tbody>
+</table>
+</div>
+</figure>
+</div>
+<div class="tabset-margin-container"></div><div class="panel-tabset" data-group="lang">
+<ul class="nav nav-tabs" role="tablist"><li class="nav-item" role="presentation"><a class="nav-link active" id="tabset-8-1-tab" data-bs-toggle="tab" data-bs-target="#tabset-8-1" role="tab" aria-controls="tabset-8-1" aria-selected="true" href="">Python</a></li><li class="nav-item" role="presentation"><a class="nav-link" id="tabset-8-2-tab" data-bs-toggle="tab" data-bs-target="#tabset-8-2" role="tab" aria-controls="tabset-8-2" aria-selected="false" href="">Julia</a></li></ul>
+<div class="tab-content" data-group="lang">
+<div id="tabset-8-1" class="tab-pane active" role="tabpanel" aria-labelledby="tabset-8-1-tab">
+<div id="e6e1ec41" class="cell" data-execution_count="13">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb18"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb18-1"><a href="#cb18-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> adm.problems.multicaregiver <span class="im">import</span> multicaregiver</span>
+<span id="cb18-2"><a href="#cb18-2" aria-hidden="true" tabindex="-1"></a>game <span class="op">=</span> <span class="fu">multicaregiver</span>()                    <span class="co"># T[s, a1, a2, s2], O[a1, a2, s2, o1, o2], R[i, s, a1, a2]</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</div>
+</div>
+<div id="tabset-8-2" class="tab-pane" role="tabpanel" aria-labelledby="tabset-8-2-tab">
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb19"><pre class="sourceCode julia snippet code-with-copy"><code class="sourceCode julia"><span id="cb19-1"><a href="#cb19-1" aria-hidden="true" tabindex="-1"></a><span class="im">using</span> <span class="bu">ADM</span></span>
+<span id="cb19-2"><a href="#cb19-2" aria-hidden="true" tabindex="-1"></a>g <span class="op">=</span> <span class="fu">multicaregiver</span>()                       <span class="co"># 1-based: 1 = sated / feed / crying</span></span>
+<span id="cb19-3"><a href="#cb19-3" aria-hidden="true" tabindex="-1"></a><span class="pp">@assert</span> g.O[<span class="fl">3</span>, <span class="fl">3</span>, <span class="fl">2</span>, <span class="fl">1</span>, <span class="fl">1</span>] <span class="op">==</span> <span class="fl">0.9</span> <span class="op">&amp;&amp;</span> g.R[<span class="fl">2</span>, <span class="fl">2</span>, <span class="fl">3</span>, <span class="fl">1</span>] <span class="op">==</span> <span class="op">-</span><span class="fl">15.0</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</div>
+</div>
+</div>
+<p><strong>Where it’s used.</strong> <a href="../part5/ch26-state-uncertainty.html">Ch 26</a>: evaluation of joint conditional plans and controllers; the two-step game over plans (27 × 27) and dynamic programming with pruning (32 of 48 four-step candidates survive); equilibria where one caregiver feeds and the other free-rides.</p>
+</section>
+<section id="problems-made-for-this-site" class="level2">
+<h2 class="anchored" data-anchor-id="problems-made-for-this-site">Problems made for this site</h2>
+<p>The chapters also use small original problems, built to make one idea easy to see. The ones reused across pages get a full entry here, in both languages; the rest are listed in <a href="#tbl-originals" class="quarto-xref">Table&nbsp;21</a>.</p>
+<section id="morning-commute" class="level3">
+<h3 class="anchored" data-anchor-id="morning-commute">Morning commute</h3>
+<p><strong>The story.</strong> Five yes/no facts about a morning: was there a storm, roadwork, a traffic jam; were you late; did the radio warn of a storm. Storms and roadwork cause jams, jams make you late, and storms trigger radio alerts. It is small enough to check every answer by hand, yet it contains all three d-separation patterns: a chain, a fork and a collider.</p>
+<div class="cell" data-fig-width="3.62" data-fig-height="2.79" data-layout-align="default">
+<div class="cell-output-display">
+<div id="fig-gallery-commute" class="quarto-float quarto-figure quarto-figure-center anchored">
+<figure class="quarto-float quarto-float-fig figure">
+<div aria-describedby="fig-gallery-commute-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<div>
+<svg width="348" height="268" viewbox="0.00 0.00 260.80 200.80" xmlns="http://www.w3.org/2000/svg" xlink="http://www.w3.org/1999/xlink" style="; max-width: none; max-height: none">
+<g id="graph0" class="graph" transform="scale(1 1) rotate(0) translate(14.4 186.4)">
+<title>commute</title>
+<polygon fill="#fcfcfb" stroke="transparent" points="-14.4,14.4 -14.4,-186.4 246.4,-186.4 246.4,14.4 -14.4,14.4"></polygon>
+<!-- S -->
+<g id="node1" class="node">
+<title>S</title>
+<path fill="white" stroke="#52514e" stroke-width="1.2" d="M198.7,-172C198.7,-172 151.48,-172 151.48,-172 145.48,-172 139.48,-166 139.48,-160 139.48,-160 139.48,-148 139.48,-148 139.48,-142 145.48,-136 151.48,-136 151.48,-136 198.7,-136 198.7,-136 204.7,-136 210.7,-142 210.7,-148 210.7,-148 210.7,-160 210.7,-160 210.7,-166 204.7,-172 198.7,-172"></path>
+<text text-anchor="middle" x="175.09" y="-150.1" font-family="Helvetica,sans-Serif" font-size="13.00" fill="#0b0b0b">Storm (S)</text>
+</g>
+<!-- J -->
+<g id="node3" class="node">
+<title>J</title>
+<path fill="white" stroke="#52514e" stroke-width="1.2" d="M84.03,-104C84.03,-104 12.15,-104 12.15,-104 6.15,-104 0.15,-98 0.15,-92 0.15,-92 0.15,-80 0.15,-80 0.15,-74 6.15,-68 12.15,-68 12.15,-68 84.03,-68 84.03,-68 90.03,-68 96.03,-74 96.03,-80 96.03,-80 96.03,-92 96.03,-92 96.03,-98 90.03,-104 84.03,-104"></path>
+<text text-anchor="middle" x="48.09" y="-82.1" font-family="Helvetica,sans-Serif" font-size="13.00" fill="#0b0b0b">Traffic jam (J)</text>
+</g>
+<!-- S&#45;&gt;J -->
+<g id="edge1" class="edge">
+<title>S-&gt;J</title>
+<path fill="none" stroke="#52514e" stroke-width="1.2" d="M142.06,-135.83C125.3,-127.12 104.83,-116.49 87.28,-107.37"></path>
+<polygon fill="#52514e" stroke="#52514e" stroke-width="1.2" points="88.3,-105.14 80.96,-104.08 86.04,-109.48 88.3,-105.14"></polygon>
+</g>
+<!-- A -->
+<g id="node5" class="node">
+<title>A</title>
+<path fill="white" stroke="#52514e" stroke-width="1.2" d="M219.9,-104C219.9,-104 144.28,-104 144.28,-104 138.28,-104 132.28,-98 132.28,-92 132.28,-92 132.28,-80 132.28,-80 132.28,-74 138.28,-68 144.28,-68 144.28,-68 219.9,-68 219.9,-68 225.9,-68 231.9,-74 231.9,-80 231.9,-80 231.9,-92 231.9,-92 231.9,-98 225.9,-104 219.9,-104"></path>
+<text text-anchor="middle" x="182.09" y="-82.1" font-family="Helvetica,sans-Serif" font-size="13.00" fill="#0b0b0b">Radio alert (A)</text>
+</g>
+<!-- S&#45;&gt;A -->
+<g id="edge4" class="edge">
+<title>S-&gt;A</title>
+<path fill="none" stroke="#52514e" stroke-width="1.2" d="M176.93,-135.66C177.71,-128.29 178.64,-119.57 179.49,-111.55"></path>
+<polygon fill="#52514e" stroke="#52514e" stroke-width="1.2" points="181.94,-111.67 180.24,-104.45 177.07,-111.16 181.94,-111.67"></polygon>
+</g>
+<!-- R -->
+<g id="node2" class="node">
+<title>R</title>
+<path fill="white" stroke="#52514e" stroke-width="1.2" d="M84.28,-172C84.28,-172 11.91,-172 11.91,-172 5.91,-172 -0.09,-166 -0.09,-160 -0.09,-160 -0.09,-148 -0.09,-148 -0.09,-142 5.91,-136 11.91,-136 11.91,-136 84.28,-136 84.28,-136 90.28,-136 96.28,-142 96.28,-148 96.28,-148 96.28,-160 96.28,-160 96.28,-166 90.28,-172 84.28,-172"></path>
+<text text-anchor="middle" x="48.09" y="-150.1" font-family="Helvetica,sans-Serif" font-size="13.00" fill="#0b0b0b">Roadwork (R)</text>
+</g>
+<!-- R&#45;&gt;J -->
+<g id="edge2" class="edge">
+<title>R-&gt;J</title>
+<path fill="none" stroke="#52514e" stroke-width="1.2" d="M48.09,-135.66C48.09,-128.29 48.09,-119.57 48.09,-111.55"></path>
+<polygon fill="#52514e" stroke="#52514e" stroke-width="1.2" points="50.54,-111.45 48.09,-104.45 45.64,-111.45 50.54,-111.45"></polygon>
+</g>
+<!-- L -->
+<g id="node4" class="node">
+<title>L</title>
+<path fill="white" stroke="#52514e" stroke-width="1.2" d="M66.39,-36C66.39,-36 29.79,-36 29.79,-36 23.79,-36 17.79,-30 17.79,-24 17.79,-24 17.79,-12 17.79,-12 17.79,-6 23.79,0 29.79,0 29.79,0 66.39,0 66.39,0 72.39,0 78.39,-6 78.39,-12 78.39,-12 78.39,-24 78.39,-24 78.39,-30 72.39,-36 66.39,-36"></path>
+<text text-anchor="middle" x="48.09" y="-14.1" font-family="Helvetica,sans-Serif" font-size="13.00" fill="#0b0b0b">Late (L)</text>
+</g>
+<!-- J&#45;&gt;L -->
+<g id="edge3" class="edge">
+<title>J-&gt;L</title>
+<path fill="none" stroke="#52514e" stroke-width="1.2" d="M48.09,-67.66C48.09,-60.29 48.09,-51.57 48.09,-43.55"></path>
+<polygon fill="#52514e" stroke="#52514e" stroke-width="1.2" points="50.54,-43.45 48.09,-36.45 45.64,-43.45 50.54,-43.45"></polygon>
+</g>
+</g>
+</svg>
+</div>
+</div>
+<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-gallery-commute-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Figure&nbsp;3: The morning-commute Bayesian network.
+</figcaption>
+</figure>
+</div>
+</div>
+</div>
+<div id="tbl-commute-cpts" class="quarto-float quarto-figure quarto-figure-center anchored">
+<figure class="quarto-float quarto-float-tbl figure">
+<figcaption class="quarto-float-caption-top quarto-float-caption quarto-float-tbl" id="tbl-commute-cpts-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Table&nbsp;11: The commute network’s conditional probability tables.
+</figcaption>
+<div aria-describedby="tbl-commute-cpts-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<table class="caption-top table">
+<colgroup>
+<col style="width: 33%">
+<col style="width: 33%">
+<col style="width: 33%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Variable</th>
+<th>Parents</th>
+<th>P(yes | parents)</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Storm <span class="math inline">\(S\)</span></td>
+<td>—</td>
+<td>0.1</td>
+</tr>
+<tr class="even">
+<td>Roadwork <span class="math inline">\(R\)</span></td>
+<td>—</td>
+<td>0.2</td>
+</tr>
+<tr class="odd">
+<td>Traffic jam <span class="math inline">\(J\)</span></td>
+<td><span class="math inline">\(S, R\)</span></td>
+<td>0.1 (neither), 0.6 (roadwork only), 0.7 (storm only), 0.9 (both)</td>
+</tr>
+<tr class="even">
+<td>Late <span class="math inline">\(L\)</span></td>
+<td><span class="math inline">\(J\)</span></td>
+<td>0.05 (no jam), 0.5 (jam)</td>
+</tr>
+<tr class="odd">
+<td>Radio alert <span class="math inline">\(A\)</span></td>
+<td><span class="math inline">\(S\)</span></td>
+<td>0.02 (no storm), 0.95 (storm)</td>
+</tr>
+</tbody>
+</table>
+</div>
+</figure>
+</div>
+<div class="tabset-margin-container"></div><div class="panel-tabset" data-group="lang">
+<ul class="nav nav-tabs" role="tablist"><li class="nav-item" role="presentation"><a class="nav-link active" id="tabset-9-1-tab" data-bs-toggle="tab" data-bs-target="#tabset-9-1" role="tab" aria-controls="tabset-9-1" aria-selected="true" href="">Python</a></li><li class="nav-item" role="presentation"><a class="nav-link" id="tabset-9-2-tab" data-bs-toggle="tab" data-bs-target="#tabset-9-2" role="tab" aria-controls="tabset-9-2" aria-selected="false" href="">Julia</a></li></ul>
+<div class="tab-content" data-group="lang">
+<div id="tabset-9-1" class="tab-pane active" role="tabpanel" aria-labelledby="tabset-9-1-tab">
+<div id="33a045f1" class="cell" data-execution_count="14">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb20"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb20-1"><a href="#cb20-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> adm.problems.commute <span class="im">import</span> COMMUTE     <span class="co"># a BayesNet: card, parents, cpt</span></span>
+<span id="cb20-2"><a href="#cb20-2" aria-hidden="true" tabindex="-1"></a>p_jam_given_storm_only <span class="op">=</span> COMMUTE.cpt[<span class="st">"J"</span>][<span class="dv">1</span>, <span class="dv">0</span>, <span class="dv">1</span>]   <span class="co"># axes: S, R, then J; value 1 = yes</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</div>
+</div>
+<div id="tabset-9-2" class="tab-pane" role="tabpanel" aria-labelledby="tabset-9-2-tab">
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb21"><pre class="sourceCode julia snippet code-with-copy"><code class="sourceCode julia"><span id="cb21-1"><a href="#cb21-1" aria-hidden="true" tabindex="-1"></a><span class="im">using</span> <span class="bu">ADM</span></span>
+<span id="cb21-2"><a href="#cb21-2" aria-hidden="true" tabindex="-1"></a>commute <span class="op">=</span> <span class="fu">commute_network</span>()                   <span class="co"># a BayesNet: card, parents, cpt</span></span>
+<span id="cb21-3"><a href="#cb21-3" aria-hidden="true" tabindex="-1"></a><span class="pp">@assert</span> commute.cpt[<span class="op">:</span>J][<span class="fl">2</span>, <span class="fl">1</span>, <span class="fl">2</span>] <span class="op">==</span> <span class="fl">0.7</span>       <span class="co"># axes: S, R, then J; value 2 = yes (1-based)</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</div>
+</div>
+</div>
+<p><strong>Where it’s used.</strong> <a href="../part1/ch02-representation.html">Ch 2</a>: the chain rule, parameter counts, explaining away, d-separation. <a href="../part1/ch03-inference.html">Ch 3</a>: every inference method answers <span class="math inline">\(P(\text{storm} \mid \text{late}, \text{alert}) = 0.935\)</span>. <a href="../part1/ch04-parameter-learning.html">Ch 4</a>: its tables are learned back from simulated mornings, including with the storm value missing (EM). <a href="../part1/ch05-structure-learning.html">Ch 5</a>: its <em>graph</em> is learned back from data, and the radio alert’s near-copy of the storm shows why small samples can mislead. <a href="../part1/ch06-simple-decisions.html">Ch 6</a>: extended into a <a href="#commute-decision">decision network</a>.</p>
+</section>
+<section id="commute-decision" class="level3">
+<h3 class="anchored" data-anchor-id="commute-decision">Commute decision</h3>
+<p><strong>The story.</strong> The morning commute becomes a choice: leave on time, leave 30 minutes early, or stay home and work remotely. Leaving early makes lateness unlikely even in a jam, and staying home rules it out, but both have a cost of their own. It is the smallest decision network with a real trade-off, and its observations have clearly different values of information: the traffic app, which shows the jam, is worth over five times as much as the radio.</p>
+<div class="cell" data-fig-width="4.9" data-fig-height="3.6" data-layout-align="default">
+<div class="cell-output-display">
+<div id="fig-gallery-commute-decision" class="quarto-float quarto-figure quarto-figure-center anchored">
+<figure class="quarto-float quarto-float-fig figure">
+<div aria-describedby="fig-gallery-commute-decision-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<div>
+<svg width="470" height="346" viewbox="0.00 0.00 352.48 259.80" xmlns="http://www.w3.org/2000/svg" xlink="http://www.w3.org/1999/xlink" style="; max-width: none; max-height: none">
+<g id="graph0" class="graph" transform="scale(1 1) rotate(0) translate(14.4 245.4)">
+<title>dn</title>
+<polygon fill="#fcfcfb" stroke="transparent" points="-14.4,14.4 -14.4,-245.4 338.08,-245.4 338.08,14.4 -14.4,14.4"></polygon>
+<!-- S -->
+<g id="node1" class="node">
+<title>S</title>
+<ellipse fill="white" stroke="#52514e" stroke-width="1.2" cx="154.99" cy="-213" rx="30.82" ry="18"></ellipse>
+<text text-anchor="middle" x="154.99" y="-209.4" font-family="Helvetica,sans-Serif" font-size="12.00" fill="#0b0b0b">Storm</text>
+</g>
+<!-- J -->
+<g id="node3" class="node">
+<title>J</title>
+<ellipse fill="white" stroke="#52514e" stroke-width="1.2" cx="45.99" cy="-148" rx="45.98" ry="18"></ellipse>
+<text text-anchor="middle" x="45.99" y="-144.4" font-family="Helvetica,sans-Serif" font-size="12.00" fill="#0b0b0b">Traffic jam</text>
+</g>
+<!-- S&#45;&gt;J -->
+<g id="edge1" class="edge">
+<title>S-&gt;J</title>
+<path fill="none" stroke="#52514e" d="M133.97,-199.85C117.6,-190.39 94.65,-177.13 76.29,-166.52"></path>
+<polygon fill="#52514e" stroke="#52514e" points="77,-164.5 70.76,-163.32 74.9,-168.14 77,-164.5"></polygon>
+</g>
+<!-- A -->
+<g id="node4" class="node">
+<title>A</title>
+<ellipse fill="white" stroke="#52514e" stroke-width="1.2" cx="163.99" cy="-148" rx="47.07" ry="18"></ellipse>
+<text text-anchor="middle" x="163.99" y="-144.4" font-family="Helvetica,sans-Serif" font-size="12.00" fill="#0b0b0b">Radio alert</text>
+</g>
+<!-- S&#45;&gt;A -->
+<g id="edge3" class="edge">
+<title>S-&gt;A</title>
+<path fill="none" stroke="#52514e" d="M157.45,-194.78C158.44,-187.84 159.6,-179.72 160.67,-172.26"></path>
+<polygon fill="#52514e" stroke="#52514e" points="162.76,-172.43 161.53,-166.19 158.61,-171.84 162.76,-172.43"></polygon>
+</g>
+<!-- R -->
+<g id="node2" class="node">
+<title>R</title>
+<ellipse fill="white" stroke="#52514e" stroke-width="1.2" cx="45.99" cy="-213" rx="44.95" ry="18"></ellipse>
+<text text-anchor="middle" x="45.99" y="-209.4" font-family="Helvetica,sans-Serif" font-size="12.00" fill="#0b0b0b">Roadwork</text>
+</g>
+<!-- R&#45;&gt;J -->
+<g id="edge2" class="edge">
+<title>R-&gt;J</title>
+<path fill="none" stroke="#52514e" d="M45.99,-194.78C45.99,-187.84 45.99,-179.72 45.99,-172.26"></path>
+<polygon fill="#52514e" stroke="#52514e" points="48.09,-172.19 45.99,-166.19 43.89,-172.19 48.09,-172.19"></polygon>
+</g>
+<!-- L -->
+<g id="node5" class="node">
+<title>L</title>
+<ellipse fill="white" stroke="#52514e" stroke-width="1.2" cx="214.99" cy="-83" rx="27" ry="18"></ellipse>
+<text text-anchor="middle" x="214.99" y="-79.4" font-family="Helvetica,sans-Serif" font-size="12.00" fill="#0b0b0b">Late</text>
+</g>
+<!-- J&#45;&gt;L -->
+<g id="edge4" class="edge">
+<title>J-&gt;L</title>
+<path fill="none" stroke="#52514e" d="M78.17,-135C109.33,-123.39 156.13,-105.94 186.11,-94.77"></path>
+<polygon fill="#52514e" stroke="#52514e" points="186.99,-96.68 191.87,-92.62 185.52,-92.74 186.99,-96.68"></polygon>
+</g>
+<!-- Ut -->
+<g id="node7" class="node">
+<title>Ut</title>
+<polygon fill="#f0efec" stroke="#52514e" stroke-width="1.2" points="246.99,-36 206.1,-18 246.99,0 287.88,-18 246.99,-36"></polygon>
+<text text-anchor="middle" x="246.99" y="-14.4" font-family="Helvetica,sans-Serif" font-size="12.00" fill="#0b0b0b">Utility</text>
+</g>
+<!-- L&#45;&gt;Ut -->
+<g id="edge6" class="edge">
+<title>L-&gt;Ut</title>
+<path fill="none" stroke="#52514e" d="M223.23,-65.78C227.38,-57.6 232.46,-47.61 236.85,-38.97"></path>
+<polygon fill="#52514e" stroke="#52514e" points="238.91,-39.54 239.76,-33.24 235.17,-37.64 238.91,-39.54"></polygon>
+</g>
+<!-- D -->
+<g id="node6" class="node">
+<title>D</title>
+<polygon fill="#cde2fb" stroke="#2a78d6" stroke-width="1.2" points="323.88,-166 236.1,-166 236.1,-130 323.88,-130 323.88,-166"></polygon>
+<text text-anchor="middle" x="279.99" y="-144.4" font-family="Helvetica,sans-Serif" font-size="12.00" fill="#0b0b0b">Leave when?</text>
+</g>
+<!-- D&#45;&gt;L -->
+<g id="edge5" class="edge">
+<title>D-&gt;L</title>
+<path fill="none" stroke="#52514e" d="M262.23,-129.78C253.6,-121.42 243.22,-111.36 234.38,-102.8"></path>
+<polygon fill="#52514e" stroke="#52514e" points="235.43,-100.88 229.66,-98.22 232.5,-103.9 235.43,-100.88"></polygon>
+</g>
+<!-- D&#45;&gt;Ut -->
+<g id="edge7" class="edge">
+<title>D-&gt;Ut</title>
+<path fill="none" stroke="#52514e" d="M275.54,-129.74C269.57,-106.59 258.98,-65.5 252.51,-40.41"></path>
+<polygon fill="#52514e" stroke="#52514e" points="254.49,-39.68 250.96,-34.39 250.42,-40.73 254.49,-39.68"></polygon>
+</g>
+</g>
+</svg>
+</div>
+</div>
+<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-gallery-commute-decision-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Figure&nbsp;4: The commute decision network: the commute network plus a decision (rectangle) and a utility (diamond).
+</figcaption>
+</figure>
+</div>
+</div>
+</div>
+<div id="tbl-commute-decision" class="quarto-float quarto-figure quarto-figure-center anchored">
+<figure class="quarto-float quarto-float-tbl figure">
+<figcaption class="quarto-float-caption-top quarto-float-caption quarto-float-tbl" id="tbl-commute-decision-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Table&nbsp;12: The commute decision: how the decision changes P(late), and the utility table U(D, L). Storm, roadwork, jam and alert are as in <a href="#tbl-commute-cpts" class="quarto-xref">Table&nbsp;11</a>.
+</figcaption>
+<div aria-describedby="tbl-commute-decision-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<table class="caption-top table">
+<colgroup>
+<col style="width: 20%">
+<col style="width: 20%">
+<col style="width: 20%">
+<col style="width: 20%">
+<col style="width: 20%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Decision <span class="math inline">\(D\)</span></th>
+<th>P(late | no jam)</th>
+<th>P(late | jam)</th>
+<th>Utility if on time</th>
+<th>Utility if late</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Leave on time</td>
+<td>0.05</td>
+<td>0.5</td>
+<td>0</td>
+<td>−10</td>
+</tr>
+<tr class="even">
+<td>Leave early</td>
+<td>0</td>
+<td>0.1</td>
+<td>−2</td>
+<td>−12</td>
+</tr>
+<tr class="odd">
+<td>Stay home</td>
+<td>0</td>
+<td>0</td>
+<td>−6</td>
+<td>−16 (can’t happen)</td>
+</tr>
+</tbody>
+</table>
+</div>
+</figure>
+</div>
+<div class="tabset-margin-container"></div><div class="panel-tabset" data-group="lang">
+<ul class="nav nav-tabs" role="tablist"><li class="nav-item" role="presentation"><a class="nav-link active" id="tabset-10-1-tab" data-bs-toggle="tab" data-bs-target="#tabset-10-1" role="tab" aria-controls="tabset-10-1" aria-selected="true" href="">Python</a></li><li class="nav-item" role="presentation"><a class="nav-link" id="tabset-10-2-tab" data-bs-toggle="tab" data-bs-target="#tabset-10-2" role="tab" aria-controls="tabset-10-2" aria-selected="false" href="">Julia</a></li></ul>
+<div class="tab-content" data-group="lang">
+<div id="tabset-10-1" class="tab-pane active" role="tabpanel" aria-labelledby="tabset-10-1-tab">
+<div id="be545cfe" class="cell" data-execution_count="15">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb22"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb22-1"><a href="#cb22-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> adm.problems.commute <span class="im">import</span> ACTIONS, COMMUTE_DECISION, COMMUTE_UTILITY</span>
+<span id="cb22-2"><a href="#cb22-2" aria-hidden="true" tabindex="-1"></a><span class="co"># COMMUTE_DECISION is a BayesNet whose decision D has no parents and a placeholder table;</span></span>
+<span id="cb22-3"><a href="#cb22-3" aria-hidden="true" tabindex="-1"></a><span class="co"># COMMUTE_UTILITY[d, l] has axes D (0 = on time, 1 = early, 2 = home) and L (1 = late)</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</div>
+</div>
+<div id="tabset-10-2" class="tab-pane" role="tabpanel" aria-labelledby="tabset-10-2-tab">
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb23"><pre class="sourceCode julia snippet code-with-copy"><code class="sourceCode julia"><span id="cb23-1"><a href="#cb23-1" aria-hidden="true" tabindex="-1"></a><span class="im">using</span> <span class="bu">ADM</span></span>
+<span id="cb23-2"><a href="#cb23-2" aria-hidden="true" tabindex="-1"></a>decision <span class="op">=</span> <span class="fu">commute_decision_network</span>()          <span class="co"># D: 1 = on time, 2 = early, 3 = home</span></span>
+<span id="cb23-3"><a href="#cb23-3" aria-hidden="true" tabindex="-1"></a><span class="pp">@assert</span> decision.card[<span class="op">:</span>D] <span class="op">==</span> <span class="fl">3</span> <span class="op">&amp;&amp;</span> decision.parents[<span class="op">:</span>L] <span class="op">==</span> (<span class="op">:</span>J, <span class="op">:</span>D)</span>
+<span id="cb23-4"><a href="#cb23-4" aria-hidden="true" tabindex="-1"></a><span class="pp">@assert</span> decision.cpt[<span class="op">:</span>L][<span class="fl">2</span>, <span class="fl">2</span>, <span class="fl">2</span>] <span class="op">==</span> <span class="fl">0.1</span>       <span class="co"># P(late | jam, leave early)</span></span>
+<span id="cb23-5"><a href="#cb23-5" aria-hidden="true" tabindex="-1"></a><span class="pp">@assert</span> COMMUTE_UTILITY[<span class="fl">2</span>, <span class="fl">2</span>] <span class="op">==</span> <span class="op">-</span><span class="fl">12</span>           <span class="co"># leave early and still late</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</div>
+</div>
+</div>
+<p><strong>Where it’s used.</strong> <a href="../part1/ch06-simple-decisions.html">Ch 6</a>: maximum expected utility, and the value of the radio and the traffic app.</p>
+</section>
+<section id="coffee-machine" class="level3">
+<h3 class="anchored" data-anchor-id="coffee-machine">Coffee machine</h3>
+<p><strong>The story.</strong> An espresso machine is fine, has scale buildup, or has a worn pump. You can’t see which, but you can notice three symptoms: slow flow, a loud noise, and weak-tasting coffee. Each symptom depends only on the machine’s condition, which makes this a <strong>naive Bayes</strong> model. It shows how a rare cause can become the most likely one once the evidence fits it well.</p>
+<div class="cell" data-execution_count="16">
+<div id="tbl-gallery-coffee" class="cell quarto-float quarto-figure quarto-figure-center anchored" data-execution_count="16">
+<figure class="quarto-float quarto-float-tbl figure">
+<figcaption class="quarto-float-caption-top quarto-float-caption quarto-float-tbl" id="tbl-gallery-coffee-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Table&nbsp;13: The coffee-machine model: prior over the condition and P(symptom present | condition).
+</figcaption>
+<div aria-describedby="tbl-gallery-coffee-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<div class="cell-output cell-output-display cell-output-markdown" data-execution_count="16">
+<table class="cell caption-top table table-sm table-striped small">
+<thead>
+<tr class="header">
+<th>Condition</th>
+<th>Prior</th>
+<th>Slow flow</th>
+<th>Loud noise</th>
+<th>Weak taste</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>ok</td>
+<td>0.80</td>
+<td>0.05</td>
+<td>0.10</td>
+<td>0.10</td>
+</tr>
+<tr class="even">
+<td>scale buildup</td>
+<td>0.15</td>
+<td>0.70</td>
+<td>0.20</td>
+<td>0.60</td>
+</tr>
+<tr class="odd">
+<td>worn pump</td>
+<td>0.05</td>
+<td>0.60</td>
+<td>0.80</td>
+<td>0.30</td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+</figure>
+</div>
+</div>
+<div class="tabset-margin-container"></div><div class="panel-tabset" data-group="lang">
+<ul class="nav nav-tabs" role="tablist"><li class="nav-item" role="presentation"><a class="nav-link active" id="tabset-11-1-tab" data-bs-toggle="tab" data-bs-target="#tabset-11-1" role="tab" aria-controls="tabset-11-1" aria-selected="true" href="">Python</a></li><li class="nav-item" role="presentation"><a class="nav-link" id="tabset-11-2-tab" data-bs-toggle="tab" data-bs-target="#tabset-11-2" role="tab" aria-controls="tabset-11-2" aria-selected="false" href="">Julia</a></li></ul>
+<div class="tab-content" data-group="lang">
+<div id="tabset-11-1" class="tab-pane active" role="tabpanel" aria-labelledby="tabset-11-1-tab">
+<div id="b9c9bf37" class="cell" data-execution_count="17">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb24"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb24-1"><a href="#cb24-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> adm.problems.coffee <span class="im">import</span> COFFEE, LIKELIHOODS, PRIOR   <span class="co"># BayesNet, plus the naive Bayes arrays</span></span>
+<span id="cb24-2"><a href="#cb24-2" aria-hidden="true" tabindex="-1"></a><span class="co"># LIKELIHOODS[i][c, o] = P(symptom i = o | condition c); o = 1 means present</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</div>
+</div>
+<div id="tabset-11-2" class="tab-pane" role="tabpanel" aria-labelledby="tabset-11-2-tab">
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb25"><pre class="sourceCode julia snippet code-with-copy"><code class="sourceCode julia"><span id="cb25-1"><a href="#cb25-1" aria-hidden="true" tabindex="-1"></a><span class="im">using</span> <span class="bu">ADM</span></span>
+<span id="cb25-2"><a href="#cb25-2" aria-hidden="true" tabindex="-1"></a>coffee <span class="op">=</span> <span class="fu">coffee_network</span>()                    <span class="co"># C has 3 values; each symptom is binary</span></span>
+<span id="cb25-3"><a href="#cb25-3" aria-hidden="true" tabindex="-1"></a><span class="pp">@assert</span> coffee.card[<span class="op">:</span>C] <span class="op">==</span> <span class="fl">3</span> <span class="op">&amp;&amp;</span> <span class="fu">sum</span>(COFFEE_PRIOR) <span class="op">≈</span> <span class="fl">1</span></span>
+<span id="cb25-4"><a href="#cb25-4" aria-hidden="true" tabindex="-1"></a><span class="pp">@assert</span> coffee.cpt[<span class="op">:</span>N][<span class="fl">3</span>, <span class="fl">2</span>] <span class="op">==</span> <span class="fl">0.8</span>          <span class="co"># P(loud noise | worn pump)</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</div>
+</div>
+</div>
+<p><strong>Where it’s used.</strong> <a href="../part1/ch03-inference.html">Ch 3</a>: naive Bayes inference.</p>
+</section>
+<section id="commute-times" class="level3">
+<h3 class="anchored" data-anchor-id="commute-times">Commute times</h3>
+<p><strong>The story.</strong> Morning and evening commute times, in minutes, are jointly Gaussian: morning <span class="math inline">\(\mathcal{N}(35, 8^2)\)</span> and evening <span class="math inline">\(\mathcal{N}(40, 10^2)\)</span>, with correlation <span class="math inline">\(\rho = 0.6\)</span>, because a bad traffic day tends to be bad all day. It is the smallest example of conditioning a Gaussian: one observation shifts the other’s mean and shrinks its spread.</p>
+<div id="tbl-commute-times" class="quarto-float quarto-figure quarto-figure-center anchored">
+<figure class="quarto-float quarto-float-tbl figure">
+<figcaption class="quarto-float-caption-top quarto-float-caption quarto-float-tbl" id="tbl-commute-times-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Table&nbsp;14: Commute times as a bivariate Gaussian.
+</figcaption>
+<div aria-describedby="tbl-commute-times-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<table class="caption-top table">
+<colgroup>
+<col style="width: 33%">
+<col style="width: 33%">
+<col style="width: 33%">
+</colgroup>
+<thead>
+<tr class="header">
+<th></th>
+<th>Morning</th>
+<th>Evening</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Mean (min)</td>
+<td>35</td>
+<td>40</td>
+</tr>
+<tr class="even">
+<td>Standard deviation (min)</td>
+<td>8</td>
+<td>10</td>
+</tr>
+<tr class="odd">
+<td>Covariance matrix <span class="math inline">\(\boldsymbol\Sigma\)</span></td>
+<td><span class="math inline">\(\begin{pmatrix} 64 &amp; 48 \\ 48 &amp; 100 \end{pmatrix}\)</span></td>
+<td>(<span class="math inline">\(48 = 0.6 \times 8 \times 10\)</span>)</td>
+</tr>
+</tbody>
+</table>
+</div>
+</figure>
+</div>
+<div class="tabset-margin-container"></div><div class="panel-tabset" data-group="lang">
+<ul class="nav nav-tabs" role="tablist"><li class="nav-item" role="presentation"><a class="nav-link active" id="tabset-12-1-tab" data-bs-toggle="tab" data-bs-target="#tabset-12-1" role="tab" aria-controls="tabset-12-1" aria-selected="true" href="">Python</a></li><li class="nav-item" role="presentation"><a class="nav-link" id="tabset-12-2-tab" data-bs-toggle="tab" data-bs-target="#tabset-12-2" role="tab" aria-controls="tabset-12-2" aria-selected="false" href="">Julia</a></li></ul>
+<div class="tab-content" data-group="lang">
+<div id="tabset-12-1" class="tab-pane active" role="tabpanel" aria-labelledby="tabset-12-1-tab">
+<div id="7f7cc50e" class="cell" data-execution_count="18">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb26"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb26-1"><a href="#cb26-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> adm.problems.commute <span class="im">import</span> COMMUTE_TIMES_COV, COMMUTE_TIMES_MEAN   <span class="co"># index 0 = morning, 1 = evening</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</div>
+</div>
+<div id="tabset-12-2" class="tab-pane" role="tabpanel" aria-labelledby="tabset-12-2-tab">
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb27"><pre class="sourceCode julia snippet code-with-copy"><code class="sourceCode julia"><span id="cb27-1"><a href="#cb27-1" aria-hidden="true" tabindex="-1"></a><span class="im">using</span> <span class="bu">ADM</span></span>
+<span id="cb27-2"><a href="#cb27-2" aria-hidden="true" tabindex="-1"></a><span class="pp">@assert</span> COMMUTE_TIMES_MEAN <span class="op">==</span> [<span class="fl">35.0</span>, <span class="fl">40.0</span>]   <span class="co"># 1 = morning, 2 = evening</span></span>
+<span id="cb27-3"><a href="#cb27-3" aria-hidden="true" tabindex="-1"></a><span class="pp">@assert</span> COMMUTE_TIMES_COV[<span class="fl">1</span>, <span class="fl">2</span>] <span class="op">==</span> <span class="fl">0.6</span> <span class="op">*</span> <span class="fl">8</span> <span class="op">*</span> <span class="fl">10</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</div>
+</div>
+</div>
+<p><strong>Where it’s used.</strong> <a href="../part1/ch03-inference.html">Ch 3</a>: Gaussian conditioning.</p>
+</section>
+<section id="mountain-trail" class="level3">
+<h3 class="anchored" data-anchor-id="mountain-trail">Mountain trail</h3>
+<p><strong>The story.</strong> A hiker is somewhere on a six-position trail, from the trailhead (0) to the summit (5). Resting at the trailhead earns a small, sure reward: a snack from the car. The view at the summit is worth twenty times as much, but the climb is unreliable. Each attempt to climb gains ground only 35% of the time, and occasionally slips back. It is a small test of exploration. An agent that grabs the nearby reward and trusts its early experience never learns that the long climb pays. The structure follows the RiverSwim benchmark (A. L. Strehl and M. L. Littman, <em>J. Comput. Syst. Sci.</em>, 2008), with this site’s own numbers.</p>
+<div id="tbl-trail" class="quarto-float quarto-figure quarto-figure-center anchored">
+<figure class="quarto-float quarto-float-tbl figure">
+<figcaption class="quarto-float-caption-top quarto-float-caption quarto-float-tbl" id="tbl-trail-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Table&nbsp;15: The mountain trail.
+</figcaption>
+<div aria-describedby="tbl-trail-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<table class="caption-top table">
+<colgroup>
+<col style="width: 50%">
+<col style="width: 50%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Part</th>
+<th>Definition</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>States</td>
+<td>positions 0 (trailhead) to 5 (summit)</td>
+</tr>
+<tr class="even">
+<td>back</td>
+<td>down one position, surely; at the trailhead, rest (reward 0.05)</td>
+</tr>
+<tr class="odd">
+<td>climb</td>
+<td>up one w.p. 0.35, stay w.p. 0.6, slip down one w.p. 0.05; at the summit, stay (w.p. 0.95) and enjoy the view (reward 1)</td>
+</tr>
+<tr class="even">
+<td>Discount</td>
+<td>0.95</td>
+</tr>
+<tr class="odd">
+<td>Optimal policy</td>
+<td>climb everywhere: worth 8.13 from the trailhead against 1.0 for resting forever; 0.857 reward per step in the long run</td>
+</tr>
+</tbody>
+</table>
+</div>
+</figure>
+</div>
+<div class="tabset-margin-container"></div><div class="panel-tabset" data-group="lang">
+<ul class="nav nav-tabs" role="tablist"><li class="nav-item" role="presentation"><a class="nav-link active" id="tabset-13-1-tab" data-bs-toggle="tab" data-bs-target="#tabset-13-1" role="tab" aria-controls="tabset-13-1" aria-selected="true" href="">Python</a></li><li class="nav-item" role="presentation"><a class="nav-link" id="tabset-13-2-tab" data-bs-toggle="tab" data-bs-target="#tabset-13-2" role="tab" aria-controls="tabset-13-2" aria-selected="false" href="">Julia</a></li></ul>
+<div class="tab-content" data-group="lang">
+<div id="tabset-13-1" class="tab-pane active" role="tabpanel" aria-labelledby="tabset-13-1-tab">
+<div id="6f08fadb" class="cell" data-execution_count="19">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb28"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb28-1"><a href="#cb28-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> adm.problems.trail <span class="im">import</span> trail</span>
+<span id="cb28-2"><a href="#cb28-2" aria-hidden="true" tabindex="-1"></a>mdp <span class="op">=</span> <span class="fu">trail</span>()                                     <span class="co"># actions: 0 = back, 1 = climb</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</div>
+</div>
+<div id="tabset-13-2" class="tab-pane" role="tabpanel" aria-labelledby="tabset-13-2-tab">
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb29"><pre class="sourceCode julia snippet code-with-copy"><code class="sourceCode julia"><span id="cb29-1"><a href="#cb29-1" aria-hidden="true" tabindex="-1"></a><span class="im">using</span> <span class="bu">ADM</span></span>
+<span id="cb29-2"><a href="#cb29-2" aria-hidden="true" tabindex="-1"></a>mdp <span class="op">=</span> <span class="fu">trail</span>()                                      <span class="co"># 1-based: positions 1..6; actions 1 = back, 2 = climb</span></span>
+<span id="cb29-3"><a href="#cb29-3" aria-hidden="true" tabindex="-1"></a><span class="pp">@assert</span> mdp.T[<span class="fl">1</span>, <span class="fl">2</span>, <span class="fl">2</span>] <span class="op">≈</span> <span class="fl">0.35</span> <span class="op">&amp;&amp;</span> mdp.R[<span class="fl">6</span>, <span class="fl">2</span>] <span class="op">==</span> <span class="fl">1.0</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</div>
+</div>
+</div>
+<p><strong>Where it’s used.</strong> <a href="../part3/ch16-model-based-methods.html">Ch 16</a>: ε-greedy exploration on a maximum likelihood model rarely learns to climb; R-MAX (with a well-chosen threshold) and posterior sampling do. <a href="../part3/ch17-model-free-methods.html">Ch 17</a>: Q-learning with ε-greedy exploration gets stuck too; optimistic initial values and potential-based shaping fix it, while a naive “+5 per step up” bonus makes walking back down optimal.</p>
+</section>
+<section id="the-park" class="level3">
+<h3 class="anchored" data-anchor-id="the-park">The park</h3>
+<p><strong>The story.</strong> Walkers cross an 8 × 8 park from its left edge to the gate in the top-right corner. Paths are pleasant, grass is slower, and mud is miserable; the ground is slippery, so a step sometimes goes sideways or back. The reward is a weighted sum of terrain features, which makes the park a clean test for imitation learning. An expert’s walks can be copied cell by cell, or explained by the weights they imply. Two layouts share the terrain types, so a learned reward can be tried in a park it has never seen.</p>
+<div id="tbl-park" class="quarto-float quarto-figure quarto-figure-center anchored">
+<figure class="quarto-float quarto-float-tbl figure">
+<figcaption class="quarto-float-caption-top quarto-float-caption quarto-float-tbl" id="tbl-park-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Table&nbsp;16: The park.
+</figcaption>
+<div aria-describedby="tbl-park-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<table class="caption-top table">
+<colgroup>
+<col style="width: 50%">
+<col style="width: 50%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Part</th>
+<th>Definition</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>States</td>
+<td>64 cells (row-major) and an end state; the gate is at row 0, column 7</td>
+</tr>
+<tr class="even">
+<td>Actions and moves</td>
+<td>N, E, S, W; intended w.p. 0.8, else one of the other three (0.2/3 each); walls: stay put</td>
+</tr>
+<tr class="odd">
+<td>Features <span class="math inline">\(\beta(s, a)\)</span></td>
+<td>one-hot terrain of the current cell: path, grass, mud, gate</td>
+</tr>
+<tr class="even">
+<td>True reward</td>
+<td><span class="math inline">\(\phi = (-1, -2, -6, 10)\)</span>: <span class="math inline">\(R(s, a) = \phi^\top\beta(s, a)\)</span>; from the gate, any action ends the walk</td>
+</tr>
+<tr class="odd">
+<td>Discount, starts</td>
+<td>0.95; demonstrations and evaluations start uniformly on the left edge (or every cell, for IRL)</td>
+</tr>
+<tr class="even">
+<td>Layouts</td>
+<td>A (demonstrations) and B (transfer test); same terrain types, different arrangement</td>
+</tr>
+</tbody>
+</table>
+</div>
+</figure>
+</div>
+<div class="tabset-margin-container"></div><div class="panel-tabset" data-group="lang">
+<ul class="nav nav-tabs" role="tablist"><li class="nav-item" role="presentation"><a class="nav-link active" id="tabset-14-1-tab" data-bs-toggle="tab" data-bs-target="#tabset-14-1" role="tab" aria-controls="tabset-14-1" aria-selected="true" href="">Python</a></li><li class="nav-item" role="presentation"><a class="nav-link" id="tabset-14-2-tab" data-bs-toggle="tab" data-bs-target="#tabset-14-2" role="tab" aria-controls="tabset-14-2" aria-selected="false" href="">Julia</a></li></ul>
+<div class="tab-content" data-group="lang">
+<div id="tabset-14-1" class="tab-pane active" role="tabpanel" aria-labelledby="tabset-14-1-tab">
+<div id="dba6f673" class="cell" data-execution_count="20">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb30"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb30-1"><a href="#cb30-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> adm.problems.park <span class="im">import</span> left_edge_starts, park</span>
+<span id="cb30-2"><a href="#cb30-2" aria-hidden="true" tabindex="-1"></a>mdp, beta <span class="op">=</span> <span class="fu">park</span>(<span class="st">"A"</span>)                              <span class="co"># beta[s, a, k]: path, grass, mud, gate</span></span>
+<span id="cb30-3"><a href="#cb30-3" aria-hidden="true" tabindex="-1"></a>starts <span class="op">=</span> <span class="fu">left_edge_starts</span>(<span class="st">"A"</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</div>
+</div>
+<div id="tabset-14-2" class="tab-pane" role="tabpanel" aria-labelledby="tabset-14-2-tab">
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb31"><pre class="sourceCode julia snippet code-with-copy"><code class="sourceCode julia"><span id="cb31-1"><a href="#cb31-1" aria-hidden="true" tabindex="-1"></a><span class="im">using</span> <span class="bu">ADM</span></span>
+<span id="cb31-2"><a href="#cb31-2" aria-hidden="true" tabindex="-1"></a>mdp, β <span class="op">=</span> <span class="fu">park</span>(<span class="st">"A"</span>)                                 <span class="co"># 1-based: cell (r, c) is index 8r + c + 1</span></span>
+<span id="cb31-3"><a href="#cb31-3" aria-hidden="true" tabindex="-1"></a><span class="pp">@assert</span> mdp.R <span class="op">≈</span> <span class="fu">dropdims</span>(<span class="fu">sum</span>(β <span class="op">.*</span> <span class="fu">reshape</span>(PARK_PHI_TRUE, <span class="fl">1</span>, <span class="fl">1</span>, <span class="op">:</span>); dims <span class="op">=</span> <span class="fl">3</span>); dims <span class="op">=</span> <span class="fl">3</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</div>
+</div>
+</div>
+<p><strong>Where it’s used.</strong> <a href="../part3/ch18-imitation-learning.html">Ch 18</a>: behavioral cloning, DAgger and SMILe, maximum margin and maximum entropy inverse reinforcement learning, and the transfer of a learned reward from layout A to layout B.</p>
+</section>
+<section id="the-fork" class="level3">
+<h3 class="anchored" data-anchor-id="the-fork">The fork</h3>
+<p><strong>The story.</strong> A hiker reaches a fork and doesn’t know which trail leads home. Taking the right trail is worth 10; the wrong one costs 50; either way a new hike then starts at a fresh fork. A passerby can be asked (cost 1), and answers correctly 85% of the time; or the hiker can wait, which is free and teaches nothing. The problem is built to show when information has to be <em>paid for</em>: methods that treat information as free (QMDP) conclude that waiting is best, forever. Its structure follows the classic tiger problem (L. P. Kaelbling, M. L. Littman and A. R. Cassandra, <em>Artificial Intelligence</em>, 1998), with the free wait action added.</p>
+<div id="tbl-fork" class="quarto-float quarto-figure quarto-figure-center anchored">
+<figure class="quarto-float quarto-float-tbl figure">
+<figcaption class="quarto-float-caption-top quarto-float-caption quarto-float-tbl" id="tbl-fork-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Table&nbsp;17: The fork.
+</figcaption>
+<div aria-describedby="tbl-fork-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<table class="caption-top table">
+<colgroup>
+<col style="width: 50%">
+<col style="width: 50%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Part</th>
+<th>Definition</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>States</td>
+<td>home is left, home is right</td>
+</tr>
+<tr class="even">
+<td>Actions</td>
+<td>wait (0), ask (−1), go left, go right</td>
+</tr>
+<tr class="odd">
+<td>Rewards</td>
+<td>going: +10 on the right trail, −50 on the wrong one</td>
+</tr>
+<tr class="even">
+<td>Transitions</td>
+<td>waiting and asking keep the state; going starts a new hike, either trail equally likely</td>
+</tr>
+<tr class="odd">
+<td>Observations</td>
+<td>“left” or “right”: after asking, correct w.p. 0.85; otherwise 50–50 noise</td>
+</tr>
+<tr class="even">
+<td>Discount</td>
+<td>0.95</td>
+</tr>
+</tbody>
+</table>
+</div>
+</figure>
+</div>
+<div class="tabset-margin-container"></div><div class="panel-tabset" data-group="lang">
+<ul class="nav nav-tabs" role="tablist"><li class="nav-item" role="presentation"><a class="nav-link active" id="tabset-15-1-tab" data-bs-toggle="tab" data-bs-target="#tabset-15-1" role="tab" aria-controls="tabset-15-1" aria-selected="true" href="">Python</a></li><li class="nav-item" role="presentation"><a class="nav-link" id="tabset-15-2-tab" data-bs-toggle="tab" data-bs-target="#tabset-15-2" role="tab" aria-controls="tabset-15-2" aria-selected="false" href="">Julia</a></li></ul>
+<div class="tab-content" data-group="lang">
+<div id="tabset-15-1" class="tab-pane active" role="tabpanel" aria-labelledby="tabset-15-1-tab">
+<div id="57183ebc" class="cell" data-execution_count="21">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb32"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb32-1"><a href="#cb32-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> adm.problems.fork <span class="im">import</span> fork</span>
+<span id="cb32-2"><a href="#cb32-2" aria-hidden="true" tabindex="-1"></a>pomdp <span class="op">=</span> <span class="fu">fork</span>()                            <span class="co"># T[s, a, s2], R[s, a], O[a, s2, o]</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</div>
+</div>
+<div id="tabset-15-2" class="tab-pane" role="tabpanel" aria-labelledby="tabset-15-2-tab">
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb33"><pre class="sourceCode julia snippet code-with-copy"><code class="sourceCode julia"><span id="cb33-1"><a href="#cb33-1" aria-hidden="true" tabindex="-1"></a><span class="im">using</span> <span class="bu">ADM</span></span>
+<span id="cb33-2"><a href="#cb33-2" aria-hidden="true" tabindex="-1"></a>p <span class="op">=</span> <span class="fu">fork</span>()                                <span class="co"># 1-based: actions 1 wait, 2 ask, 3 go left, 4 go right</span></span>
+<span id="cb33-3"><a href="#cb33-3" aria-hidden="true" tabindex="-1"></a><span class="pp">@assert</span> p.O[<span class="fl">2</span>, <span class="fl">1</span>, <span class="fl">1</span>] <span class="op">==</span> <span class="fl">0.85</span> <span class="op">&amp;&amp;</span> p.R[<span class="fl">1</span>, <span class="fl">3</span>] <span class="op">==</span> <span class="fl">10.0</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</div>
+</div>
+</div>
+<p><strong>Where it’s used.</strong> <a href="../part4/ch21-offline-belief-state-planning.html">Ch 21</a>: QMDP and the fast informed bound both wait forever; point-based value iteration asks until fairly sure, and its lower bound meets a triangulated upper bound at about 27.11. <a href="../part4/ch22-online-belief-state-planning.html">Ch 22</a>: a one-step lookahead on QMDP waits forever, but a two-step forward search on the same values asks, and acts exactly like the point-based policy; Monte Carlo tree search learns to ask when its exploration constant matches the reward scale. <a href="../part4/ch23-controller-abstractions.html">Ch 23</a>: no controller with fewer than 4 nodes beats waiting; a 5-node controller that counts the answers is optimal; gradient ascent from random starts always ends up waiting.</p>
+</section>
+<section id="the-intersection" class="level3">
+<h3 class="anchored" data-anchor-id="the-intersection">The intersection</h3>
+<p><strong>The story.</strong> Two drivers reach an empty intersection at the same moment, and each chooses to go or stop. If one goes and the other stops, the one who goes saves time (+3) and the other gets 0. If both go they nearly crash (−10 each); if both stop they both waste time (−1 each). It is a game of chicken: there’s no dominant strategy, there are two pure Nash equilibria that each favor one driver, and a mixed one that is bad for both. A traffic light, a correlated equilibrium, gives each driver 1.5.</p>
+<div id="tbl-intersection" class="quarto-float quarto-figure quarto-figure-center anchored">
+<figure class="quarto-float quarto-float-tbl figure">
+<figcaption class="quarto-float-caption-top quarto-float-caption quarto-float-tbl" id="tbl-intersection-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Table&nbsp;18: The intersection (driver 1’s reward, driver 2’s reward).
+</figcaption>
+<div aria-describedby="tbl-intersection-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<table class="caption-top table">
+<thead>
+<tr class="header">
+<th>Driver 1 \ Driver 2</th>
+<th style="text-align: right;">go</th>
+<th style="text-align: right;">stop</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><strong>go</strong></td>
+<td style="text-align: right;">−10, −10</td>
+<td style="text-align: right;">3, 0</td>
+</tr>
+<tr class="even">
+<td><strong>stop</strong></td>
+<td style="text-align: right;">0, 3</td>
+<td style="text-align: right;">−1, −1</td>
+</tr>
+</tbody>
+</table>
+</div>
+</figure>
+</div>
+<div class="tabset-margin-container"></div><div class="panel-tabset" data-group="lang">
+<ul class="nav nav-tabs" role="tablist"><li class="nav-item" role="presentation"><a class="nav-link active" id="tabset-16-1-tab" data-bs-toggle="tab" data-bs-target="#tabset-16-1" role="tab" aria-controls="tabset-16-1" aria-selected="true" href="">Python</a></li><li class="nav-item" role="presentation"><a class="nav-link" id="tabset-16-2-tab" data-bs-toggle="tab" data-bs-target="#tabset-16-2" role="tab" aria-controls="tabset-16-2" aria-selected="false" href="">Julia</a></li></ul>
+<div class="tab-content" data-group="lang">
+<div id="tabset-16-1" class="tab-pane active" role="tabpanel" aria-labelledby="tabset-16-1-tab">
+<div id="e67298c5" class="cell" data-execution_count="22">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb34"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb34-1"><a href="#cb34-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> adm.problems.simple_games <span class="im">import</span> intersection</span>
+<span id="cb34-2"><a href="#cb34-2" aria-hidden="true" tabindex="-1"></a>game <span class="op">=</span> <span class="fu">intersection</span>()                     <span class="co"># R[i, a1, a2]; 0 = go, 1 = stop</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</div>
+</div>
+<div id="tabset-16-2" class="tab-pane" role="tabpanel" aria-labelledby="tabset-16-2-tab">
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb35"><pre class="sourceCode julia snippet code-with-copy"><code class="sourceCode julia"><span id="cb35-1"><a href="#cb35-1" aria-hidden="true" tabindex="-1"></a><span class="im">using</span> <span class="bu">ADM</span></span>
+<span id="cb35-2"><a href="#cb35-2" aria-hidden="true" tabindex="-1"></a>g <span class="op">=</span> <span class="fu">intersection</span>()                        <span class="co"># 1-based: 1 = go, 2 = stop</span></span>
+<span id="cb35-3"><a href="#cb35-3" aria-hidden="true" tabindex="-1"></a><span class="pp">@assert</span> g.R[<span class="fl">1</span>, <span class="fl">1</span>, <span class="fl">2</span>] <span class="op">==</span> <span class="fl">3.0</span> <span class="op">&amp;&amp;</span> g.R[<span class="fl">2</span>, <span class="fl">1</span>, <span class="fl">2</span>] <span class="op">==</span> <span class="fl">0.0</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</div>
+</div>
+</div>
+<p><strong>Where it’s used.</strong> <a href="../part5/ch24-multiagent-reasoning.html">Ch 24</a>: three Nash equilibria (the mixed one, going with probability 2/7, is worth −5/7 to each); the traffic light as a correlated equilibrium; fictitious play from identical starting counts moves in lockstep, matching the mixed equilibrium’s frequencies while earning −3.57 per round.</p>
+</section>
+<section id="the-lake" class="level3">
+<h3 class="anchored" data-anchor-id="the-lake">The lake</h3>
+<p><strong>The story.</strong> Two fishing boats share a lake whose fish stock is low, medium or high. Each day, each boat fishes lightly or heavily. Heavy fishing catches more today but depletes the stock, and a depleted lake pays both boats less for years: a sequential tragedy of the commons. It has exactly two deterministic stationary Nash equilibria: both fish lightly unless the stock is high (which is also what a single owner of both boats would do), or both always fish heavily.</p>
+<div id="tbl-lake" class="quarto-float quarto-figure quarto-figure-center anchored">
+<figure class="quarto-float quarto-float-tbl figure">
+<figcaption class="quarto-float-caption-top quarto-float-caption quarto-float-tbl" id="tbl-lake-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Table&nbsp;19: The lake.
+</figcaption>
+<div aria-describedby="tbl-lake-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<table class="caption-top table">
+<colgroup>
+<col style="width: 50%">
+<col style="width: 50%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Part</th>
+<th>Definition</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>States</td>
+<td>stock low, medium, high</td>
+</tr>
+<tr class="even">
+<td>Actions</td>
+<td>light, heavy (each boat)</td>
+</tr>
+<tr class="odd">
+<td>Catch (per boat)</td>
+<td>light 1, 2, 3; heavy 2, 3.5, 5 (at low, medium, high)</td>
+</tr>
+<tr class="even">
+<td>Transitions</td>
+<td>no heavy boat: up w.p. 0.7, else same; one: up 0.2, same 0.5, down 0.3; two: down 0.7, same 0.3</td>
+</tr>
+<tr class="odd">
+<td>Discount</td>
+<td>0.9</td>
+</tr>
+</tbody>
+</table>
+</div>
+</figure>
+</div>
+<div class="tabset-margin-container"></div><div class="panel-tabset" data-group="lang">
+<ul class="nav nav-tabs" role="tablist"><li class="nav-item" role="presentation"><a class="nav-link active" id="tabset-17-1-tab" data-bs-toggle="tab" data-bs-target="#tabset-17-1" role="tab" aria-controls="tabset-17-1" aria-selected="true" href="">Python</a></li><li class="nav-item" role="presentation"><a class="nav-link" id="tabset-17-2-tab" data-bs-toggle="tab" data-bs-target="#tabset-17-2" role="tab" aria-controls="tabset-17-2" aria-selected="false" href="">Julia</a></li></ul>
+<div class="tab-content" data-group="lang">
+<div id="tabset-17-1" class="tab-pane active" role="tabpanel" aria-labelledby="tabset-17-1-tab">
+<div id="a8144366" class="cell" data-execution_count="23">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb36"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb36-1"><a href="#cb36-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> adm.problems.markov_games <span class="im">import</span> lake</span>
+<span id="cb36-2"><a href="#cb36-2" aria-hidden="true" tabindex="-1"></a>game <span class="op">=</span> <span class="fu">lake</span>()                               <span class="co"># 0 = low / light</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</div>
+</div>
+<div id="tabset-17-2" class="tab-pane" role="tabpanel" aria-labelledby="tabset-17-2-tab">
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb37"><pre class="sourceCode julia snippet code-with-copy"><code class="sourceCode julia"><span id="cb37-1"><a href="#cb37-1" aria-hidden="true" tabindex="-1"></a><span class="im">using</span> <span class="bu">ADM</span></span>
+<span id="cb37-2"><a href="#cb37-2" aria-hidden="true" tabindex="-1"></a>g <span class="op">=</span> <span class="fu">lake</span>()                                  <span class="co"># 1-based: 1 = low / light</span></span>
+<span id="cb37-3"><a href="#cb37-3" aria-hidden="true" tabindex="-1"></a><span class="pp">@assert</span> g.R[<span class="fl">1</span>, <span class="fl">3</span>, <span class="fl">2</span>, <span class="fl">1</span>] <span class="op">==</span> <span class="fl">5.0</span> <span class="op">&amp;&amp;</span> g.T[<span class="fl">3</span>, <span class="fl">2</span>, <span class="fl">2</span>, <span class="fl">2</span>] <span class="op">==</span> <span class="fl">0.7</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</div>
+</div>
+</div>
+<p><strong>Where it’s used.</strong> <a href="../part5/ch25-sequential-problems.html">Ch 25</a>: policy evaluation, best responses, both equilibria and a third, mixed one found by nonlinear programming; fictitious play reaches either equilibrium; Nash Q-learning needs steady exploration.</p>
+</section>
+<section id="the-lost-hiker" class="level3">
+<h3 class="anchored" data-anchor-id="the-lost-hiker">The lost hiker</h3>
+<p><strong>The story.</strong> A hiker is lost in the left or right valley. Two rescuers at separate lookouts can each listen for a radio report (cost 1; right 80% of the time, and private to that rescuer), search the left valley or search the right one. Carrying the hiker out takes both: both searching the right valley earns 20, one alone earns 5, and each wrong search costs 10. Any search ends the episode, and a new hiker is lost in a random valley. The team shares one reward: a Dec-POMDP. The structure is similar to the decentralized tiger problem of the Dec-POMDP literature, with this site’s own story and numbers.</p>
+<div id="tbl-lost-hiker" class="quarto-float quarto-figure quarto-figure-center anchored">
+<figure class="quarto-float quarto-float-tbl figure">
+<figcaption class="quarto-float-caption-top quarto-float-caption quarto-float-tbl" id="tbl-lost-hiker-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Table&nbsp;20: The lost hiker.
+</figcaption>
+<div aria-describedby="tbl-lost-hiker-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<table class="caption-top table">
+<colgroup>
+<col style="width: 50%">
+<col style="width: 50%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Part</th>
+<th>Definition</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>States</td>
+<td>hiker in the left or right valley</td>
+</tr>
+<tr class="even">
+<td>Actions (each)</td>
+<td>listen, search left, search right</td>
+</tr>
+<tr class="odd">
+<td>Observations (each)</td>
+<td>“left” or “right”: after both listen, right w.p. 0.8, independently; otherwise 50–50</td>
+</tr>
+<tr class="even">
+<td>Shared reward</td>
+<td>both in the right valley +20; one +5; each wrong search −10; each listener −1</td>
+</tr>
+<tr class="odd">
+<td>Transitions</td>
+<td>listening keeps the valley; any search draws a new one at random</td>
+</tr>
+<tr class="even">
+<td>Discount</td>
+<td>0.9</td>
+</tr>
+</tbody>
+</table>
+</div>
+</figure>
+</div>
+<div class="tabset-margin-container"></div><div class="panel-tabset" data-group="lang">
+<ul class="nav nav-tabs" role="tablist"><li class="nav-item" role="presentation"><a class="nav-link active" id="tabset-18-1-tab" data-bs-toggle="tab" data-bs-target="#tabset-18-1" role="tab" aria-controls="tabset-18-1" aria-selected="true" href="">Python</a></li><li class="nav-item" role="presentation"><a class="nav-link" id="tabset-18-2-tab" data-bs-toggle="tab" data-bs-target="#tabset-18-2" role="tab" aria-controls="tabset-18-2" aria-selected="false" href="">Julia</a></li></ul>
+<div class="tab-content" data-group="lang">
+<div id="tabset-18-1" class="tab-pane active" role="tabpanel" aria-labelledby="tabset-18-1-tab">
+<div id="e70e2b49" class="cell" data-execution_count="24">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb38"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb38-1"><a href="#cb38-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> adm.problems.lost_hiker <span class="im">import</span> lost_hiker</span>
+<span id="cb38-2"><a href="#cb38-2" aria-hidden="true" tabindex="-1"></a>game <span class="op">=</span> <span class="fu">lost_hiker</span>()                         <span class="co"># a POMG with identical reward rows; 0 = listen / left</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</div>
+</div>
+<div id="tabset-18-2" class="tab-pane" role="tabpanel" aria-labelledby="tabset-18-2-tab">
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb39"><pre class="sourceCode julia snippet code-with-copy"><code class="sourceCode julia"><span id="cb39-1"><a href="#cb39-1" aria-hidden="true" tabindex="-1"></a><span class="im">using</span> <span class="bu">ADM</span></span>
+<span id="cb39-2"><a href="#cb39-2" aria-hidden="true" tabindex="-1"></a>g <span class="op">=</span> <span class="fu">lost_hiker</span>()                            <span class="co"># 1-based: 1 = listen / left</span></span>
+<span id="cb39-3"><a href="#cb39-3" aria-hidden="true" tabindex="-1"></a><span class="pp">@assert</span> g.R[<span class="fl">1</span>, <span class="fl">1</span>, <span class="fl">2</span>, <span class="fl">2</span>] <span class="op">==</span> <span class="fl">20.0</span> <span class="op">&amp;&amp;</span> g.R[<span class="fl">1</span>, <span class="fl">1</span>, <span class="fl">1</span>, <span class="fl">1</span>] <span class="op">==</span> <span class="op">-</span><span class="fl">2.0</span> <span class="op">&amp;&amp;</span> g.R <span class="op">==</span> g.R[[<span class="fl">2</span>, <span class="fl">1</span>], <span class="op">:</span>, <span class="op">:</span>, <span class="op">:</span>]</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</div>
+</div>
+</div>
+<p><strong>Where it’s used.</strong> <a href="../part5/ch27-collaborative-agents.html">Ch 27</a>: the exact team optimum (7.36 over two or three steps) against the value with pooled reports; iterated best response and memory-bounded search stopping short; a 3-node controller worth 38.74 that nonlinear programming from random starts misses.</p>
+</section>
+<section id="other-problems-on-this-site" class="level3">
+<h3 class="anchored" data-anchor-id="other-problems-on-this-site">Other problems on this site</h3>
+<div id="tbl-originals" class="quarto-float quarto-figure quarto-figure-center anchored">
+<figure class="quarto-float quarto-float-tbl figure">
+<figcaption class="quarto-float-caption-top quarto-float-caption quarto-float-tbl" id="tbl-originals-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Table&nbsp;21: Other original problems, defined next to the chapters that use them.
+</figcaption>
+<div aria-describedby="tbl-originals-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<table class="caption-top table">
+<thead>
+<tr class="header">
+<th>Problem</th>
+<th>Kind</th>
+<th>Page</th>
+<th>Code</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Rover grid</td>
+<td>MDP, 4×5 grid with slip</td>
+<td><a href="../part2/ch07-exact-solution-methods.html">Ch 7</a></td>
+<td>Python: <code>adm/problems/gridworld.py</code></td>
+</tr>
+<tr class="even">
+<td>Delivery drone</td>
+<td>MDP, 2 states</td>
+<td><a href="../part2/ch07-exact-solution-methods.html">Ch 7</a></td>
+<td>on the page</td>
+</tr>
+<tr class="odd">
+<td>Factory machine</td>
+<td>MDP, 2 states (solved problem)</td>
+<td><a href="../part2/ch07-exact-solution-methods.html">Ch 7</a></td>
+<td>on the page</td>
+</tr>
+<tr class="even">
+<td>Headline test</td>
+<td>Bernoulli bandit, 3 arms (click rates 0.35, 0.50, 0.55)</td>
+<td><a href="../part3/ch15-exploration-and-exploitation.html">Ch 15</a></td>
+<td>on the page; strategies in <code>adm/bandits.py</code></td>
+</tr>
+<tr class="odd">
+<td>Towpath</td>
+<td>MDP, 4×8 grid beside a canal (a cliff walk)</td>
+<td><a href="../part3/ch17-model-free-methods.html">Ch 17</a></td>
+<td>on the page</td>
+</tr>
+<tr class="even">
+<td>Tram loop</td>
+<td>Discrete filter, 12 states</td>
+<td><a href="../part4/ch19-beliefs.html">Ch 19</a></td>
+<td>on the page</td>
+</tr>
+<tr class="odd">
+<td>Kayak</td>
+<td>Linear-Gaussian, 1D</td>
+<td><a href="../part4/ch19-beliefs.html">Ch 19</a></td>
+<td>on the page</td>
+</tr>
+<tr class="even">
+<td>Drifting buoy</td>
+<td>Linear-Gaussian, 4D</td>
+<td><a href="../part4/ch19-beliefs.html">Ch 19</a></td>
+<td>on the page</td>
+</tr>
+<tr class="odd">
+<td>Range-only rover</td>
+<td>Nonlinear, particle filter</td>
+<td><a href="../part4/ch19-beliefs.html">Ch 19</a></td>
+<td>on the page</td>
+</tr>
+</tbody>
+</table>
+</div>
+</figure>
+</div>
+
+
+</section>
+</section>
+
+</main> <!-- /main -->
+<script id="quarto-html-after-body" type="application/javascript">
+  window.document.addEventListener("DOMContentLoaded", function (event) {
+    // Ensure there is a toggle, if there isn't float one in the top right
+    if (window.document.querySelector('.quarto-color-scheme-toggle') === null) {
+      const a = window.document.createElement('a');
+      a.classList.add('top-right');
+      a.classList.add('quarto-color-scheme-toggle');
+      a.href = "";
+      a.onclick = function() { try { window.quartoToggleColorScheme(); } catch {} return false; };
+      const i = window.document.createElement("i");
+      i.classList.add('bi');
+      a.appendChild(i);
+      window.document.body.appendChild(a);
+    }
+    setColorSchemeToggle(hasAlternateSentinel())
+    const icon = "";
+    const anchorJS = new window.AnchorJS();
+    anchorJS.options = {
+      placement: 'right',
+      icon: icon
+    };
+    anchorJS.add('.anchored');
+    const isCodeAnnotation = (el) => {
+      for (const clz of el.classList) {
+        if (clz.startsWith('code-annotation-')) {                     
+          return true;
+        }
+      }
+      return false;
+    }
+    const onCopySuccess = function(e) {
+      // button target
+      const button = e.trigger;
+      // don't keep focus
+      button.blur();
+      // flash "checked"
+      button.classList.add('code-copy-button-checked');
+      var currentTitle = button.getAttribute("title");
+      button.setAttribute("title", "Copied!");
+      let tooltip;
+      if (window.bootstrap) {
+        button.setAttribute("data-bs-toggle", "tooltip");
+        button.setAttribute("data-bs-placement", "left");
+        button.setAttribute("data-bs-title", "Copied!");
+        tooltip = new bootstrap.Tooltip(button, 
+          { trigger: "manual", 
+            customClass: "code-copy-button-tooltip",
+            offset: [0, -8]});
+        tooltip.show();    
+      }
+      setTimeout(function() {
+        if (tooltip) {
+          tooltip.hide();
+          button.removeAttribute("data-bs-title");
+          button.removeAttribute("data-bs-toggle");
+          button.removeAttribute("data-bs-placement");
+        }
+        button.setAttribute("title", currentTitle);
+        button.classList.remove('code-copy-button-checked');
+      }, 1000);
+      // clear code selection
+      e.clearSelection();
+    }
+    const getTextToCopy = function(trigger) {
+      const outerScaffold = trigger.parentElement.cloneNode(true);
+      const codeEl = outerScaffold.querySelector('code');
+      for (const childEl of codeEl.children) {
+        if (isCodeAnnotation(childEl)) {
+          childEl.remove();
+        }
+      }
+      return codeEl.innerText;
+    }
+    const clipboard = new window.ClipboardJS('.code-copy-button:not([data-in-quarto-modal])', {
+      text: getTextToCopy
+    });
+    clipboard.on('success', onCopySuccess);
+    if (window.document.getElementById('quarto-embedded-source-code-modal')) {
+      const clipboardModal = new window.ClipboardJS('.code-copy-button[data-in-quarto-modal]', {
+        text: getTextToCopy,
+        container: window.document.getElementById('quarto-embedded-source-code-modal')
+      });
+      clipboardModal.on('success', onCopySuccess);
+    }
+      var localhostRegex = new RegExp(/^(?:http|https):\/\/localhost\:?[0-9]*\//);
+      var mailtoRegex = new RegExp(/^mailto:/);
+        var filterRegex = new RegExp("https:\/\/laventura\.github\.io\/adm-companion\/");
+      var isInternal = (href) => {
+          return filterRegex.test(href) || localhostRegex.test(href) || mailtoRegex.test(href);
+      }
+      // Inspect non-navigation links and adorn them if external
+     var links = window.document.querySelectorAll('a[href]:not(.nav-link):not(.navbar-brand):not(.toc-action):not(.sidebar-link):not(.sidebar-item-toggle):not(.pagination-link):not(.no-external):not([aria-hidden]):not(.dropdown-item):not(.quarto-navigation-tool):not(.about-link)');
+      for (var i=0; i<links.length; i++) {
+        const link = links[i];
+        if (!isInternal(link.href)) {
+          // undo the damage that might have been done by quarto-nav.js in the case of
+          // links that we want to consider external
+          if (link.dataset.originalHref !== undefined) {
+            link.href = link.dataset.originalHref;
+          }
+        }
+      }
+    function tippyHover(el, contentFn, onTriggerFn, onUntriggerFn) {
+      const config = {
+        allowHTML: true,
+        maxWidth: 500,
+        delay: 100,
+        arrow: false,
+        appendTo: function(el) {
+            return el.parentElement;
+        },
+        interactive: true,
+        interactiveBorder: 10,
+        theme: 'quarto',
+        placement: 'bottom-start',
+      };
+      if (contentFn) {
+        config.content = contentFn;
+      }
+      if (onTriggerFn) {
+        config.onTrigger = onTriggerFn;
+      }
+      if (onUntriggerFn) {
+        config.onUntrigger = onUntriggerFn;
+      }
+      window.tippy(el, config); 
+    }
+    const noterefs = window.document.querySelectorAll('a[role="doc-noteref"]');
+    for (var i=0; i<noterefs.length; i++) {
+      const ref = noterefs[i];
+      tippyHover(ref, function() {
+        // use id or data attribute instead here
+        let href = ref.getAttribute('data-footnote-href') || ref.getAttribute('href');
+        try { href = new URL(href).hash; } catch {}
+        const id = href.replace(/^#\/?/, "");
+        const note = window.document.getElementById(id);
+        if (note) {
+          return note.innerHTML;
+        } else {
+          return "";
+        }
+      });
+    }
+    const xrefs = window.document.querySelectorAll('a.quarto-xref');
+    const processXRef = (id, note) => {
+      // Strip column container classes
+      const stripColumnClz = (el) => {
+        el.classList.remove("page-full", "page-columns");
+        if (el.children) {
+          for (const child of el.children) {
+            stripColumnClz(child);
+          }
+        }
+      }
+      stripColumnClz(note)
+      if (id === null || id.startsWith('sec-')) {
+        // Special case sections, only their first couple elements
+        const container = document.createElement("div");
+        if (note.children && note.children.length > 2) {
+          container.appendChild(note.children[0].cloneNode(true));
+          for (let i = 1; i < note.children.length; i++) {
+            const child = note.children[i];
+            if (child.tagName === "P" && child.innerText === "") {
+              continue;
+            } else {
+              container.appendChild(child.cloneNode(true));
+              break;
+            }
+          }
+          if (window.Quarto?.typesetMath) {
+            window.Quarto.typesetMath(container);
+          }
+          return container.innerHTML
+        } else {
+          if (window.Quarto?.typesetMath) {
+            window.Quarto.typesetMath(note);
+          }
+          return note.innerHTML;
+        }
+      } else {
+        // Remove any anchor links if they are present
+        const anchorLink = note.querySelector('a.anchorjs-link');
+        if (anchorLink) {
+          anchorLink.remove();
+        }
+        if (window.Quarto?.typesetMath) {
+          window.Quarto.typesetMath(note);
+        }
+        if (note.classList.contains("callout")) {
+          return note.outerHTML;
+        } else {
+          return note.innerHTML;
+        }
+      }
+    }
+    for (var i=0; i<xrefs.length; i++) {
+      const xref = xrefs[i];
+      tippyHover(xref, undefined, function(instance) {
+        instance.disable();
+        let url = xref.getAttribute('href');
+        let hash = undefined; 
+        if (url.startsWith('#')) {
+          hash = url;
+        } else {
+          try { hash = new URL(url).hash; } catch {}
+        }
+        if (hash) {
+          const id = hash.replace(/^#\/?/, "");
+          const note = window.document.getElementById(id);
+          if (note !== null) {
+            try {
+              const html = processXRef(id, note.cloneNode(true));
+              instance.setContent(html);
+            } finally {
+              instance.enable();
+              instance.show();
+            }
+          } else {
+            // See if we can fetch this
+            fetch(url.split('#')[0])
+            .then(res => res.text())
+            .then(html => {
+              const parser = new DOMParser();
+              const htmlDoc = parser.parseFromString(html, "text/html");
+              const note = htmlDoc.getElementById(id);
+              if (note !== null) {
+                const html = processXRef(id, note);
+                instance.setContent(html);
+              } 
+            }).finally(() => {
+              instance.enable();
+              instance.show();
+            });
+          }
+        } else {
+          // See if we can fetch a full url (with no hash to target)
+          // This is a special case and we should probably do some content thinning / targeting
+          fetch(url)
+          .then(res => res.text())
+          .then(html => {
+            const parser = new DOMParser();
+            const htmlDoc = parser.parseFromString(html, "text/html");
+            const note = htmlDoc.querySelector('main.content');
+            if (note !== null) {
+              // This should only happen for chapter cross references
+              // (since there is no id in the URL)
+              // remove the first header
+              if (note.children.length > 0 && note.children[0].tagName === "HEADER") {
+                note.children[0].remove();
+              }
+              const html = processXRef(null, note);
+              instance.setContent(html);
+            } 
+          }).finally(() => {
+            instance.enable();
+            instance.show();
+          });
+        }
+      }, function(instance) {
+      });
+    }
+        let selectedAnnoteEl;
+        const selectorForAnnotation = ( cell, annotation) => {
+          let cellAttr = 'data-code-cell="' + cell + '"';
+          let lineAttr = 'data-code-annotation="' +  annotation + '"';
+          const selector = 'span[' + cellAttr + '][' + lineAttr + ']';
+          return selector;
+        }
+        const selectCodeLines = (annoteEl) => {
+          const doc = window.document;
+          const targetCell = annoteEl.getAttribute("data-target-cell");
+          const targetAnnotation = annoteEl.getAttribute("data-target-annotation");
+          const annoteSpan = window.document.querySelector(selectorForAnnotation(targetCell, targetAnnotation));
+          const lines = annoteSpan.getAttribute("data-code-lines").split(",");
+          const lineIds = lines.map((line) => {
+            return targetCell + "-" + line;
+          })
+          let top = null;
+          let height = null;
+          let parent = null;
+          if (lineIds.length > 0) {
+              //compute the position of the single el (top and bottom and make a div)
+              const el = window.document.getElementById(lineIds[0]);
+              top = el.offsetTop;
+              height = el.offsetHeight;
+              parent = el.parentElement.parentElement;
+            if (lineIds.length > 1) {
+              const lastEl = window.document.getElementById(lineIds[lineIds.length - 1]);
+              const bottom = lastEl.offsetTop + lastEl.offsetHeight;
+              height = bottom - top;
+            }
+            if (top !== null && height !== null && parent !== null) {
+              // cook up a div (if necessary) and position it 
+              let div = window.document.getElementById("code-annotation-line-highlight");
+              if (div === null) {
+                div = window.document.createElement("div");
+                div.setAttribute("id", "code-annotation-line-highlight");
+                div.style.position = 'absolute';
+                parent.appendChild(div);
+              }
+              div.style.top = top - 2 + "px";
+              div.style.height = height + 4 + "px";
+              div.style.left = 0;
+              let gutterDiv = window.document.getElementById("code-annotation-line-highlight-gutter");
+              if (gutterDiv === null) {
+                gutterDiv = window.document.createElement("div");
+                gutterDiv.setAttribute("id", "code-annotation-line-highlight-gutter");
+                gutterDiv.style.position = 'absolute';
+                const codeCell = window.document.getElementById(targetCell);
+                const gutter = codeCell.querySelector('.code-annotation-gutter');
+                gutter.appendChild(gutterDiv);
+              }
+              gutterDiv.style.top = top - 2 + "px";
+              gutterDiv.style.height = height + 4 + "px";
+            }
+            selectedAnnoteEl = annoteEl;
+          }
+        };
+        const unselectCodeLines = () => {
+          const elementsIds = ["code-annotation-line-highlight", "code-annotation-line-highlight-gutter"];
+          elementsIds.forEach((elId) => {
+            const div = window.document.getElementById(elId);
+            if (div) {
+              div.remove();
+            }
+          });
+          selectedAnnoteEl = undefined;
+        };
+          // Handle positioning of the toggle
+      window.addEventListener(
+        "resize",
+        throttle(() => {
+          elRect = undefined;
+          if (selectedAnnoteEl) {
+            selectCodeLines(selectedAnnoteEl);
+          }
+        }, 10)
+      );
+      function throttle(fn, ms) {
+      let throttle = false;
+      let timer;
+        return (...args) => {
+          if(!throttle) { // first call gets through
+              fn.apply(this, args);
+              throttle = true;
+          } else { // all the others get throttled
+              if(timer) clearTimeout(timer); // cancel #2
+              timer = setTimeout(() => {
+                fn.apply(this, args);
+                timer = throttle = false;
+              }, ms);
+          }
+        };
+      }
+        // Attach click handler to the DT
+        const annoteDls = window.document.querySelectorAll('dt[data-target-cell]');
+        for (const annoteDlNode of annoteDls) {
+          annoteDlNode.addEventListener('click', (event) => {
+            const clickedEl = event.target;
+            if (clickedEl !== selectedAnnoteEl) {
+              unselectCodeLines();
+              const activeEl = window.document.querySelector('dt[data-target-cell].code-annotation-active');
+              if (activeEl) {
+                activeEl.classList.remove('code-annotation-active');
+              }
+              selectCodeLines(clickedEl);
+              clickedEl.classList.add('code-annotation-active');
+            } else {
+              // Unselect the line
+              unselectCodeLines();
+              clickedEl.classList.remove('code-annotation-active');
+            }
+          });
+        }
+    const findCites = (el) => {
+      const parentEl = el.parentElement;
+      if (parentEl) {
+        const cites = parentEl.dataset.cites;
+        if (cites) {
+          return {
+            el,
+            cites: cites.split(' ')
+          };
+        } else {
+          return findCites(el.parentElement)
+        }
+      } else {
+        return undefined;
+      }
+    };
+    var bibliorefs = window.document.querySelectorAll('a[role="doc-biblioref"]');
+    for (var i=0; i<bibliorefs.length; i++) {
+      const ref = bibliorefs[i];
+      const citeInfo = findCites(ref);
+      if (citeInfo) {
+        tippyHover(citeInfo.el, function() {
+          var popup = window.document.createElement('div');
+          citeInfo.cites.forEach(function(cite) {
+            var citeDiv = window.document.createElement('div');
+            citeDiv.classList.add('hanging-indent');
+            citeDiv.classList.add('csl-entry');
+            var biblioDiv = window.document.getElementById('ref-' + cite);
+            if (biblioDiv) {
+              citeDiv.innerHTML = biblioDiv.innerHTML;
+            }
+            popup.appendChild(citeDiv);
+          });
+          return popup.innerHTML;
+        });
+      }
+    }
+  });
+  </script>
+<nav class="page-navigation">
+  <div class="nav-page nav-page-previous">
+      <a href="../appendices/e-search-algorithms.html" class="pagination-link" aria-label="E · Search Algorithms">
+        <i class="bi bi-arrow-left-short"></i> <span class="nav-page-text">E · Search Algorithms</span>
+      </a>          
+  </div>
+  <div class="nav-page nav-page-next">
+  </div>
+</nav>
+</div> <!-- /content -->
+<footer class="footer">
+  <div class="nav-footer">
+    <div class="nav-footer-left">
+      &nbsp;
+    </div>   
+    <div class="nav-footer-center">
+<p>An independent, unofficial companion to <em>Algorithms for Decision Making</em> (MIT Press, 2022). The book is freely available at <a href="https://algorithmsbook.com">algorithmsbook.com</a>. Site text and figures © Atul Acharya, <a href="https://creativecommons.org/licenses/by-nc/4.0/">CC BY-NC 4.0</a>; code <a href="https://opensource.org/license/mit">MIT</a>.</p>
+</div>
+    <div class="nav-footer-right">
+      &nbsp;
+    </div>
+  </div>
+</footer>
+
+
+
+
+</body></html>

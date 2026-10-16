@@ -1,0 +1,2377 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en"><head>
+
+<meta charset="utf-8">
+<meta name="generator" content="quarto-1.9.38">
+
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+
+
+<title>6 · Simple Decisions – ADM Companion</title>
+<style>
+/* Default styles provided by pandoc.
+** See https://pandoc.org/MANUAL.html#variables-for-html for config info.
+*/
+code{white-space: pre-wrap;}
+span.smallcaps{font-variant: small-caps;}
+div.columns{display: flex; gap: min(4vw, 1.5em);}
+div.column{flex: auto; overflow-x: auto;}
+div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+ul.task-list{list-style: none;}
+ul.task-list li input[type="checkbox"] {
+  width: 0.8em;
+  margin: 0 0.8em 0.2em -1em; /* quarto-specific, see https://github.com/quarto-dev/quarto-cli/issues/4556 */ 
+  vertical-align: middle;
+}
+/* CSS for syntax highlighting */
+html { -webkit-text-size-adjust: 100%; }
+pre > code.sourceCode { white-space: pre; position: relative; }
+pre > code.sourceCode > span { display: inline-block; line-height: 1.25; }
+pre > code.sourceCode > span:empty { height: 1.2em; }
+.sourceCode { overflow: visible; }
+code.sourceCode > span { color: inherit; text-decoration: inherit; }
+div.sourceCode { margin: 1em 0; }
+pre.sourceCode { margin: 0; }
+@media screen {
+div.sourceCode { overflow: auto; }
+}
+@media print {
+pre > code.sourceCode { white-space: pre-wrap; }
+pre > code.sourceCode > span { text-indent: -5em; padding-left: 5em; }
+}
+pre.numberSource code
+  { counter-reset: source-line 0; }
+pre.numberSource code > span
+  { position: relative; left: -4em; counter-increment: source-line; }
+pre.numberSource code > span > a:first-child::before
+  { content: counter(source-line);
+    position: relative; left: -1em; text-align: right; vertical-align: baseline;
+    border: none; display: inline-block;
+    -webkit-touch-callout: none; -webkit-user-select: none;
+    -khtml-user-select: none; -moz-user-select: none;
+    -ms-user-select: none; user-select: none;
+    padding: 0 4px; width: 4em;
+  }
+pre.numberSource { margin-left: 3em;  padding-left: 4px; }
+div.sourceCode
+  {   }
+@media screen {
+pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+}
+</style>
+
+
+<script src="../site_libs/quarto-nav/quarto-nav.js"></script>
+<script src="../site_libs/quarto-nav/headroom.min.js"></script>
+<script src="../site_libs/clipboard/clipboard.min.js"></script>
+<script src="../site_libs/quarto-search/autocomplete.umd.js"></script>
+<script src="../site_libs/quarto-search/fuse.min.js"></script>
+<script src="../site_libs/quarto-search/quarto-search.js"></script>
+<meta name="quarto:offset" content="../">
+<link href="../part2/ch07-exact-solution-methods.html" rel="next">
+<link href="../part1/ch05-structure-learning.html" rel="prev">
+<script src="../site_libs/quarto-html/quarto.js" type="module"></script>
+<script src="../site_libs/quarto-html/tabsets/tabsets.js" type="module"></script>
+<script src="../site_libs/quarto-html/popper.min.js"></script>
+<script src="../site_libs/quarto-html/tippy.umd.min.js"></script>
+<script src="../site_libs/quarto-html/anchor.min.js"></script>
+<link href="../site_libs/quarto-html/tippy.css" rel="stylesheet">
+<link href="../site_libs/quarto-html/quarto-syntax-highlighting-de63f62b328812d8e578a4d74e282472.css" rel="stylesheet" class="quarto-color-scheme" id="quarto-text-highlighting-styles">
+<link href="../site_libs/quarto-html/quarto-syntax-highlighting-dark-6b6957c917596b414ec0b78690761e87.css" rel="stylesheet" class="quarto-color-scheme quarto-color-alternate" id="quarto-text-highlighting-styles">
+<link href="../site_libs/quarto-html/quarto-syntax-highlighting-de63f62b328812d8e578a4d74e282472.css" rel="stylesheet" class="quarto-color-scheme-extra" id="quarto-text-highlighting-styles">
+<script src="../site_libs/bootstrap/bootstrap.min.js"></script>
+<link href="../site_libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
+<link href="../site_libs/bootstrap/bootstrap-d1de39f35053749ff84d2df96798693d.min.css" rel="stylesheet" append-hash="true" class="quarto-color-scheme" id="quarto-bootstrap" data-mode="light">
+<link href="../site_libs/bootstrap/bootstrap-dark-a6f4e11c7ca7fab1bededaf21cc7b528.min.css" rel="stylesheet" append-hash="true" class="quarto-color-scheme quarto-color-alternate" id="quarto-bootstrap" data-mode="dark">
+<link href="../site_libs/bootstrap/bootstrap-d1de39f35053749ff84d2df96798693d.min.css" rel="stylesheet" append-hash="true" class="quarto-color-scheme-extra" id="quarto-bootstrap" data-mode="light">
+<script id="quarto-search-options" type="application/json">{
+  "location": "sidebar",
+  "copy-button": false,
+  "collapse-after": 3,
+  "panel-placement": "start",
+  "type": "textbox",
+  "limit": 50,
+  "keyboard-shortcut": [
+    "f",
+    "/",
+    "s"
+  ],
+  "show-item-context": false,
+  "language": {
+    "search-no-results-text": "No results",
+    "search-matching-documents-text": "matching documents",
+    "search-copy-link-title": "Copy link to search",
+    "search-hide-matches-text": "Hide additional matches",
+    "search-more-match-text": "more match in this document",
+    "search-more-matches-text": "more matches in this document",
+    "search-clear-button-title": "Clear",
+    "search-text-placeholder": "",
+    "search-detached-cancel-button-title": "Cancel",
+    "search-submit-button-title": "Submit",
+    "search-label": "Search"
+  }
+}</script>
+<script type="module" src="../site_libs/quarto-ojs/quarto-ojs-runtime.js"></script>
+<link href="../site_libs/quarto-ojs/quarto-ojs.css" rel="stylesheet">
+
+  <script src="https://cdnjs.cloudflare.com/polyfill/v3/polyfill.min.js?features=es6"></script>
+  <script defer="" src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml-full.js" type="text/javascript"></script>
+
+<script type="text/javascript">
+const typesetMath = (el) => {
+  if (window.MathJax) {
+    // MathJax Typeset
+    window.MathJax.typeset([el]);
+  } else if (window.katex) {
+    // KaTeX Render
+    var mathElements = el.getElementsByClassName("math");
+    var macros = [];
+    for (var i = 0; i < mathElements.length; i++) {
+      var texText = mathElements[i].firstChild;
+      if (mathElements[i].tagName == "SPAN" && texText && texText.data) {
+        window.katex.render(texText.data, mathElements[i], {
+          displayMode: mathElements[i].classList.contains('display'),
+          throwOnError: false,
+          macros: macros,
+          fleqn: false
+        });
+      }
+    }
+  }
+}
+window.Quarto = {
+  typesetMath
+};
+</script>
+
+</head>
+
+<body class="nav-sidebar docked quarto-light"><script id="quarto-html-before-body" type="application/javascript">
+    const toggleBodyColorMode = (bsSheetEl) => {
+      const mode = bsSheetEl.getAttribute("data-mode");
+      const bodyEl = window.document.querySelector("body");
+      if (mode === "dark") {
+        bodyEl.classList.add("quarto-dark");
+        bodyEl.classList.remove("quarto-light");
+      } else {
+        bodyEl.classList.add("quarto-light");
+        bodyEl.classList.remove("quarto-dark");
+      }
+    }
+    const toggleBodyColorPrimary = () => {
+      const bsSheetEl = window.document.querySelector("link#quarto-bootstrap:not([rel=disabled-stylesheet])");
+      if (bsSheetEl) {
+        toggleBodyColorMode(bsSheetEl);
+      }
+    }
+    const setColorSchemeToggle = (alternate) => {
+      const toggles = window.document.querySelectorAll('.quarto-color-scheme-toggle');
+      for (let i=0; i < toggles.length; i++) {
+        const toggle = toggles[i];
+        if (toggle) {
+          if (alternate) {
+            toggle.classList.add("alternate");
+          } else {
+            toggle.classList.remove("alternate");
+          }
+        }
+      }
+    };
+    const toggleColorMode = (alternate) => {
+      // Switch the stylesheets
+      const primaryStylesheets = window.document.querySelectorAll('link.quarto-color-scheme:not(.quarto-color-alternate)');
+      const alternateStylesheets = window.document.querySelectorAll('link.quarto-color-scheme.quarto-color-alternate');
+      manageTransitions('#quarto-margin-sidebar .nav-link', false);
+      if (alternate) {
+        // note: dark is layered on light, we don't disable primary!
+        enableStylesheet(alternateStylesheets);
+        for (const sheetNode of alternateStylesheets) {
+          if (sheetNode.id === "quarto-bootstrap") {
+            toggleBodyColorMode(sheetNode);
+          }
+        }
+      } else {
+        disableStylesheet(alternateStylesheets);
+        enableStylesheet(primaryStylesheets)
+        toggleBodyColorPrimary();
+      }
+      manageTransitions('#quarto-margin-sidebar .nav-link', true);
+      // Switch the toggles
+      setColorSchemeToggle(alternate)
+      // Hack to workaround the fact that safari doesn't
+      // properly recolor the scrollbar when toggling (#1455)
+      if (navigator.userAgent.indexOf('Safari') > 0 && navigator.userAgent.indexOf('Chrome') == -1) {
+        manageTransitions("body", false);
+        window.scrollTo(0, 1);
+        setTimeout(() => {
+          window.scrollTo(0, 0);
+          manageTransitions("body", true);
+        }, 40);
+      }
+    }
+    const disableStylesheet = (stylesheets) => {
+      for (let i=0; i < stylesheets.length; i++) {
+        const stylesheet = stylesheets[i];
+        stylesheet.rel = 'disabled-stylesheet';
+      }
+    }
+    const enableStylesheet = (stylesheets) => {
+      for (let i=0; i < stylesheets.length; i++) {
+        const stylesheet = stylesheets[i];
+        if(stylesheet.rel !== 'stylesheet') { // for Chrome, which will still FOUC without this check
+          stylesheet.rel = 'stylesheet';
+        }
+      }
+    }
+    const manageTransitions = (selector, allowTransitions) => {
+      const els = window.document.querySelectorAll(selector);
+      for (let i=0; i < els.length; i++) {
+        const el = els[i];
+        if (allowTransitions) {
+          el.classList.remove('notransition');
+        } else {
+          el.classList.add('notransition');
+        }
+      }
+    }
+    const isFileUrl = () => {
+      return window.location.protocol === 'file:';
+    }
+    const hasAlternateSentinel = () => {
+      let styleSentinel = getColorSchemeSentinel();
+      if (styleSentinel !== null) {
+        return styleSentinel === "alternate";
+      } else {
+        return false;
+      }
+    }
+    const setStyleSentinel = (alternate) => {
+      const value = alternate ? "alternate" : "default";
+      if (!isFileUrl()) {
+        window.localStorage.setItem("quarto-color-scheme", value);
+      } else {
+        localAlternateSentinel = value;
+      }
+    }
+    const getColorSchemeSentinel = () => {
+      if (!isFileUrl()) {
+        const storageValue = window.localStorage.getItem("quarto-color-scheme");
+        return storageValue != null ? storageValue : localAlternateSentinel;
+      } else {
+        return localAlternateSentinel;
+      }
+    }
+    const toggleGiscusIfUsed = (isAlternate, darkModeDefault) => {
+      const baseTheme = document.querySelector('#giscus-base-theme')?.value ?? 'light';
+      const alternateTheme = document.querySelector('#giscus-alt-theme')?.value ?? 'dark';
+      let newTheme = '';
+      if(authorPrefersDark) {
+        newTheme = isAlternate ? baseTheme : alternateTheme;
+      } else {
+        newTheme = isAlternate ? alternateTheme : baseTheme;
+      }
+      const changeGiscusTheme = () => {
+        // From: https://github.com/giscus/giscus/issues/336
+        const sendMessage = (message) => {
+          const iframe = document.querySelector('iframe.giscus-frame');
+          if (!iframe) return;
+          iframe.contentWindow.postMessage({ giscus: message }, 'https://giscus.app');
+        }
+        sendMessage({
+          setConfig: {
+            theme: newTheme
+          }
+        });
+      }
+      const isGiscussLoaded = window.document.querySelector('iframe.giscus-frame') !== null;
+      if (isGiscussLoaded) {
+        changeGiscusTheme();
+      }
+    };
+    const authorPrefersDark = false;
+    const darkModeDefault = authorPrefersDark;
+      document.querySelector('link#quarto-text-highlighting-styles.quarto-color-scheme-extra').rel = 'disabled-stylesheet';
+      document.querySelector('link#quarto-bootstrap.quarto-color-scheme-extra').rel = 'disabled-stylesheet';
+    let localAlternateSentinel = darkModeDefault ? 'alternate' : 'default';
+    // Dark / light mode switch
+    window.quartoToggleColorScheme = () => {
+      // Read the current dark / light value
+      let toAlternate = !hasAlternateSentinel();
+      toggleColorMode(toAlternate);
+      setStyleSentinel(toAlternate);
+      toggleGiscusIfUsed(toAlternate, darkModeDefault);
+      window.dispatchEvent(new Event('resize'));
+    };
+    // Switch to dark mode if need be
+    if (hasAlternateSentinel()) {
+      toggleColorMode(true);
+    } else {
+      toggleColorMode(false);
+    }
+  </script>
+
+<div id="quarto-search-results"></div>
+  <header id="quarto-header" class="headroom fixed-top">
+  <nav class="quarto-secondary-nav">
+    <div class="container-fluid d-flex">
+      <button type="button" class="quarto-btn-toggle btn" data-bs-toggle="collapse" role="button" data-bs-target=".quarto-sidebar-collapse-item" aria-controls="quarto-sidebar" aria-expanded="false" aria-label="Toggle sidebar navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">
+        <i class="bi bi-layout-text-sidebar-reverse"></i>
+      </button>
+        <nav class="quarto-page-breadcrumbs" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="../part1/ch02-representation.html">Part I — Probabilistic Reasoning</a></li><li class="breadcrumb-item"><a href="../part1/ch06-simple-decisions.html">6 · Simple Decisions</a></li></ol></nav>
+        <a class="flex-grow-1" role="navigation" data-bs-toggle="collapse" data-bs-target=".quarto-sidebar-collapse-item" aria-controls="quarto-sidebar" aria-expanded="false" aria-label="Toggle sidebar navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">      
+        </a>
+      <button type="button" class="btn quarto-search-button" aria-label="Search" onclick="window.quartoOpenSearch();">
+        <i class="bi bi-search"></i>
+      </button>
+    </div>
+  </nav>
+</header>
+<!-- content -->
+<div id="quarto-content" class="quarto-container page-columns page-rows-contents page-layout-article">
+<!-- sidebar -->
+  <nav id="quarto-sidebar" class="sidebar collapse collapse-horizontal quarto-sidebar-collapse-item sidebar-navigation docked overflow-auto">
+    <div class="pt-lg-2 mt-2 text-left sidebar-header">
+    <div class="sidebar-title mb-0 py-0">
+      <a href="../">ADM Companion</a> 
+        <div class="sidebar-tools-main">
+  <a href="" class="quarto-color-scheme-toggle quarto-navigation-tool  px-1" onclick="window.quartoToggleColorScheme(); return false;" title="Toggle dark mode"><i class="bi"></i></a>
+</div>
+    </div>
+      </div>
+        <div class="mt-2 flex-shrink-0 align-items-center">
+        <div class="sidebar-search">
+        <div id="quarto-search" class="" title="Search"></div>
+        </div>
+        </div>
+    <div class="sidebar-menu-container"> 
+    <ul class="list-unstyled mt-1">
+        <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../index.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Algorithms for Decision Making - Companion</span></a>
+  </div>
+</li>
+        <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../notation.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Notation</span></a>
+  </div>
+</li>
+        <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../cheatsheets.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Cheat sheets</span></a>
+  </div>
+</li>
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-1" role="navigation" aria-expanded="false">
+ <span class="menu-text">Introduction</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-1" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-1" class="collapse list-unstyled sidebar-section depth1 ">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../intro/ch01-introduction.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">1 · Introduction</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-2" role="navigation" aria-expanded="true">
+ <span class="menu-text">Part I — Probabilistic Reasoning</span></a>
+          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-2" role="navigation" aria-expanded="true" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-2" class="collapse list-unstyled sidebar-section depth1 show">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../part1/ch02-representation.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">2 · Representation</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../part1/ch03-inference.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">3 · Inference</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../part1/ch04-parameter-learning.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">4 · Parameter Learning</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../part1/ch05-structure-learning.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">5 · Structure Learning</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../part1/ch06-simple-decisions.html" class="sidebar-item-text sidebar-link active">
+ <span class="menu-text">6 · Simple Decisions</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-3" role="navigation" aria-expanded="false">
+ <span class="menu-text">Part II — Sequential Problems</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-3" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-3" class="collapse list-unstyled sidebar-section depth1 ">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../part2/ch07-exact-solution-methods.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">7 · Exact Solution Methods</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../part2/ch08-approximate-value-functions.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">8 · Approximate Value Functions</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../part2/ch09-online-planning.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">9 · Online Planning</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../part2/ch10-policy-search.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">10 · Policy Search</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../part2/ch11-policy-gradient-estimation.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">11 · Policy Gradient Estimation</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../part2/ch12-policy-gradient-optimization.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">12 · Policy Gradient Optimization</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../part2/ch13-actor-critic-methods.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">13 · Actor-Critic Methods</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../part2/ch14-policy-validation.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">14 · Policy Validation</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-4" role="navigation" aria-expanded="false">
+ <span class="menu-text">Part III — Model Uncertainty</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-4" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-4" class="collapse list-unstyled sidebar-section depth1 ">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../part3/ch15-exploration-and-exploitation.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">15 · Exploration and Exploitation</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../part3/ch16-model-based-methods.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">16 · Model-Based Methods</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../part3/ch17-model-free-methods.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">17 · Model-Free Methods</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../part3/ch18-imitation-learning.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">18 · Imitation Learning</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-5" role="navigation" aria-expanded="false">
+ <span class="menu-text">Part IV — State Uncertainty</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-5" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-5" class="collapse list-unstyled sidebar-section depth1 ">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../part4/ch19-beliefs.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">19 · Beliefs</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../part4/ch20-exact-belief-state-planning.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">20 · Exact Belief State Planning</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../part4/ch21-offline-belief-state-planning.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">21 · Offline Belief State Planning</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../part4/ch22-online-belief-state-planning.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">22 · Online Belief State Planning</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../part4/ch23-controller-abstractions.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">23 · Controller Abstractions</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-6" role="navigation" aria-expanded="false">
+ <span class="menu-text">Part V — Multiagent Systems</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-6" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-6" class="collapse list-unstyled sidebar-section depth1 ">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../part5/ch24-multiagent-reasoning.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">24 · Multiagent Reasoning</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../part5/ch25-sequential-problems.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">25 · Sequential Problems</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../part5/ch26-state-uncertainty.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">26 · State Uncertainty</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../part5/ch27-collaborative-agents.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">27 · Collaborative Agents</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-7" role="navigation" aria-expanded="false">
+ <span class="menu-text">Appendices</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-7" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-7" class="collapse list-unstyled sidebar-section depth1 ">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../appendices/a-mathematical-concepts.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">A · Mathematical Concepts</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../appendices/b-probability-distributions.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">B · Probability Distributions</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../appendices/c-computational-complexity.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">C · Computational Complexity</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../appendices/d-neural-representations.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">D · Neural Representations</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../appendices/e-search-algorithms.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">E · Search Algorithms</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../appendices/f-problems.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">F · Problems</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+    </ul>
+    </div>
+</nav>
+<div id="quarto-sidebar-glass" class="quarto-sidebar-collapse-item" data-bs-toggle="collapse" data-bs-target=".quarto-sidebar-collapse-item"></div>
+<!-- margin-sidebar -->
+    <div id="quarto-margin-sidebar" class="sidebar margin-sidebar">
+        <nav id="TOC" role="doc-toc" class="toc-active">
+    <h2 id="toc-title">On this page</h2>
+   
+  <ul>
+  <li><a href="#big-picture" id="toc-big-picture" class="nav-link active" data-scroll-target="#big-picture">Big picture</a>
+  <ul class="collapse">
+  <li><a href="#where-this-chapter-fits" id="toc-where-this-chapter-fits" class="nav-link" data-scroll-target="#where-this-chapter-fits">Where this chapter fits</a></li>
+  <li><a href="#the-key-ideas-at-a-glance" id="toc-the-key-ideas-at-a-glance" class="nav-link" data-scroll-target="#the-key-ideas-at-a-glance">The key ideas at a glance</a></li>
+  <li><a href="#vocabulary" id="toc-vocabulary" class="nav-link" data-scroll-target="#vocabulary">Vocabulary</a></li>
+  <li><a href="#after-this-chapter-you-can" id="toc-after-this-chapter-you-can" class="nav-link" data-scroll-target="#after-this-chapter-you-can">After this chapter you can</a></li>
+  </ul></li>
+  <li><a href="#intuition" id="toc-intuition" class="nav-link" data-scroll-target="#intuition">Intuition</a>
+  <ul class="collapse">
+  <li><a href="#why-numbers-at-all" id="toc-why-numbers-at-all" class="nav-link" data-scroll-target="#why-numbers-at-all">Why numbers at all?</a></li>
+  <li><a href="#risk-attitude-is-curvature" id="toc-risk-attitude-is-curvature" class="nav-link" data-scroll-target="#risk-attitude-is-curvature">Risk attitude is curvature</a></li>
+  <li><a href="#measuring-a-utility" id="toc-measuring-a-utility" class="nav-link" data-scroll-target="#measuring-a-utility">Measuring a utility</a></li>
+  <li><a href="#maximizing-expected-utility" id="toc-maximizing-expected-utility" class="nav-link" data-scroll-target="#maximizing-expected-utility">Maximizing expected utility</a></li>
+  <li><a href="#what-a-look-is-worth" id="toc-what-a-look-is-worth" class="nav-link" data-scroll-target="#what-a-look-is-worth">What a look is worth</a></li>
+  <li><a href="#when-people-arent-rational" id="toc-when-people-arent-rational" class="nav-link" data-scroll-target="#when-people-arent-rational">When people aren’t rational</a></li>
+  </ul></li>
+  <li><a href="#formalism" id="toc-formalism" class="nav-link" data-scroll-target="#formalism">Formalism</a>
+  <ul class="collapse">
+  <li><a href="#rational-preferences" id="toc-rational-preferences" class="nav-link" data-scroll-target="#rational-preferences">Rational preferences</a></li>
+  <li><a href="#utility" id="toc-utility" class="nav-link" data-scroll-target="#utility">Utility</a></li>
+  <li><a href="#measuring-utility" id="toc-measuring-utility" class="nav-link" data-scroll-target="#measuring-utility">Measuring utility</a></li>
+  <li><a href="#maximum-expected-utility" id="toc-maximum-expected-utility" class="nav-link" data-scroll-target="#maximum-expected-utility">Maximum expected utility</a></li>
+  <li><a href="#value-of-information" id="toc-value-of-information" class="nav-link" data-scroll-target="#value-of-information">Value of information</a></li>
+  <li><a href="#irrationality" id="toc-irrationality" class="nav-link" data-scroll-target="#irrationality">Irrationality</a></li>
+  </ul></li>
+  <li><a href="#worked-example" id="toc-worked-example" class="nav-link" data-scroll-target="#worked-example">Worked example</a>
+  <ul class="collapse">
+  <li><a href="#the-commute-decision-by-hand" id="toc-the-commute-decision-by-hand" class="nav-link" data-scroll-target="#the-commute-decision-by-hand">The commute decision by hand</a></li>
+  <li><a href="#a-certainty-equivalent" id="toc-a-certainty-equivalent" class="nav-link" data-scroll-target="#a-certainty-equivalent">A certainty equivalent</a></li>
+  </ul></li>
+  <li><a href="#interactive" id="toc-interactive" class="nav-link" data-scroll-target="#interactive">Interactive</a>
+  <ul class="collapse">
+  <li><a href="#what-should-i-do-this-morning" id="toc-what-should-i-do-this-morning" class="nav-link" data-scroll-target="#what-should-i-do-this-morning">What should I do this morning?</a></li>
+  <li><a href="#would-you-take-the-gamble" id="toc-would-you-take-the-gamble" class="nav-link" data-scroll-target="#would-you-take-the-gamble">Would you take the gamble?</a></li>
+  </ul></li>
+  <li><a href="#algorithms-code" id="toc-algorithms-code" class="nav-link" data-scroll-target="#algorithms-code">Algorithms &amp; code</a>
+  <ul class="collapse">
+  <li><a href="#utility-and-risk" id="toc-utility-and-risk" class="nav-link" data-scroll-target="#utility-and-risk">Utility and risk</a></li>
+  <li><a href="#solving-a-decision-network-and-the-value-of-information" id="toc-solving-a-decision-network-and-the-value-of-information" class="nav-link" data-scroll-target="#solving-a-decision-network-and-the-value-of-information">Solving a decision network, and the value of information</a></li>
+  <li><a href="#run-them-on-the-commute-decision" id="toc-run-them-on-the-commute-decision" class="nav-link" data-scroll-target="#run-them-on-the-commute-decision">Run them on the commute decision</a></li>
+  <li><a href="#results" id="toc-results" class="nav-link" data-scroll-target="#results">Results</a></li>
+  </ul></li>
+  <li><a href="#solved-problems" id="toc-solved-problems" class="nav-link" data-scroll-target="#solved-problems">Solved problems</a></li>
+  <li><a href="#recap" id="toc-recap" class="nav-link" data-scroll-target="#recap">Recap</a></li>
+  <li><a href="#cheat-sheet-connections" id="toc-cheat-sheet-connections" class="nav-link" data-scroll-target="#cheat-sheet-connections">Cheat sheet &amp; connections</a></li>
+  </ul>
+</nav>
+    </div>
+<!-- main -->
+<main class="content" id="quarto-document-content">
+
+
+<header id="title-block-header" class="quarto-title-block default"><nav class="quarto-page-breadcrumbs quarto-title-breadcrumbs d-none d-lg-block" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="../part1/ch02-representation.html">Part I — Probabilistic Reasoning</a></li><li class="breadcrumb-item"><a href="../part1/ch06-simple-decisions.html">6 · Simple Decisions</a></li></ol></nav>
+<div class="quarto-title">
+<h1 class="title">6 · Simple Decisions</h1>
+<p class="subtitle lead">Part I — Probabilistic Reasoning</p>
+</div>
+
+
+
+<div class="quarto-title-meta">
+
+    
+  
+    
+  </div>
+  
+
+
+</header>
+
+
+<div class="callout callout-style-simple callout-note no-icon">
+<div class="callout-body d-flex">
+<div class="callout-icon-container">
+<i class="callout-icon no-icon"></i>
+</div>
+<div class="callout-body-container">
+<p><strong>Executed in:</strong> Python · <strong>Book:</strong> ADM Ch. 6 · <strong>Lecture:</strong> to be added</p>
+</div>
+</div>
+</div>
+<!-- TODO(video): link the official Stanford AA228 lecture on simple decisions / utility theory. -->
+<section id="big-picture" class="level2">
+<h2 class="anchored" data-anchor-id="big-picture">Big picture</h2>
+<section id="where-this-chapter-fits" class="level3">
+<h3 class="anchored" data-anchor-id="where-this-chapter-fits">Where this chapter fits</h3>
+<p>Chapters 2–5 were about <em>belief</em>: representing uncertainty, reasoning with it, and learning it from data. But the book is about <em>decisions</em>, and a belief alone doesn’t tell you what to do. This chapter adds the missing ingredient, <strong>preferences</strong>, and combines them with beliefs to choose actions. It’s the smallest complete decision problem: one choice, made once. Part II (<a href="../part2/ch07-exact-solution-methods.html">Chapter 7</a> onward) chains such choices over time, Part III learns the model while deciding, and Part IV decides without knowing the state. Every one of them rests on the principle introduced here: <strong>choose the action with the highest expected utility.</strong></p>
+<p><strong>The question:</strong> when the outcome of each choice is uncertain, how should a rational agent choose, and how much should it pay to learn more before choosing?</p>
+<p>The short answer: <strong>assign each outcome a number, its utility, that captures how much you want it. Then pick the action whose probability-weighted average utility is highest. Information is worth exactly how much it improves that average, by letting you pick better.</strong></p>
+<div class="cell" data-fig-width="7" data-fig-height="3" data-layout-align="default">
+<div class="cell-output-display">
+<div id="fig-ch06-map" class="quarto-float quarto-figure quarto-figure-center anchored">
+<figure class="quarto-float quarto-float-fig figure">
+<div aria-describedby="fig-ch06-map-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<div>
+<svg width="672" height="288" viewbox="0.00 0.00 528.62 227.20" xmlns="http://www.w3.org/2000/svg" xlink="http://www.w3.org/1999/xlink" style="; max-width: none; max-height: none">
+<g id="graph0" class="graph" transform="scale(1 1) rotate(0) translate(18 209.2)">
+<title>ch06</title>
+<polygon fill="#fcfcfb" stroke="transparent" points="-18,18 -18,-209.2 510.62,-209.2 510.62,18 -18,18"></polygon>
+<!-- pref -->
+<g id="node1" class="node">
+<title>pref</title>
+<path fill="white" stroke="#c3c2b7" stroke-width="1.2" d="M82.66,-186.7C82.66,-186.7 11.78,-186.7 11.78,-186.7 5.78,-186.7 -0.22,-180.7 -0.22,-174.7 -0.22,-174.7 -0.22,-162.7 -0.22,-162.7 -0.22,-156.7 5.78,-150.7 11.78,-150.7 11.78,-150.7 82.66,-150.7 82.66,-150.7 88.66,-150.7 94.66,-156.7 94.66,-162.7 94.66,-162.7 94.66,-174.7 94.66,-174.7 94.66,-180.7 88.66,-186.7 82.66,-186.7"></path>
+<text text-anchor="start" x="10" y="-170" font-family="Helvetica,sans-Serif" font-weight="bold" font-size="13.00" fill="#0b0b0b">Preferences</text>
+<text text-anchor="start" x="18.79" y="-158.8" font-family="Helvetica,sans-Serif" font-size="11.00" fill="#0b0b0b">four axioms</text>
+</g>
+<!-- util -->
+<g id="node2" class="node">
+<title>util</title>
+<path fill="white" stroke="#c3c2b7" stroke-width="1.2" d="M266.95,-191.2C266.95,-191.2 157.49,-191.2 157.49,-191.2 151.49,-191.2 145.49,-185.2 145.49,-179.2 145.49,-179.2 145.49,-158.2 145.49,-158.2 145.49,-152.2 151.49,-146.2 157.49,-146.2 157.49,-146.2 266.95,-146.2 266.95,-146.2 272.95,-146.2 278.95,-152.2 278.95,-158.2 278.95,-158.2 278.95,-179.2 278.95,-179.2 278.95,-185.2 272.95,-191.2 266.95,-191.2"></path>
+<text text-anchor="start" x="194.16" y="-175.5" font-family="Helvetica,sans-Serif" font-weight="bold" font-size="13.00" fill="#0b0b0b">Utility</text>
+<text text-anchor="start" x="155.36" y="-164.3" font-family="Helvetica,sans-Serif" font-size="11.00" fill="#0b0b0b">a number per outcome;</text>
+<text text-anchor="start" x="162.84" y="-153.3" font-family="Helvetica,sans-Serif" font-size="11.00" fill="#0b0b0b">shape = risk attitude</text>
+</g>
+<!-- pref&#45;&gt;util -->
+<g id="edge1" class="edge">
+<title>pref-&gt;util</title>
+<path fill="none" stroke="#52514e" stroke-width="1.2" d="M94.5,-168.7C108.09,-168.7 123.24,-168.7 138.03,-168.7"></path>
+<polygon fill="#52514e" stroke="#52514e" stroke-width="1.2" points="138.26,-171.15 145.26,-168.7 138.26,-166.25 138.26,-171.15"></polygon>
+<text text-anchor="middle" x="119.9" y="-175" font-family="Helvetica,sans-Serif" font-size="11.00" fill="#52514e">imply</text>
+</g>
+<!-- meu -->
+<g id="node4" class="node">
+<title>meu</title>
+<path fill="#cde2fb" stroke="#2a78d6" stroke-width="1.2" d="M357.43,-115.2C357.43,-115.2 203.01,-115.2 203.01,-115.2 197.01,-115.2 191.01,-109.2 191.01,-103.2 191.01,-103.2 191.01,-91.2 191.01,-91.2 191.01,-85.2 197.01,-79.2 203.01,-79.2 203.01,-79.2 357.43,-79.2 357.43,-79.2 363.43,-79.2 369.43,-85.2 369.43,-91.2 369.43,-91.2 369.43,-103.2 369.43,-103.2 369.43,-109.2 363.43,-115.2 357.43,-115.2"></path>
+<text text-anchor="start" x="201.11" y="-98.5" font-family="Helvetica,sans-Serif" font-weight="bold" font-size="13.00" fill="#0b0b0b">Maximum expected utility</text>
+<text text-anchor="start" x="227.94" y="-87.3" font-family="Helvetica,sans-Serif" font-size="11.00" fill="#0b0b0b">pick the best average</text>
+</g>
+<!-- util&#45;&gt;meu -->
+<g id="edge2" class="edge">
+<title>util-&gt;meu</title>
+<path fill="none" stroke="#52514e" stroke-width="1.2" d="M233.36,-146.09C241.22,-138.06 250.15,-128.93 258.09,-120.82"></path>
+<polygon fill="#52514e" stroke="#52514e" stroke-width="1.2" points="260.26,-122.1 263.41,-115.39 256.76,-118.68 260.26,-122.1"></polygon>
+</g>
+<!-- belief -->
+<g id="node3" class="node">
+<title>belief</title>
+<path fill="white" stroke="#c3c2b7" stroke-width="1.2" d="M380.81,-186.7C380.81,-186.7 315.63,-186.7 315.63,-186.7 309.63,-186.7 303.63,-180.7 303.63,-174.7 303.63,-174.7 303.63,-162.7 303.63,-162.7 303.63,-156.7 309.63,-150.7 315.63,-150.7 315.63,-150.7 380.81,-150.7 380.81,-150.7 386.81,-150.7 392.81,-156.7 392.81,-162.7 392.81,-162.7 392.81,-174.7 392.81,-174.7 392.81,-180.7 386.81,-186.7 380.81,-186.7"></path>
+<text text-anchor="start" x="326.9" y="-170" font-family="Helvetica,sans-Serif" font-weight="bold" font-size="13.00" fill="#0b0b0b">Beliefs</text>
+<text text-anchor="start" x="313.67" y="-158.8" font-family="Helvetica,sans-Serif" font-size="11.00" fill="#0b0b0b">Chapters 2–5</text>
+</g>
+<!-- belief&#45;&gt;meu -->
+<g id="edge3" class="edge">
+<title>belief-&gt;meu</title>
+<path fill="none" stroke="#52514e" stroke-width="1.2" d="M331.41,-150.52C322.65,-141.57 311.82,-130.5 302.39,-120.85"></path>
+<polygon fill="#52514e" stroke="#52514e" stroke-width="1.2" points="303.95,-118.95 297.31,-115.66 300.45,-122.38 303.95,-118.95"></polygon>
+</g>
+<!-- dn -->
+<g id="node5" class="node">
+<title>dn</title>
+<path fill="white" stroke="#c3c2b7" stroke-width="1.2" d="M170.59,-36C170.59,-36 59.85,-36 59.85,-36 53.85,-36 47.85,-30 47.85,-24 47.85,-24 47.85,-12 47.85,-12 47.85,-6 53.85,0 59.85,0 59.85,0 170.59,0 170.59,0 176.59,0 182.59,-6 182.59,-12 182.59,-12 182.59,-24 182.59,-24 182.59,-30 176.59,-36 170.59,-36"></path>
+<text text-anchor="start" x="57.79" y="-19.3" font-family="Helvetica,sans-Serif" font-weight="bold" font-size="13.00" fill="#0b0b0b">Decision networks</text>
+<text text-anchor="start" x="58.66" y="-8.1" font-family="Helvetica,sans-Serif" font-size="11.00" fill="#0b0b0b">chance, decision, utility</text>
+</g>
+<!-- meu&#45;&gt;dn -->
+<g id="edge4" class="edge">
+<title>meu-&gt;dn</title>
+<path fill="none" stroke="#52514e" stroke-width="1.2" d="M243.6,-79.07C218.39,-67.27 184.81,-51.56 158.31,-39.16"></path>
+<polygon fill="#52514e" stroke="#52514e" stroke-width="1.2" points="159.11,-36.83 151.74,-36.09 157.04,-41.27 159.11,-36.83"></polygon>
+<text text-anchor="middle" x="229.32" y="-54.3" font-family="Helvetica,sans-Serif" font-size="11.00" fill="#52514e">organize</text>
+</g>
+<!-- voi -->
+<g id="node6" class="node">
+<title>voi</title>
+<path fill="white" stroke="#c3c2b7" stroke-width="1.2" d="M340.89,-36C340.89,-36 219.55,-36 219.55,-36 213.55,-36 207.55,-30 207.55,-24 207.55,-24 207.55,-12 207.55,-12 207.55,-6 213.55,0 219.55,0 219.55,0 340.89,0 340.89,0 346.89,0 352.89,-6 352.89,-12 352.89,-12 352.89,-24 352.89,-24 352.89,-30 346.89,-36 340.89,-36"></path>
+<text text-anchor="start" x="217.38" y="-19.3" font-family="Helvetica,sans-Serif" font-weight="bold" font-size="13.00" fill="#0b0b0b">Value of information</text>
+<text text-anchor="start" x="231.92" y="-8.1" font-family="Helvetica,sans-Serif" font-size="11.00" fill="#0b0b0b">what a look is worth</text>
+</g>
+<!-- meu&#45;&gt;voi -->
+<g id="edge5" class="edge">
+<title>meu-&gt;voi</title>
+<path fill="none" stroke="#52514e" stroke-width="1.2" d="M280.22,-79.07C280.22,-68.57 280.22,-54.97 280.22,-43.37"></path>
+<polygon fill="#52514e" stroke="#52514e" stroke-width="1.2" points="282.67,-43.09 280.22,-36.09 277.77,-43.09 282.67,-43.09"></polygon>
+<text text-anchor="middle" x="292.14" y="-54.3" font-family="Helvetica,sans-Serif" font-size="11.00" fill="#52514e">price</text>
+</g>
+<!-- irr -->
+<g id="node7" class="node">
+<title>irr</title>
+<path fill="white" stroke="#c3c2b7" stroke-width="1.2" d="M480.51,-36C480.51,-36 389.92,-36 389.92,-36 383.92,-36 377.92,-30 377.92,-24 377.92,-24 377.92,-12 377.92,-12 377.92,-6 383.92,0 389.92,0 389.92,0 480.51,0 480.51,0 486.51,0 492.51,-6 492.51,-12 492.51,-12 492.51,-24 492.51,-24 492.51,-30 486.51,-36 480.51,-36"></path>
+<text text-anchor="start" x="399.82" y="-19.3" font-family="Helvetica,sans-Serif" font-weight="bold" font-size="13.00" fill="#0b0b0b">Irrationality</text>
+<text text-anchor="start" x="387.82" y="-8.1" font-family="Helvetica,sans-Serif" font-size="11.00" fill="#0b0b0b">how people deviate</text>
+</g>
+<!-- meu&#45;&gt;irr -->
+<g id="edge6" class="edge">
+<title>meu-&gt;irr</title>
+<path fill="none" stroke="#52514e" stroke-width="1.2" stroke-dasharray="5,2" d="M314.62,-79.07C338.2,-67.32 369.58,-51.69 394.42,-39.32"></path>
+<polygon fill="#52514e" stroke="#52514e" stroke-width="1.2" points="395.74,-41.4 400.92,-36.09 393.56,-37.01 395.74,-41.4"></polygon>
+<text text-anchor="middle" x="391.29" y="-54.3" font-family="Helvetica,sans-Serif" font-size="11.00" fill="#52514e">vs. people</text>
+</g>
+</g>
+</svg>
+</div>
+</div>
+<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-ch06-map-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Figure&nbsp;1: Map of this chapter. Rational preferences imply utilities; utilities plus beliefs give expected utility; maximizing it picks the action. Decision networks organize the calculation, value of information prices extra observations, and real people deviate in systematic ways.
+</figcaption>
+</figure>
+</div>
+</div>
+</div>
+</section>
+<section id="the-key-ideas-at-a-glance" class="level3">
+<h3 class="anchored" data-anchor-id="the-key-ideas-at-a-glance">The key ideas at a glance</h3>
+<ol type="1">
+<li><p><strong>Rational preferences can be written as numbers.</strong> Suppose your preferences between outcomes, and between gambles over outcomes, obey four common-sense rules:</p>
+<ul>
+<li>you can always compare two options (<strong>completeness</strong>);</li>
+<li>you’re consistent (<strong>transitivity</strong>: if you prefer A to B and B to C, you prefer A to C);</li>
+<li>no outcome is infinitely good or bad (<strong>continuity</strong>);</li>
+<li>mixing both options with the same third one doesn’t flip your choice (<strong>independence</strong>).</li>
+</ul>
+<p>Then there is a number, a <strong>utility</strong>, for each outcome, such that you prefer one gamble to another exactly when its average utility is higher. This is the von Neumann–Morgenstern theorem.</p></li>
+<li><p><strong>The shape of your utility is your attitude to risk.</strong> Money isn’t utility. If an extra $100 means less to you once you already have $100, your utility curve bends downward (<strong>concave</strong>), and you’ll take a sure $40 over a coin flip for $0 or $100. You’re <strong>risk averse</strong>. A straight line is <strong>risk neutral</strong>; an upward bend is <strong>risk seeking</strong>. The <strong>certainty equivalent</strong> of a gamble is the sure amount you’d trade it for.</p></li>
+<li><p><strong>Utilities can be measured by asking about gambles.</strong> Fix your worst outcome at utility 0 and your best at 1. Any other outcome’s utility is the probability <span class="math inline">\(p\)</span> at which you’d be indifferent between getting it for sure and a gamble with a <span class="math inline">\(p\)</span> chance of the best outcome (and otherwise the worst).</p></li>
+<li><p><strong>Choose the action with the maximum expected utility (MEU).</strong> For each action, average the utility of its possible outcomes, weighted by their probabilities given what you know. Pick the largest. That’s the whole decision rule, and a <strong>decision network</strong> organizes it: a Bayesian network plus a decision node and a utility node, solved with the inference of <a href="../part1/ch03-inference.html">Chapter 3</a>.</p></li>
+<li><p><strong>Information is worth what it changes.</strong> The <strong>value of information</strong> of an observation is how much better, on average, your best decision becomes once you see it before deciding. It’s never negative, and it’s exactly zero when no possible result would change your choice. A traffic app that shows the jam is worth more than a radio that only hints at storms, because it speaks more directly to what matters.</p></li>
+<li><p><strong>Real people aren’t always rational.</strong> People systematically violate the axioms. They overvalue certainty, and they flip choices depending on whether the same options are described as gains or losses. Maximum expected utility is a standard for <em>good</em> decisions, not a description of how people actually decide.</p></li>
+</ol>
+</section>
+<section id="vocabulary" class="level3">
+<h3 class="anchored" data-anchor-id="vocabulary">Vocabulary</h3>
+<div id="tbl-vocab" class="quarto-float quarto-figure quarto-figure-center anchored">
+<figure class="quarto-float quarto-float-tbl figure">
+<figcaption class="quarto-float-caption-top quarto-float-caption quarto-float-tbl" id="tbl-vocab-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Table&nbsp;1: Terms used on this page.
+</figcaption>
+<div aria-describedby="tbl-vocab-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<table class="caption-top table">
+<colgroup>
+<col style="width: 50%">
+<col style="width: 50%">
+</colgroup>
+<thead>
+<tr class="header">
+<th style="text-align: left;">Term</th>
+<th style="text-align: left;">Plain meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td style="text-align: left;">Lottery <span class="math inline">\([S_1: p_1; \ldots; S_n: p_n]\)</span></td>
+<td style="text-align: left;">A gamble with outcome <span class="math inline">\(S_i\)</span> at probability <span class="math inline">\(p_i\)</span></td>
+</tr>
+<tr class="even">
+<td style="text-align: left;">Preference <span class="math inline">\(A \succ B\)</span>, <span class="math inline">\(A \sim B\)</span></td>
+<td style="text-align: left;"><span class="math inline">\(A\)</span> is preferred to <span class="math inline">\(B\)</span>; indifferent between them</td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;">Utility <span class="math inline">\(U\)</span></td>
+<td style="text-align: left;">A number per outcome such that higher average utility means preferred</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;">Expected utility <span class="math inline">\(EU\)</span></td>
+<td style="text-align: left;">The probability-weighted average of utility</td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;">Risk averse / neutral / seeking</td>
+<td style="text-align: left;">Concave / straight / convex utility of money</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;">Certainty equivalent</td>
+<td style="text-align: left;">The sure amount worth the same as a gamble</td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;">Decision network</td>
+<td style="text-align: left;">Chance nodes, decision nodes, and a utility node</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;">Maximum expected utility (MEU)</td>
+<td style="text-align: left;">Choose the action with the highest expected utility</td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;">Value of information (VOI)</td>
+<td style="text-align: left;">How much seeing something before deciding improves expected utility</td>
+</tr>
+</tbody>
+</table>
+</div>
+</figure>
+</div>
+</section>
+<section id="after-this-chapter-you-can" class="level3">
+<h3 class="anchored" data-anchor-id="after-this-chapter-you-can">After this chapter you can</h3>
+<ul>
+<li>State the rationality axioms, and explain what a utility function is and why it exists.</li>
+<li>Read risk attitudes off a utility curve, and compute a certainty equivalent.</li>
+<li>Solve a decision network for the best action given any evidence.</li>
+<li>Compute the value of an observation, and predict when it will be zero.</li>
+<li>Recognize common ways human choices violate expected utility.</li>
+</ul>
+</section>
+</section>
+<section id="intuition" class="level2">
+<h2 class="anchored" data-anchor-id="intuition">Intuition</h2>
+<div class="callout callout-style-default callout-tip callout-titled" title="Analogy">
+<div class="callout-header d-flex align-content-center">
+<div class="callout-icon-container">
+<i class="callout-icon"></i>
+</div>
+<div class="callout-title-container flex-fill">
+<span class="screen-reader-only">Tip</span>Analogy
+</div>
+</div>
+<div class="callout-body-container callout-body">
+<p>Every morning you decide how to commute: leave at the usual time, leave 30 minutes early, or stay home and work remotely. None of these guarantees a good outcome, because a traffic jam may or may not happen. A sensible commuter does three things without thinking of them as math:</p>
+<ul>
+<li><strong>puts a price on each outcome</strong>: being late is bad (10 points), losing sleep is mildly bad (2), a lost workday is worse (6);</li>
+<li><strong>weighs each option by how likely each outcome is</strong>, given what they know;</li>
+<li><strong>picks the option with the best weighted average.</strong></li>
+</ul>
+<p>Sometimes it’s worth first checking the radio or a traffic app, but only if what they might see could change the plan.</p>
+</div>
+</div>
+<p><a href="#fig-decision-network" class="quarto-xref">Figure&nbsp;2</a> draws the commute decision. It’s the commute network from <a href="../part1/ch02-representation.html">Chapter 2</a>, plus a decision (what to do) and a utility (how good the result is).</p>
+<div class="cell" data-fig-width="4.9" data-fig-height="3.6" data-layout-align="default">
+<div class="cell-output-display">
+<div id="fig-decision-network" class="quarto-float quarto-figure quarto-figure-center anchored">
+<figure class="quarto-float quarto-float-fig figure">
+<div aria-describedby="fig-decision-network-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<div>
+<svg width="470" height="346" viewbox="0.00 0.00 352.48 259.80" xmlns="http://www.w3.org/2000/svg" xlink="http://www.w3.org/1999/xlink" style="; max-width: none; max-height: none">
+<g id="graph0" class="graph" transform="scale(1 1) rotate(0) translate(14.4 245.4)">
+<title>dn</title>
+<polygon fill="#fcfcfb" stroke="transparent" points="-14.4,14.4 -14.4,-245.4 338.08,-245.4 338.08,14.4 -14.4,14.4"></polygon>
+<!-- S -->
+<g id="node1" class="node">
+<title>S</title>
+<ellipse fill="white" stroke="#52514e" stroke-width="1.2" cx="154.99" cy="-213" rx="30.82" ry="18"></ellipse>
+<text text-anchor="middle" x="154.99" y="-209.4" font-family="Helvetica,sans-Serif" font-size="12.00" fill="#0b0b0b">Storm</text>
+</g>
+<!-- J -->
+<g id="node3" class="node">
+<title>J</title>
+<ellipse fill="white" stroke="#52514e" stroke-width="1.2" cx="45.99" cy="-148" rx="45.98" ry="18"></ellipse>
+<text text-anchor="middle" x="45.99" y="-144.4" font-family="Helvetica,sans-Serif" font-size="12.00" fill="#0b0b0b">Traffic jam</text>
+</g>
+<!-- S&#45;&gt;J -->
+<g id="edge1" class="edge">
+<title>S-&gt;J</title>
+<path fill="none" stroke="#52514e" d="M133.97,-199.85C117.6,-190.39 94.65,-177.13 76.29,-166.52"></path>
+<polygon fill="#52514e" stroke="#52514e" points="77,-164.5 70.76,-163.32 74.9,-168.14 77,-164.5"></polygon>
+</g>
+<!-- A -->
+<g id="node4" class="node">
+<title>A</title>
+<ellipse fill="white" stroke="#52514e" stroke-width="1.2" cx="163.99" cy="-148" rx="47.07" ry="18"></ellipse>
+<text text-anchor="middle" x="163.99" y="-144.4" font-family="Helvetica,sans-Serif" font-size="12.00" fill="#0b0b0b">Radio alert</text>
+</g>
+<!-- S&#45;&gt;A -->
+<g id="edge3" class="edge">
+<title>S-&gt;A</title>
+<path fill="none" stroke="#52514e" d="M157.45,-194.78C158.44,-187.84 159.6,-179.72 160.67,-172.26"></path>
+<polygon fill="#52514e" stroke="#52514e" points="162.76,-172.43 161.53,-166.19 158.61,-171.84 162.76,-172.43"></polygon>
+</g>
+<!-- R -->
+<g id="node2" class="node">
+<title>R</title>
+<ellipse fill="white" stroke="#52514e" stroke-width="1.2" cx="45.99" cy="-213" rx="44.95" ry="18"></ellipse>
+<text text-anchor="middle" x="45.99" y="-209.4" font-family="Helvetica,sans-Serif" font-size="12.00" fill="#0b0b0b">Roadwork</text>
+</g>
+<!-- R&#45;&gt;J -->
+<g id="edge2" class="edge">
+<title>R-&gt;J</title>
+<path fill="none" stroke="#52514e" d="M45.99,-194.78C45.99,-187.84 45.99,-179.72 45.99,-172.26"></path>
+<polygon fill="#52514e" stroke="#52514e" points="48.09,-172.19 45.99,-166.19 43.89,-172.19 48.09,-172.19"></polygon>
+</g>
+<!-- L -->
+<g id="node5" class="node">
+<title>L</title>
+<ellipse fill="white" stroke="#52514e" stroke-width="1.2" cx="214.99" cy="-83" rx="27" ry="18"></ellipse>
+<text text-anchor="middle" x="214.99" y="-79.4" font-family="Helvetica,sans-Serif" font-size="12.00" fill="#0b0b0b">Late</text>
+</g>
+<!-- J&#45;&gt;L -->
+<g id="edge4" class="edge">
+<title>J-&gt;L</title>
+<path fill="none" stroke="#52514e" d="M78.17,-135C109.33,-123.39 156.13,-105.94 186.11,-94.77"></path>
+<polygon fill="#52514e" stroke="#52514e" points="186.99,-96.68 191.87,-92.62 185.52,-92.74 186.99,-96.68"></polygon>
+</g>
+<!-- Ut -->
+<g id="node7" class="node">
+<title>Ut</title>
+<polygon fill="#f0efec" stroke="#52514e" stroke-width="1.2" points="246.99,-36 206.1,-18 246.99,0 287.88,-18 246.99,-36"></polygon>
+<text text-anchor="middle" x="246.99" y="-14.4" font-family="Helvetica,sans-Serif" font-size="12.00" fill="#0b0b0b">Utility</text>
+</g>
+<!-- L&#45;&gt;Ut -->
+<g id="edge6" class="edge">
+<title>L-&gt;Ut</title>
+<path fill="none" stroke="#52514e" d="M223.23,-65.78C227.38,-57.6 232.46,-47.61 236.85,-38.97"></path>
+<polygon fill="#52514e" stroke="#52514e" points="238.91,-39.54 239.76,-33.24 235.17,-37.64 238.91,-39.54"></polygon>
+</g>
+<!-- D -->
+<g id="node6" class="node">
+<title>D</title>
+<polygon fill="#cde2fb" stroke="#2a78d6" stroke-width="1.2" points="323.88,-166 236.1,-166 236.1,-130 323.88,-130 323.88,-166"></polygon>
+<text text-anchor="middle" x="279.99" y="-144.4" font-family="Helvetica,sans-Serif" font-size="12.00" fill="#0b0b0b">Leave when?</text>
+</g>
+<!-- D&#45;&gt;L -->
+<g id="edge5" class="edge">
+<title>D-&gt;L</title>
+<path fill="none" stroke="#52514e" d="M262.23,-129.78C253.6,-121.42 243.22,-111.36 234.38,-102.8"></path>
+<polygon fill="#52514e" stroke="#52514e" points="235.43,-100.88 229.66,-98.22 232.5,-103.9 235.43,-100.88"></polygon>
+</g>
+<!-- D&#45;&gt;Ut -->
+<g id="edge7" class="edge">
+<title>D-&gt;Ut</title>
+<path fill="none" stroke="#52514e" d="M275.54,-129.74C269.57,-106.59 258.98,-65.5 252.51,-40.41"></path>
+<polygon fill="#52514e" stroke="#52514e" points="254.49,-39.68 250.96,-34.39 250.42,-40.73 254.49,-39.68"></polygon>
+</g>
+</g>
+</svg>
+</div>
+</div>
+<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-decision-network-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Figure&nbsp;2: The commute decision network. Ovals are chance variables, the rectangle is the decision, and the diamond is the utility. Being late depends on the jam and on what you decide; the utility depends on being late and on the decision itself.
+</figcaption>
+</figure>
+</div>
+</div>
+</div>
+<section id="why-numbers-at-all" class="level3">
+<h3 class="anchored" data-anchor-id="why-numbers-at-all">Why numbers at all?</h3>
+<p>If your preferences are consistent, they can be summarized by numbers. Consistency rules out, for example, preferring on time to early, early to home, and home to on time. Someone with those circular tastes could be charged a small fee to switch at each step and would happily go around the circle forever, paying each time. That’s the “money pump” argument for transitivity. The four axioms together guarantee a utility scale, which is why “assign points, maximize the average” is a principled rule and not just a convenient one. See <a href="#eq-vnm" class="quarto-xref">Equation&nbsp;1</a> and <a href="#eq-lottery" class="quarto-xref">Equation&nbsp;2</a>.</p>
+</section>
+<section id="risk-attitude-is-curvature" class="level3">
+<h3 class="anchored" data-anchor-id="risk-attitude-is-curvature">Risk attitude is curvature</h3>
+<p>Offer a coin flip: $0 or $100. Its average is $50. Many people would rather have a sure $40. That’s rational if the second $50 matters less to them than the first. On a utility curve that bends downward (<a href="#fig-utility-shapes" class="quarto-xref">Figure&nbsp;5</a>), the gamble’s average <em>utility</em> lands below the utility of $50, and the sure amount worth the same (the certainty equivalent) is about $38 for one common curve. See <a href="#eq-certainty-equivalent" class="quarto-xref">Equation&nbsp;3</a>.</p>
+</section>
+<section id="measuring-a-utility" class="level3">
+<h3 class="anchored" data-anchor-id="measuring-a-utility">Measuring a utility</h3>
+<p>To find how much you value “arriving 10 minutes late”, compare it with a gamble: “arrive on time with probability <span class="math inline">\(p\)</span>, or an hour late otherwise”. Raise <span class="math inline">\(p\)</span> until you’re torn. If that happens at <span class="math inline">\(p = 0.7\)</span>, then on a scale where “on time” is 1 and “an hour late” is 0, “10 minutes late” is worth 0.7. See <a href="#eq-elicitation" class="quarto-xref">Equation&nbsp;5</a>.</p>
+</section>
+<section id="maximizing-expected-utility" class="level3">
+<h3 class="anchored" data-anchor-id="maximizing-expected-utility">Maximizing expected utility</h3>
+<p>With no information, a jam happens 25.4% of the time: - <strong>Leave on time:</strong> you’re late 16.4% of the time, costing <span class="math inline">\(10 \times 0.164 = 1.64\)</span> points on average. - <strong>Leave early:</strong> you pay 2 points for sure, plus a small lateness risk, for 2.25. - <strong>Stay home:</strong> 6.</p>
+<p>So you leave on time. If the radio issues a storm alert, a jam becomes 65% likely. Leaving on time now costs 3.44 on average, and leaving early only 2.65, so you leave early. The rule didn’t change; the probabilities did. See <a href="#eq-meu" class="quarto-xref">Equation&nbsp;6</a> and <a href="#fig-eu-vs-jam" class="quarto-xref">Figure&nbsp;6</a>.</p>
+</section>
+<section id="what-a-look-is-worth" class="level3">
+<h3 class="anchored" data-anchor-id="what-a-look-is-worth">What a look is worth</h3>
+<p>Before deciding, you could check the radio. It changes your decision only when it reports an alert (11% of mornings), and even then the gain is modest: it’s worth about 0.09 points on average. A traffic app that shows the jam itself is worth about 0.51, over five times as much, because it tells you exactly the thing your choice depends on. If you already know there’s a jam, the radio is worth nothing: no alert could change your mind. See <a href="#eq-voi" class="quarto-xref">Equation&nbsp;7</a>.</p>
+</section>
+<section id="when-people-arent-rational" class="level3">
+<h3 class="anchored" data-anchor-id="when-people-arent-rational">When people aren’t rational</h3>
+<p>In a famous experiment, most people prefer a sure $1 million to a gamble that is 89% $1M, 10% $5M and 1% $0. The same people then prefer “10% $5M” to “11% $1M” when neither is certain. No utility function makes both choices. The first choice says the 1% risk of nothing outweighs the extra 10% chance at $5M, and the second says the reverse, even though the second pair of options is just the first pair with the same 89% chunk removed. The pull of <em>certainty</em> is stronger than expected utility allows. See <a href="#irrationality">Irrationality</a>.</p>
+</section>
+</section>
+<section id="formalism" class="level2">
+<h2 class="anchored" data-anchor-id="formalism">Formalism</h2>
+<section id="rational-preferences" class="level3">
+<h3 class="anchored" data-anchor-id="rational-preferences">Rational preferences</h3>
+<p>Outcomes and gambles are compared with <strong>lotteries</strong>: <span class="math inline">\([S_1 : p_1; \ldots; S_n : p_n]\)</span> yields outcome <span class="math inline">\(S_i\)</span> with probability <span class="math inline">\(p_i\)</span>. Write <span class="math inline">\(A \succ B\)</span> for “<span class="math inline">\(A\)</span> is preferred to <span class="math inline">\(B\)</span>”, <span class="math inline">\(A \sim B\)</span> for indifference, and <span class="math inline">\(A \succeq B\)</span> for “at least as good” (ADM §6.1).</p>
+<div class="key-equation famous" data-name="Axioms of rational preference (von Neumann–Morgenstern)">
+<p><span id="eq-vnm"><span class="math display">\[
+\begin{aligned}
+&amp;\textbf{Completeness:} &amp;&amp; \text{exactly one of } A \succ B,\ B \succ A,\ A \sim B \\
+&amp;\textbf{Transitivity:} &amp;&amp; A \succeq B \text{ and } B \succeq C \implies A \succeq C \\
+&amp;\textbf{Continuity:} &amp;&amp; A \succeq C \succeq B \implies \exists\, p:\ [A : p;\ B : 1-p] \sim C \\
+&amp;\textbf{Independence:} &amp;&amp; A \succ B \implies [A : p;\ C : 1-p] \succeq [B : p;\ C : 1-p]
+\end{aligned}
+\tag{1}\]</span></span></p>
+</div>
+<p><strong>In words.</strong> You can compare any two options. Your preferences don’t go in circles. Anything between two options can be matched by a gamble between them. And mixing two options with the same third one, in the same proportion, doesn’t reverse your preference.</p>
+<p><strong>Term by term.</strong></p>
+<ul>
+<li><strong>Completeness</strong> rules out “I can’t compare these”.</li>
+<li><strong>Transitivity</strong> rules out cycles, which would let someone “money pump” you.</li>
+<li><strong>Continuity</strong> says no outcome is infinitely better or worse than another, so some probability always balances them.</li>
+<li><strong>Independence</strong> says a common ingredient, <span class="math inline">\(C\)</span> with probability <span class="math inline">\(1-p\)</span> in both lotteries, shouldn’t affect the choice.</li>
+</ul>
+<p>These axioms imply a utility function exists (von Neumann and Morgenstern, <em>Theory of Games and Economic Behavior</em>, 1944).</p>
+</section>
+<section id="utility" class="level3">
+<h3 class="anchored" data-anchor-id="utility">Utility</h3>
+<p>A <strong>utility function</strong> <span class="math inline">\(U\)</span> assigns each outcome a number such that <span class="math inline">\(A \succeq B\)</span> exactly when <span class="math inline">\(U(A) \ge U(B)\)</span> (ADM §6.2). For lotteries:</p>
+<div class="key-equation famous" data-name="Expected utility of a lottery">
+<p><span id="eq-lottery"><span class="math display">\[
+U\big([S_1 : p_1;\ \ldots;\ S_n : p_n]\big) = \sum_{i=1}^{n} p_i\, U(S_i)
+\tag{2}\]</span></span></p>
+</div>
+<p><strong>In words.</strong> A gamble is worth the probability-weighted average of its outcomes’ utilities.</p>
+<p><strong>Term by term.</strong> <span class="math inline">\(p_i\)</span> is the probability of outcome <span class="math inline">\(S_i\)</span>, and <span class="math inline">\(U(S_i)\)</span> is that outcome’s utility. Any positive rescaling, <span class="math inline">\(aU + b\)</span> with <span class="math inline">\(a &gt; 0\)</span>, represents the same preferences. Only the <em>differences</em> between utilities matter, and only up to scale.</p>
+<p>Applied to money, the curve’s shape describes your attitude to risk:</p>
+<div class="key-equation" data-name="Certainty equivalent">
+<p><span id="eq-certainty-equivalent"><span class="math display">\[
+U(x_{\text{ce}}) = \mathbb{E}\big[U(x)\big]
+\qquad\Longrightarrow\qquad
+x_{\text{ce}} = U^{-1}\big(\mathbb{E}[U(x)]\big)
+\tag{3}\]</span></span></p>
+</div>
+<p><strong>In words.</strong> The certainty equivalent is the sure amount whose utility equals the gamble’s expected utility: the price at which you’d swap the gamble for cash.</p>
+<p><strong>Term by term.</strong></p>
+<ul>
+<li><span class="math inline">\(\mathbb{E}[U(x)]\)</span> is the expected utility of the gamble’s money outcomes.</li>
+<li>For a <strong>concave</strong> (risk-averse) <span class="math inline">\(U\)</span>, <span class="math inline">\(x_{\text{ce}} &lt; \mathbb{E}[x]\)</span>. The gap <span class="math inline">\(\mathbb{E}[x] - x_{\text{ce}}\)</span> is the <strong>risk premium</strong>, what you’d pay to avoid the gamble.</li>
+<li>For a linear <span class="math inline">\(U\)</span> (risk neutral), <span class="math inline">\(x_{\text{ce}} = \mathbb{E}[x]\)</span>. For a convex <span class="math inline">\(U\)</span> (risk seeking), <span class="math inline">\(x_{\text{ce}} &gt; \mathbb{E}[x]\)</span>.</li>
+</ul>
+<p>A common choice for money is the exponential utility:</p>
+<div class="key-equation" data-name="Exponential utility">
+<p><span id="eq-exponential-utility"><span class="math display">\[
+U(x) = 1 - e^{-\lambda x}
+\qquad
+x_{\text{ce}} = -\frac{1}{\lambda} \ln \mathbb{E}\big[e^{-\lambda x}\big]
+\tag{4}\]</span></span></p>
+</div>
+<p><strong>In words.</strong> A curve that rises quickly at first and then flattens, with <span class="math inline">\(\lambda\)</span> setting how fast it flattens, which is how risk averse you are.</p>
+<p><strong>Term by term.</strong> <span class="math inline">\(\lambda &gt; 0\)</span> gives risk aversion, larger <span class="math inline">\(\lambda\)</span> meaning more. The certainty-equivalent formula comes from solving <span class="math inline">\(1 - e^{-\lambda x_{\text{ce}}} = \mathbb{E}[1 - e^{-\lambda x}]\)</span>. For the $0 or $100 coin flip with <span class="math inline">\(\lambda = 0.01\)</span>: <span class="math inline">\(\mathbb{E}[e^{-0.01x}] = \frac{1}{2}(1 + e^{-1}) = 0.684\)</span>, so <span class="math inline">\(x_{\text{ce}} = -100 \ln 0.684 = \$38\)</span>. Other common forms are the quadratic and power utilities (ADM §6.2).</p>
+</section>
+<section id="measuring-utility" class="level3">
+<h3 class="anchored" data-anchor-id="measuring-utility">Measuring utility</h3>
+<p>Fix the worst outcome <span class="math inline">\(S_\bot\)</span> at utility 0 and the best <span class="math inline">\(S_\top\)</span> at 1 (ADM §6.3). For any other outcome <span class="math inline">\(S\)</span>:</p>
+<div class="key-equation" data-name="Utility elicitation">
+<p><span id="eq-elicitation"><span class="math display">\[
+S \sim [S_\top : p;\ S_\bot : 1 - p]
+\quad\Longrightarrow\quad
+U(S) = p
+\tag{5}\]</span></span></p>
+</div>
+<p><strong>In words.</strong> Find the gamble between the best and worst outcomes that you like exactly as much as <span class="math inline">\(S\)</span>. Its winning probability <em>is</em> <span class="math inline">\(S\)</span>’s utility.</p>
+<p><strong>Term by term.</strong> Continuity (<a href="#eq-vnm" class="quarto-xref">Equation&nbsp;1</a>) guarantees that such a <span class="math inline">\(p\)</span> exists. By <a href="#eq-lottery" class="quarto-xref">Equation&nbsp;2</a>, the gamble’s utility is <span class="math inline">\(p \cdot 1 + (1-p) \cdot 0 = p\)</span>, and indifference means equal utilities.</p>
+</section>
+<section id="maximum-expected-utility" class="level3">
+<h3 class="anchored" data-anchor-id="maximum-expected-utility">Maximum expected utility</h3>
+<p>With an observation <span class="math inline">\(o\)</span>, actions <span class="math inline">\(a\)</span>, and outcome states <span class="math inline">\(s'\)</span> (ADM §6.4):</p>
+<div class="key-equation famous" data-name="Maximum expected utility principle">
+<p><span id="eq-meu"><span class="math display">\[
+EU(a \mid o) = \sum_{s'} P(s' \mid a, o)\, U(s')
+\qquad
+a^* = \mathop{\mathrm{arg\,max}}_{a} EU(a \mid o)
+\tag{6}\]</span></span></p>
+</div>
+<p><strong>In words.</strong> For each action, average the utility of the outcomes it might lead to, using their probabilities given what you’ve observed. Choose the action with the largest average.</p>
+<p><strong>Term by term.</strong></p>
+<ul>
+<li><span class="math inline">\(P(s' \mid a, o)\)</span> is a belief about outcomes, computed by inference (<a href="../part1/ch03-inference.html">Ch 3</a>).</li>
+<li><span class="math inline">\(U(s')\)</span> is the utility of outcome <span class="math inline">\(s'\)</span>. It may also depend on the action itself, like the lost sleep from leaving early.</li>
+<li><span class="math inline">\(a^*\)</span> is the rational choice. Write <span class="math inline">\(EU^*(o) = \max_a EU(a \mid o)\)</span> for its value.</li>
+</ul>
+<p>A <strong>decision network</strong> (ADM §6.5) packages such a problem: chance nodes (a Bayesian network), decision nodes whose values you choose, and utility nodes. To solve it, fix the decision to each action in turn, run inference for the variables the utility depends on, and apply <a href="#eq-meu" class="quarto-xref">Equation&nbsp;6</a>.</p>
+</section>
+<section id="value-of-information" class="level3">
+<h3 class="anchored" data-anchor-id="value-of-information">Value of information</h3>
+<p>Suppose you could observe some variable <span class="math inline">\(O'\)</span> before deciding (ADM §6.6):</p>
+<div class="key-equation famous" data-name="Value of information">
+<p><span id="eq-voi"><span class="math display">\[
+\mathrm{VOI}(O' \mid o) = \left( \sum_{o'} P(o' \mid o)\, EU^*(o, o') \right) - EU^*(o)
+\tag{7}\]</span></span></p>
+</div>
+<p><strong>In words.</strong> Look before you leap, on average: the expected best utility after seeing <span class="math inline">\(O'\)</span>, minus the best utility if you decide now.</p>
+<p><strong>Term by term.</strong></p>
+<ul>
+<li><span class="math inline">\(P(o' \mid o)\)</span> says how likely each thing you might see is, given what you already know.</li>
+<li><span class="math inline">\(EU^*(o, o')\)</span> is the best expected utility once you’ve also seen <span class="math inline">\(o'\)</span>: you get to <em>react</em> to it.</li>
+<li><span class="math inline">\(\mathrm{VOI} \ge 0\)</span> always. You could ignore what you see and do what you’d have done anyway, so looking can’t hurt on average.</li>
+<li>It’s zero when every possible <span class="math inline">\(o'\)</span> leads to the same best action. That’s why information about things you can’t act on, or that can’t change your mind, is worthless for this decision.</li>
+</ul>
+</section>
+<section id="irrationality" class="level3">
+<h3 class="anchored" data-anchor-id="irrationality">Irrationality</h3>
+<p>People systematically violate the axioms (ADM §6.7). In Allais’s experiment (M. Allais, <em>Econometrica</em>, 1953), most people choose:</p>
+<ul>
+<li><strong>1A</strong> ($1M for sure) over <strong>1B</strong> (89% $1M, 10% $5M, 1% $0);</li>
+<li><strong>2B</strong> (10% $5M, 90% $0) over <strong>2A</strong> (11% $1M, 89% $0).</li>
+</ul>
+<p>Write <span class="math inline">\(u_0, u_1, u_5\)</span> for the utilities of $0, $1M and $5M. Preferring 1A means <span class="math inline">\(u_1 &gt; 0.89u_1 + 0.10u_5 + 0.01u_0\)</span>, that is, <span class="math inline">\(0.11u_1 &gt; 0.10u_5 + 0.01u_0\)</span>. Preferring 2B means <span class="math inline">\(0.10u_5 + 0.90u_0 &gt; 0.11u_1 + 0.89u_0\)</span>, that is, <span class="math inline">\(0.10u_5 + 0.01u_0 &gt; 0.11u_1\)</span>. The two inequalities contradict each other, so no utility function fits both choices. It violates independence: the second pair is the first with a common 89% chunk changed from $1M to $0. Other documented effects include <strong>framing</strong>: people choose differently when identical outcomes are described as lives saved rather than lives lost (Tversky and Kahneman, <em>Science</em>, 1981).</p>
+</section>
+</section>
+<section id="worked-example" class="level2">
+<h2 class="anchored" data-anchor-id="worked-example">Worked example</h2>
+<section id="the-commute-decision-by-hand" class="level3">
+<h3 class="anchored" data-anchor-id="the-commute-decision-by-hand">The commute decision by hand</h3>
+<p>The utility table (in points; being late costs 10, leaving early 2, staying home 6):</p>
+<div id="tbl-utility" class="quarto-float quarto-figure quarto-figure-center anchored">
+<figure class="quarto-float quarto-float-tbl figure">
+<figcaption class="quarto-float-caption-top quarto-float-caption quarto-float-tbl" id="tbl-utility-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Table&nbsp;2: The commute utility U(decision, late).
+</figcaption>
+<div aria-describedby="tbl-utility-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<table class="caption-top table">
+<thead>
+<tr class="header">
+<th></th>
+<th>on time</th>
+<th>late</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><strong>Leave on time</strong></td>
+<td>0</td>
+<td>−10</td>
+</tr>
+<tr class="even">
+<td><strong>Leave early</strong></td>
+<td>−2</td>
+<td>−12</td>
+</tr>
+<tr class="odd">
+<td><strong>Stay home</strong></td>
+<td>−6</td>
+<td>(can’t happen)</td>
+</tr>
+</tbody>
+</table>
+</div>
+</figure>
+</div>
+<p><span class="math inline">\(P(\text{late} \mid \text{jam}, \text{action})\)</span> is 0.5 on time, 0.1 early, and 0 at home. Without a jam it’s 0.05 on time, and 0 otherwise.</p>
+<p><strong>No information.</strong> <span class="math inline">\(P(\text{jam}) = 0.254\)</span> (from <a href="../part1/ch02-representation.html">Ch 2</a>).</p>
+<ul>
+<li>On time: <span class="math inline">\(P(\text{late}) = 0.254(0.5) + 0.746(0.05) = 0.164\)</span>, so <span class="math inline">\(EU = -10 \times 0.164 = -1.64\)</span>.</li>
+<li>Early: <span class="math inline">\(P(\text{late}) = 0.254 \times 0.1 = 0.025\)</span>, so <span class="math inline">\(EU = -2 - 10 \times 0.025 = -2.25\)</span>.</li>
+<li>Home: <span class="math inline">\(EU = -6\)</span>.</li>
+</ul>
+<p><strong>Best: leave on time</strong>, with <span class="math inline">\(EU^* = -1.64\)</span>.</p>
+<p><strong>After a radio alert.</strong> <span class="math inline">\(P(\text{jam} \mid \text{alert}) = 0.654\)</span> (from <a href="../part1/ch03-inference.html">Ch 3</a>).</p>
+<ul>
+<li>On time: <span class="math inline">\(P(\text{late}) = 0.654(0.5) + 0.346(0.05) = 0.344\)</span>, so <span class="math inline">\(EU = -3.44\)</span>.</li>
+<li>Early: <span class="math inline">\(EU = -2 - 10(0.0654) = -2.65\)</span>.</li>
+</ul>
+<p><strong>Best: leave early.</strong></p>
+<p><strong>The value of listening to the radio.</strong> An alert comes 11.3% of mornings; otherwise, <span class="math inline">\(P(\text{jam} \mid \text{no alert}) = 0.203\)</span> and leaving on time is best, with <span class="math inline">\(EU = -1.41\)</span>. So <span class="math display">\[
+\mathrm{VOI}(\text{radio}) = 0.113(-2.65) + 0.887(-1.41) - (-1.64) \approx 0.09.
+\]</span></p>
+<div class="cell" data-execution_count="2">
+<div id="tbl-eu-evidence" class="cell quarto-float quarto-figure quarto-figure-center anchored" data-execution_count="2">
+<figure class="quarto-float quarto-float-tbl figure">
+<figcaption class="quarto-float-caption-top quarto-float-caption quarto-float-tbl" id="tbl-eu-evidence-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Table&nbsp;3: Expected utility of each action under different evidence, computed by the code. Bold marks the best action.
+</figcaption>
+<div aria-describedby="tbl-eu-evidence-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<div class="cell-output cell-output-display cell-output-markdown" data-execution_count="2">
+<table class="cell caption-top table table-sm table-striped small">
+<thead>
+<tr class="header">
+<th>Evidence</th>
+<th>Leave on time</th>
+<th>Leave early</th>
+<th>Stay home</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Nothing observed</td>
+<td><strong>-1.643</strong></td>
+<td>-2.254</td>
+<td>-6.000</td>
+</tr>
+<tr class="even">
+<td>Radio alert</td>
+<td>-3.443</td>
+<td><strong>-2.654</strong></td>
+<td>-6.000</td>
+</tr>
+<tr class="odd">
+<td>No radio alert</td>
+<td><strong>-1.414</strong></td>
+<td>-2.203</td>
+<td>-6.000</td>
+</tr>
+<tr class="even">
+<td>App shows a jam</td>
+<td>-5.000</td>
+<td><strong>-3.000</strong></td>
+<td>-6.000</td>
+</tr>
+<tr class="odd">
+<td>App shows no jam</td>
+<td><strong>-0.500</strong></td>
+<td>-2.000</td>
+<td>-6.000</td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+</figure>
+</div>
+</div>
+</section>
+<section id="a-certainty-equivalent" class="level3">
+<h3 class="anchored" data-anchor-id="a-certainty-equivalent">A certainty equivalent</h3>
+<p>With exponential utility and <span class="math inline">\(\lambda = 0.01\)</span>, a coin flip for $0 or $100 has certainty equivalent <span class="math inline">\(x_{\text{ce}} = \$38\)</span> (<a href="#eq-exponential-utility" class="quarto-xref">Equation&nbsp;4</a>), so the risk premium is $50 − $38 = $12. With <span class="math inline">\(\lambda = 0.02\)</span>, <span class="math inline">\(x_{\text{ce}}\)</span> drops to $28: a more risk-averse person demands a bigger discount to take the gamble.</p>
+</section>
+</section>
+<section id="interactive" class="level2">
+<h2 class="anchored" data-anchor-id="interactive">Interactive</h2>
+<section id="what-should-i-do-this-morning" class="level3">
+<h3 class="anchored" data-anchor-id="what-should-i-do-this-morning">What should I do this morning?</h3>
+<p>Set what you’ve observed and what the outcomes cost you. The explorer shows each action’s expected utility, the best choice, and what it would be worth to check the radio or the traffic app first. Try raising the cost of being late: the app becomes more valuable, and at some point leaving early wins even with no information.</p>
+<div class="cell">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code hidden" id="cb1" data-startfrom="411" data-source-offset="-0"><pre class="sourceCode js code-with-copy"><code class="sourceCode javascript" style="counter-reset: source-line 410;"><span id="cb1-411"><a href="#cb1-411" aria-hidden="true" tabindex="-1"></a>dec <span class="op">=</span> <span class="fu">FileAttachment</span>(<span class="st">"data/ch06-decision.json"</span>)<span class="op">.</span><span class="fu">json</span>()</span>
+<span id="cb1-412"><a href="#cb1-412" aria-hidden="true" tabindex="-1"></a>viewof alert <span class="op">=</span> Inputs<span class="op">.</span><span class="fu">radio</span>([<span class="st">"unknown"</span><span class="op">,</span> <span class="st">"yes"</span><span class="op">,</span> <span class="st">"no"</span>]<span class="op">,</span> {<span class="dt">label</span><span class="op">:</span> <span class="st">"Radio alert"</span><span class="op">,</span> <span class="dt">value</span><span class="op">:</span> <span class="st">"unknown"</span>})</span>
+<span id="cb1-413"><a href="#cb1-413" aria-hidden="true" tabindex="-1"></a>viewof jam <span class="op">=</span> Inputs<span class="op">.</span><span class="fu">radio</span>([<span class="st">"unknown"</span><span class="op">,</span> <span class="st">"yes"</span><span class="op">,</span> <span class="st">"no"</span>]<span class="op">,</span> {<span class="dt">label</span><span class="op">:</span> <span class="st">"Traffic app shows a jam"</span><span class="op">,</span> <span class="dt">value</span><span class="op">:</span> <span class="st">"unknown"</span>})</span>
+<span id="cb1-414"><a href="#cb1-414" aria-hidden="true" tabindex="-1"></a>viewof lateCost <span class="op">=</span> Inputs<span class="op">.</span><span class="fu">range</span>([<span class="dv">0</span><span class="op">,</span> <span class="dv">40</span>]<span class="op">,</span> {<span class="dt">step</span><span class="op">:</span> <span class="dv">1</span><span class="op">,</span> <span class="dt">value</span><span class="op">:</span> <span class="dv">10</span><span class="op">,</span> <span class="dt">label</span><span class="op">:</span> <span class="st">"Cost of being late"</span>})</span>
+<span id="cb1-415"><a href="#cb1-415" aria-hidden="true" tabindex="-1"></a>viewof earlyCost <span class="op">=</span> Inputs<span class="op">.</span><span class="fu">range</span>([<span class="dv">0</span><span class="op">,</span> <span class="dv">10</span>]<span class="op">,</span> {<span class="dt">step</span><span class="op">:</span> <span class="fl">0.5</span><span class="op">,</span> <span class="dt">value</span><span class="op">:</span> <span class="dv">2</span><span class="op">,</span> <span class="dt">label</span><span class="op">:</span> <span class="st">"Cost of leaving early"</span>})</span>
+<span id="cb1-416"><a href="#cb1-416" aria-hidden="true" tabindex="-1"></a>viewof homeCost <span class="op">=</span> Inputs<span class="op">.</span><span class="fu">range</span>([<span class="dv">0</span><span class="op">,</span> <span class="dv">20</span>]<span class="op">,</span> {<span class="dt">step</span><span class="op">:</span> <span class="fl">0.5</span><span class="op">,</span> <span class="dt">value</span><span class="op">:</span> <span class="dv">6</span><span class="op">,</span> <span class="dt">label</span><span class="op">:</span> <span class="st">"Cost of staying home"</span>})</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-display">
+<div>
+<div id="ojs-cell-1-1" data-nodetype="declaration">
+
+</div>
+</div>
+</div>
+<div class="cell-output cell-output-display">
+<div>
+<div id="ojs-cell-1-2" data-nodetype="declaration">
+
+</div>
+</div>
+</div>
+<div class="cell-output cell-output-display">
+<div>
+<div id="ojs-cell-1-3" data-nodetype="declaration">
+
+</div>
+</div>
+</div>
+<div class="cell-output cell-output-display">
+<div>
+<div id="ojs-cell-1-4" data-nodetype="declaration">
+
+</div>
+</div>
+</div>
+<div class="cell-output cell-output-display">
+<div>
+<div id="ojs-cell-1-5" data-nodetype="declaration">
+
+</div>
+</div>
+</div>
+<div class="cell-output cell-output-display">
+<div>
+<div id="ojs-cell-1-6" data-nodetype="declaration">
+
+</div>
+</div>
+</div>
+</div>
+<div class="cell">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code hidden" id="cb2" data-startfrom="419" data-source-offset="0"><pre class="sourceCode js code-with-copy"><code class="sourceCode javascript" style="counter-reset: source-line 418;"><span id="cb2-419"><a href="#cb2-419" aria-hidden="true" tabindex="-1"></a>choice <span class="op">=</span> {</span>
+<span id="cb2-420"><a href="#cb2-420" aria-hidden="true" tabindex="-1"></a>  <span class="kw">const</span> code <span class="op">=</span> v <span class="kw">=&gt;</span> v <span class="op">===</span> <span class="st">"unknown"</span> <span class="op">?</span> <span class="st">"u"</span> <span class="op">:</span> v <span class="op">===</span> <span class="st">"yes"</span> <span class="op">?</span> <span class="dv">1</span> <span class="op">:</span> <span class="dv">0</span><span class="op">;</span></span>
+<span id="cb2-421"><a href="#cb2-421" aria-hidden="true" tabindex="-1"></a>  <span class="co">// EU of each action under evidence key k: minus the expected lateness cost, minus the action's own cost.</span></span>
+<span id="cb2-422"><a href="#cb2-422" aria-hidden="true" tabindex="-1"></a>  <span class="kw">const</span> eu <span class="op">=</span> k <span class="kw">=&gt;</span> dec<span class="op">.</span><span class="at">tables</span>[k]<span class="op">.</span><span class="at">pLate</span><span class="op">.</span><span class="fu">map</span>((p<span class="op">,</span> d) <span class="kw">=&gt;</span> <span class="op">-</span>lateCost <span class="op">*</span> p <span class="op">-</span> [<span class="dv">0</span><span class="op">,</span> earlyCost<span class="op">,</span> homeCost][d])<span class="op">;</span></span>
+<span id="cb2-423"><a href="#cb2-423" aria-hidden="true" tabindex="-1"></a>  <span class="kw">const</span> best <span class="op">=</span> k <span class="kw">=&gt;</span> d3<span class="op">.</span><span class="fu">max</span>(<span class="fu">eu</span>(k))<span class="op">;</span></span>
+<span id="cb2-424"><a href="#cb2-424" aria-hidden="true" tabindex="-1"></a>  <span class="kw">const</span> key <span class="op">=</span> (a<span class="op">,</span> j) <span class="kw">=&gt;</span> <span class="vs">`A</span><span class="sc">${</span>a<span class="sc">}</span><span class="vs">J</span><span class="sc">${</span>j<span class="sc">}</span><span class="vs">`</span><span class="op">;</span></span>
+<span id="cb2-425"><a href="#cb2-425" aria-hidden="true" tabindex="-1"></a>  <span class="kw">const</span> a <span class="op">=</span> <span class="fu">code</span>(alert)<span class="op">,</span> j <span class="op">=</span> <span class="fu">code</span>(jam)<span class="op">,</span> here <span class="op">=</span> <span class="fu">key</span>(a<span class="op">,</span> j)<span class="op">;</span></span>
+<span id="cb2-426"><a href="#cb2-426" aria-hidden="true" tabindex="-1"></a>  <span class="co">// VOI (@eq-voi): average best EU after seeing the variable, minus the best EU now.</span></span>
+<span id="cb2-427"><a href="#cb2-427" aria-hidden="true" tabindex="-1"></a>  <span class="kw">const</span> voiAlert <span class="op">=</span> a <span class="op">!==</span> <span class="st">"u"</span> <span class="op">?</span> <span class="dv">0</span> <span class="op">:</span> dec<span class="op">.</span><span class="at">tables</span>[here]<span class="op">.</span><span class="at">pAlert</span> <span class="op">*</span> <span class="fu">best</span>(<span class="fu">key</span>(<span class="dv">1</span><span class="op">,</span> j)) <span class="op">+</span> (<span class="dv">1</span> <span class="op">-</span> dec<span class="op">.</span><span class="at">tables</span>[here]<span class="op">.</span><span class="at">pAlert</span>) <span class="op">*</span> <span class="fu">best</span>(<span class="fu">key</span>(<span class="dv">0</span><span class="op">,</span> j)) <span class="op">-</span> <span class="fu">best</span>(here)<span class="op">;</span></span>
+<span id="cb2-428"><a href="#cb2-428" aria-hidden="true" tabindex="-1"></a>  <span class="kw">const</span> voiJam <span class="op">=</span> j <span class="op">!==</span> <span class="st">"u"</span> <span class="op">?</span> <span class="dv">0</span> <span class="op">:</span> dec<span class="op">.</span><span class="at">tables</span>[here]<span class="op">.</span><span class="at">pJam</span> <span class="op">*</span> <span class="fu">best</span>(<span class="fu">key</span>(a<span class="op">,</span> <span class="dv">1</span>)) <span class="op">+</span> (<span class="dv">1</span> <span class="op">-</span> dec<span class="op">.</span><span class="at">tables</span>[here]<span class="op">.</span><span class="at">pJam</span>) <span class="op">*</span> <span class="fu">best</span>(<span class="fu">key</span>(a<span class="op">,</span> <span class="dv">0</span>)) <span class="op">-</span> <span class="fu">best</span>(here)<span class="op">;</span></span>
+<span id="cb2-429"><a href="#cb2-429" aria-hidden="true" tabindex="-1"></a>  <span class="kw">const</span> values <span class="op">=</span> <span class="fu">eu</span>(here)<span class="op">;</span></span>
+<span id="cb2-430"><a href="#cb2-430" aria-hidden="true" tabindex="-1"></a>  <span class="cf">return</span> {values<span class="op">,</span> <span class="dt">bestIndex</span><span class="op">:</span> values<span class="op">.</span><span class="fu">indexOf</span>(d3<span class="op">.</span><span class="fu">max</span>(values))<span class="op">,</span> voiAlert<span class="op">,</span> voiJam<span class="op">,</span> <span class="dt">known</span><span class="op">:</span> {<span class="dt">alert</span><span class="op">:</span> a <span class="op">!==</span> <span class="st">"u"</span><span class="op">,</span> <span class="dt">jam</span><span class="op">:</span> j <span class="op">!==</span> <span class="st">"u"</span>}}<span class="op">;</span></span>
+<span id="cb2-431"><a href="#cb2-431" aria-hidden="true" tabindex="-1"></a>}</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-display">
+<div id="ojs-cell-2" data-nodetype="declaration">
+
+</div>
+</div>
+</div>
+<div class="cell">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code hidden" id="cb3" data-startfrom="435" data-source-offset="0"><pre class="sourceCode js code-with-copy"><code class="sourceCode javascript" style="counter-reset: source-line 434;"><span id="cb3-435"><a href="#cb3-435" aria-hidden="true" tabindex="-1"></a><span class="fu">md</span><span class="vs">`**Best: </span><span class="sc">${</span>dec<span class="op">.</span><span class="at">actions</span>[choice<span class="op">.</span><span class="at">bestIndex</span>]<span class="sc">}</span><span class="vs">.** Checking the radio first is worth </span><span class="sc">${</span>choice<span class="op">.</span><span class="at">known</span><span class="op">.</span><span class="at">alert</span> <span class="op">?</span> <span class="st">"nothing more (already known)"</span> <span class="op">:</span> <span class="st">"**"</span> <span class="op">+</span> choice<span class="op">.</span><span class="at">voiAlert</span><span class="op">.</span><span class="fu">toFixed</span>(<span class="dv">3</span>) <span class="op">+</span> <span class="st">"**"</span><span class="sc">}</span><span class="vs">; checking the traffic app is worth </span><span class="sc">${</span>choice<span class="op">.</span><span class="at">known</span><span class="op">.</span><span class="at">jam</span> <span class="op">?</span> <span class="st">"nothing more (already known)"</span> <span class="op">:</span> <span class="st">"**"</span> <span class="op">+</span> choice<span class="op">.</span><span class="at">voiJam</span><span class="op">.</span><span class="fu">toFixed</span>(<span class="dv">3</span>) <span class="op">+</span> <span class="st">"**"</span><span class="sc">}</span><span class="vs"> points.`</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-display">
+<div id="ojs-cell-3" data-nodetype="expression">
+
+</div>
+</div>
+</div>
+<div class="cell">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code hidden" id="cb4" data-startfrom="442" data-source-offset="0"><pre class="sourceCode js code-with-copy"><code class="sourceCode javascript" style="counter-reset: source-line 441;"><span id="cb4-442"><a href="#cb4-442" aria-hidden="true" tabindex="-1"></a>Plot<span class="op">.</span><span class="fu">plot</span>({</span>
+<span id="cb4-443"><a href="#cb4-443" aria-hidden="true" tabindex="-1"></a>  <span class="dt">width</span><span class="op">:</span> <span class="dv">640</span><span class="op">,</span> <span class="dt">height</span><span class="op">:</span> <span class="dv">160</span><span class="op">,</span> <span class="dt">marginLeft</span><span class="op">:</span> <span class="dv">110</span><span class="op">,</span></span>
+<span id="cb4-444"><a href="#cb4-444" aria-hidden="true" tabindex="-1"></a>  <span class="dt">style</span><span class="op">:</span> {<span class="dt">background</span><span class="op">:</span> dec<span class="op">.</span><span class="at">style</span><span class="op">.</span><span class="at">surface</span><span class="op">,</span> <span class="dt">color</span><span class="op">:</span> dec<span class="op">.</span><span class="at">style</span><span class="op">.</span><span class="at">ink</span>}<span class="op">,</span></span>
+<span id="cb4-445"><a href="#cb4-445" aria-hidden="true" tabindex="-1"></a>  <span class="dt">x</span><span class="op">:</span> {<span class="dt">label</span><span class="op">:</span> <span class="st">"Expected utility (points)"</span><span class="op">,</span> <span class="dt">grid</span><span class="op">:</span> <span class="kw">true</span>}<span class="op">,</span></span>
+<span id="cb4-446"><a href="#cb4-446" aria-hidden="true" tabindex="-1"></a>  <span class="dt">y</span><span class="op">:</span> {<span class="dt">domain</span><span class="op">:</span> dec<span class="op">.</span><span class="at">actions</span><span class="op">,</span> <span class="dt">label</span><span class="op">:</span> <span class="kw">null</span>}<span class="op">,</span></span>
+<span id="cb4-447"><a href="#cb4-447" aria-hidden="true" tabindex="-1"></a>  <span class="dt">marks</span><span class="op">:</span> [</span>
+<span id="cb4-448"><a href="#cb4-448" aria-hidden="true" tabindex="-1"></a>    Plot<span class="op">.</span><span class="fu">barX</span>(choice<span class="op">.</span><span class="at">values</span><span class="op">.</span><span class="fu">map</span>((v<span class="op">,</span> i) <span class="kw">=&gt;</span> ({<span class="dt">action</span><span class="op">:</span> dec<span class="op">.</span><span class="at">actions</span>[i]<span class="op">,</span> v<span class="op">,</span> <span class="dt">best</span><span class="op">:</span> i <span class="op">===</span> choice<span class="op">.</span><span class="at">bestIndex</span>}))<span class="op">,</span></span>
+<span id="cb4-449"><a href="#cb4-449" aria-hidden="true" tabindex="-1"></a>      {<span class="dt">x</span><span class="op">:</span> <span class="st">"v"</span><span class="op">,</span> <span class="dt">y</span><span class="op">:</span> <span class="st">"action"</span><span class="op">,</span> <span class="dt">fill</span><span class="op">:</span> d <span class="kw">=&gt;</span> d<span class="op">.</span><span class="at">best</span> <span class="op">?</span> dec<span class="op">.</span><span class="at">style</span><span class="op">.</span><span class="at">blue</span> <span class="op">:</span> dec<span class="op">.</span><span class="at">style</span><span class="op">.</span><span class="at">muted</span><span class="op">,</span> <span class="dt">rx</span><span class="op">:</span> <span class="dv">3</span>})<span class="op">,</span></span>
+<span id="cb4-450"><a href="#cb4-450" aria-hidden="true" tabindex="-1"></a>    <span class="co">// Bars run left from 0 to v, so a label starting just right of v sits inside the bar.</span></span>
+<span id="cb4-451"><a href="#cb4-451" aria-hidden="true" tabindex="-1"></a>    <span class="co">// Skip labels on bars too short to hold them.</span></span>
+<span id="cb4-452"><a href="#cb4-452" aria-hidden="true" tabindex="-1"></a>    Plot<span class="op">.</span><span class="fu">text</span>(choice<span class="op">.</span><span class="at">values</span><span class="op">.</span><span class="fu">map</span>((v<span class="op">,</span> i) <span class="kw">=&gt;</span> ({<span class="dt">action</span><span class="op">:</span> dec<span class="op">.</span><span class="at">actions</span>[i]<span class="op">,</span> v}))</span>
+<span id="cb4-453"><a href="#cb4-453" aria-hidden="true" tabindex="-1"></a>        <span class="op">.</span><span class="fu">filter</span>(d <span class="kw">=&gt;</span> d<span class="op">.</span><span class="at">v</span> <span class="op">&lt;</span> <span class="op">-</span><span class="fl">0.15</span> <span class="op">*</span> <span class="bu">Math</span><span class="op">.</span><span class="fu">abs</span>(d3<span class="op">.</span><span class="fu">min</span>(choice<span class="op">.</span><span class="at">values</span>)))<span class="op">,</span></span>
+<span id="cb4-454"><a href="#cb4-454" aria-hidden="true" tabindex="-1"></a>      {<span class="dt">x</span><span class="op">:</span> <span class="st">"v"</span><span class="op">,</span> <span class="dt">y</span><span class="op">:</span> <span class="st">"action"</span><span class="op">,</span> <span class="dt">text</span><span class="op">:</span> d <span class="kw">=&gt;</span> d<span class="op">.</span><span class="at">v</span><span class="op">.</span><span class="fu">toFixed</span>(<span class="dv">2</span>)<span class="op">,</span> <span class="dt">dx</span><span class="op">:</span> <span class="dv">6</span><span class="op">,</span> <span class="dt">textAnchor</span><span class="op">:</span> <span class="st">"start"</span><span class="op">,</span> <span class="dt">fill</span><span class="op">:</span> <span class="st">"white"</span>})<span class="op">,</span></span>
+<span id="cb4-455"><a href="#cb4-455" aria-hidden="true" tabindex="-1"></a>    Plot<span class="op">.</span><span class="fu">ruleX</span>([<span class="dv">0</span>])</span>
+<span id="cb4-456"><a href="#cb4-456" aria-hidden="true" tabindex="-1"></a>  ]</span>
+<span id="cb4-457"><a href="#cb4-457" aria-hidden="true" tabindex="-1"></a>})</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div id="fig-decision-explorer" class="cell-output cell-output-display quarto-float quarto-figure quarto-figure-center anchored">
+<figure class="quarto-float quarto-float-fig figure">
+<div aria-describedby="fig-decision-explorer-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<div id="ojs-cell-4" data-nodetype="expression">
+
+</div>
+</div>
+<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-decision-explorer-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Figure&nbsp;3: Expected utility of each action given the evidence and costs you chose. The best action is highlighted.
+</figcaption>
+</figure>
+</div>
+</div>
+</section>
+<section id="would-you-take-the-gamble" class="level3">
+<h3 class="anchored" data-anchor-id="would-you-take-the-gamble">Would you take the gamble?</h3>
+<p>A coin flip pays $100 with the chance you set, and $0 otherwise. The alternative is a sure amount. Set your risk attitude: <span class="math inline">\(\lambda &gt; 0\)</span> is risk averse, <span class="math inline">\(\lambda &lt; 0\)</span> risk seeking, and <span class="math inline">\(\lambda = 0\)</span> risk neutral. The curve is your utility of money; the certainty equivalent is where its height equals the gamble’s expected utility.</p>
+<div class="cell">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code hidden" id="cb5" data-startfrom="466" data-source-offset="-0"><pre class="sourceCode js code-with-copy"><code class="sourceCode javascript" style="counter-reset: source-line 465;"><span id="cb5-466"><a href="#cb5-466" aria-hidden="true" tabindex="-1"></a>viewof lam <span class="op">=</span> Inputs<span class="op">.</span><span class="fu">range</span>([<span class="op">-</span><span class="fl">0.04</span><span class="op">,</span> <span class="fl">0.06</span>]<span class="op">,</span> {<span class="dt">step</span><span class="op">:</span> <span class="fl">0.005</span><span class="op">,</span> <span class="dt">value</span><span class="op">:</span> <span class="fl">0.01</span><span class="op">,</span> <span class="dt">label</span><span class="op">:</span> <span class="st">"Risk aversion λ"</span>})</span>
+<span id="cb5-467"><a href="#cb5-467" aria-hidden="true" tabindex="-1"></a>viewof pWin <span class="op">=</span> Inputs<span class="op">.</span><span class="fu">range</span>([<span class="dv">0</span><span class="op">,</span> <span class="dv">1</span>]<span class="op">,</span> {<span class="dt">step</span><span class="op">:</span> <span class="fl">0.05</span><span class="op">,</span> <span class="dt">value</span><span class="op">:</span> <span class="fl">0.5</span><span class="op">,</span> <span class="dt">label</span><span class="op">:</span> <span class="st">"Chance of winning $100"</span>})</span>
+<span id="cb5-468"><a href="#cb5-468" aria-hidden="true" tabindex="-1"></a>viewof sure <span class="op">=</span> Inputs<span class="op">.</span><span class="fu">range</span>([<span class="dv">0</span><span class="op">,</span> <span class="dv">100</span>]<span class="op">,</span> {<span class="dt">step</span><span class="op">:</span> <span class="dv">1</span><span class="op">,</span> <span class="dt">value</span><span class="op">:</span> <span class="dv">40</span><span class="op">,</span> <span class="dt">label</span><span class="op">:</span> <span class="st">"Sure amount ($)"</span>})</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-display">
+<div>
+<div id="ojs-cell-5-1" data-nodetype="declaration">
+
+</div>
+</div>
+</div>
+<div class="cell-output cell-output-display">
+<div>
+<div id="ojs-cell-5-2" data-nodetype="declaration">
+
+</div>
+</div>
+</div>
+<div class="cell-output cell-output-display">
+<div>
+<div id="ojs-cell-5-3" data-nodetype="declaration">
+
+</div>
+</div>
+</div>
+</div>
+<div class="cell">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code hidden" id="cb6" data-startfrom="471" data-source-offset="0"><pre class="sourceCode js code-with-copy"><code class="sourceCode javascript" style="counter-reset: source-line 470;"><span id="cb6-471"><a href="#cb6-471" aria-hidden="true" tabindex="-1"></a>risk <span class="op">=</span> {</span>
+<span id="cb6-472"><a href="#cb6-472" aria-hidden="true" tabindex="-1"></a>  <span class="co">// Exponential utility rescaled so U(0) = 0 and U(100) = 1; a straight line at λ = 0.</span></span>
+<span id="cb6-473"><a href="#cb6-473" aria-hidden="true" tabindex="-1"></a>  <span class="kw">const</span> U <span class="op">=</span> x <span class="kw">=&gt;</span> <span class="bu">Math</span><span class="op">.</span><span class="fu">abs</span>(lam) <span class="op">&lt;</span> <span class="fl">1e-9</span> <span class="op">?</span> x <span class="op">/</span> <span class="dv">100</span> <span class="op">:</span> (<span class="dv">1</span> <span class="op">-</span> <span class="bu">Math</span><span class="op">.</span><span class="fu">exp</span>(<span class="op">-</span>lam <span class="op">*</span> x)) <span class="op">/</span> (<span class="dv">1</span> <span class="op">-</span> <span class="bu">Math</span><span class="op">.</span><span class="fu">exp</span>(<span class="op">-</span>lam <span class="op">*</span> <span class="dv">100</span>))<span class="op">;</span></span>
+<span id="cb6-474"><a href="#cb6-474" aria-hidden="true" tabindex="-1"></a>  <span class="kw">const</span> Uinv <span class="op">=</span> u <span class="kw">=&gt;</span> <span class="bu">Math</span><span class="op">.</span><span class="fu">abs</span>(lam) <span class="op">&lt;</span> <span class="fl">1e-9</span> <span class="op">?</span> <span class="dv">100</span> <span class="op">*</span> u <span class="op">:</span> <span class="op">-</span><span class="bu">Math</span><span class="op">.</span><span class="fu">log</span>(<span class="dv">1</span> <span class="op">-</span> u <span class="op">*</span> (<span class="dv">1</span> <span class="op">-</span> <span class="bu">Math</span><span class="op">.</span><span class="fu">exp</span>(<span class="op">-</span>lam <span class="op">*</span> <span class="dv">100</span>))) <span class="op">/</span> lam<span class="op">;</span></span>
+<span id="cb6-475"><a href="#cb6-475" aria-hidden="true" tabindex="-1"></a>  <span class="kw">const</span> eu <span class="op">=</span> pWin <span class="op">*</span> <span class="fu">U</span>(<span class="dv">100</span>)<span class="op">;</span>                 <span class="co">// U(0) = 0, so only the win contributes</span></span>
+<span id="cb6-476"><a href="#cb6-476" aria-hidden="true" tabindex="-1"></a>  <span class="kw">const</span> ce <span class="op">=</span> <span class="fu">Uinv</span>(eu)<span class="op">;</span></span>
+<span id="cb6-477"><a href="#cb6-477" aria-hidden="true" tabindex="-1"></a>  <span class="kw">const</span> curve <span class="op">=</span> d3<span class="op">.</span><span class="fu">range</span>(<span class="dv">0</span><span class="op">,</span> <span class="fl">100.5</span><span class="op">,</span> <span class="dv">1</span>)<span class="op">.</span><span class="fu">map</span>(x <span class="kw">=&gt;</span> ({x<span class="op">,</span> <span class="dt">u</span><span class="op">:</span> <span class="fu">U</span>(x)}))<span class="op">;</span></span>
+<span id="cb6-478"><a href="#cb6-478" aria-hidden="true" tabindex="-1"></a>  <span class="cf">return</span> {U<span class="op">,</span> eu<span class="op">,</span> ce<span class="op">,</span> curve<span class="op">,</span> <span class="dt">takeSure</span><span class="op">:</span> <span class="fu">U</span>(sure) <span class="op">&gt;</span> eu}<span class="op">;</span></span>
+<span id="cb6-479"><a href="#cb6-479" aria-hidden="true" tabindex="-1"></a>}</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-display">
+<div id="ojs-cell-6" data-nodetype="declaration">
+
+</div>
+</div>
+</div>
+<div class="cell">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code hidden" id="cb7" data-startfrom="483" data-source-offset="0"><pre class="sourceCode js code-with-copy"><code class="sourceCode javascript" style="counter-reset: source-line 482;"><span id="cb7-483"><a href="#cb7-483" aria-hidden="true" tabindex="-1"></a><span class="fu">md</span><span class="vs">`Gamble: expected value **$</span><span class="sc">${</span>(<span class="dv">100</span> <span class="op">*</span> pWin)<span class="op">.</span><span class="fu">toFixed</span>(<span class="dv">0</span>)<span class="sc">}</span><span class="vs">**, expected utility </span><span class="sc">${</span>risk<span class="op">.</span><span class="at">eu</span><span class="op">.</span><span class="fu">toFixed</span>(<span class="dv">3</span>)<span class="sc">}</span><span class="vs">, certainty equivalent **$</span><span class="sc">${</span>risk<span class="op">.</span><span class="at">ce</span><span class="op">.</span><span class="fu">toFixed</span>(<span class="dv">1</span>)<span class="sc">}</span><span class="vs">**. </span><span class="sc">${</span>risk<span class="op">.</span><span class="at">takeSure</span> <span class="op">?</span> <span class="st">"Take the **sure $"</span> <span class="op">+</span> sure <span class="op">+</span> <span class="st">"**."</span> <span class="op">:</span> <span class="st">"Take the **gamble**."</span><span class="sc">}</span><span class="vs">`</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-display">
+<div id="ojs-cell-7" data-nodetype="expression">
+
+</div>
+</div>
+</div>
+<div class="cell">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code hidden" id="cb8" data-startfrom="490" data-source-offset="0"><pre class="sourceCode js code-with-copy"><code class="sourceCode javascript" style="counter-reset: source-line 489;"><span id="cb8-490"><a href="#cb8-490" aria-hidden="true" tabindex="-1"></a>Plot<span class="op">.</span><span class="fu">plot</span>({</span>
+<span id="cb8-491"><a href="#cb8-491" aria-hidden="true" tabindex="-1"></a>  <span class="dt">width</span><span class="op">:</span> <span class="dv">640</span><span class="op">,</span> <span class="dt">height</span><span class="op">:</span> <span class="dv">300</span><span class="op">,</span></span>
+<span id="cb8-492"><a href="#cb8-492" aria-hidden="true" tabindex="-1"></a>  <span class="dt">style</span><span class="op">:</span> {<span class="dt">background</span><span class="op">:</span> <span class="st">"#fcfcfb"</span><span class="op">,</span> <span class="dt">color</span><span class="op">:</span> <span class="st">"#0b0b0b"</span>}<span class="op">,</span></span>
+<span id="cb8-493"><a href="#cb8-493" aria-hidden="true" tabindex="-1"></a>  <span class="dt">x</span><span class="op">:</span> {<span class="dt">domain</span><span class="op">:</span> [<span class="dv">0</span><span class="op">,</span> <span class="dv">100</span>]<span class="op">,</span> <span class="dt">label</span><span class="op">:</span> <span class="st">"Money ($)"</span><span class="op">,</span> <span class="dt">grid</span><span class="op">:</span> <span class="kw">true</span>}<span class="op">,</span> <span class="dt">y</span><span class="op">:</span> {<span class="dt">domain</span><span class="op">:</span> [<span class="dv">0</span><span class="op">,</span> <span class="dv">1</span>]<span class="op">,</span> <span class="dt">label</span><span class="op">:</span> <span class="st">"Utility"</span><span class="op">,</span> <span class="dt">grid</span><span class="op">:</span> <span class="kw">true</span>}<span class="op">,</span></span>
+<span id="cb8-494"><a href="#cb8-494" aria-hidden="true" tabindex="-1"></a>  <span class="dt">marks</span><span class="op">:</span> [</span>
+<span id="cb8-495"><a href="#cb8-495" aria-hidden="true" tabindex="-1"></a>    Plot<span class="op">.</span><span class="fu">line</span>(risk<span class="op">.</span><span class="at">curve</span><span class="op">,</span> {<span class="dt">x</span><span class="op">:</span> <span class="st">"x"</span><span class="op">,</span> <span class="dt">y</span><span class="op">:</span> <span class="st">"u"</span><span class="op">,</span> <span class="dt">stroke</span><span class="op">:</span> <span class="st">"#52514e"</span><span class="op">,</span> <span class="dt">strokeWidth</span><span class="op">:</span> <span class="dv">2</span>})<span class="op">,</span></span>
+<span id="cb8-496"><a href="#cb8-496" aria-hidden="true" tabindex="-1"></a>    Plot<span class="op">.</span><span class="fu">ruleY</span>([risk<span class="op">.</span><span class="at">eu</span>]<span class="op">,</span> {<span class="dt">stroke</span><span class="op">:</span> <span class="st">"#eb6834"</span><span class="op">,</span> <span class="dt">strokeDasharray</span><span class="op">:</span> <span class="st">"4,3"</span>})<span class="op">,</span></span>
+<span id="cb8-497"><a href="#cb8-497" aria-hidden="true" tabindex="-1"></a>    Plot<span class="op">.</span><span class="fu">dot</span>([{<span class="dt">x</span><span class="op">:</span> risk<span class="op">.</span><span class="at">ce</span><span class="op">,</span> <span class="dt">u</span><span class="op">:</span> risk<span class="op">.</span><span class="at">eu</span>}]<span class="op">,</span> {<span class="dt">x</span><span class="op">:</span> <span class="st">"x"</span><span class="op">,</span> <span class="dt">y</span><span class="op">:</span> <span class="st">"u"</span><span class="op">,</span> <span class="dt">r</span><span class="op">:</span> <span class="dv">6</span><span class="op">,</span> <span class="dt">fill</span><span class="op">:</span> <span class="st">"#eb6834"</span>})<span class="op">,</span></span>
+<span id="cb8-498"><a href="#cb8-498" aria-hidden="true" tabindex="-1"></a>    Plot<span class="op">.</span><span class="fu">dot</span>([{<span class="dt">x</span><span class="op">:</span> sure<span class="op">,</span> <span class="dt">u</span><span class="op">:</span> risk<span class="op">.</span><span class="fu">U</span>(sure)}]<span class="op">,</span> {<span class="dt">x</span><span class="op">:</span> <span class="st">"x"</span><span class="op">,</span> <span class="dt">y</span><span class="op">:</span> <span class="st">"u"</span><span class="op">,</span> <span class="dt">r</span><span class="op">:</span> <span class="dv">6</span><span class="op">,</span> <span class="dt">fill</span><span class="op">:</span> <span class="st">"#2a78d6"</span>})<span class="op">,</span></span>
+<span id="cb8-499"><a href="#cb8-499" aria-hidden="true" tabindex="-1"></a>    Plot<span class="op">.</span><span class="fu">text</span>([{<span class="dt">x</span><span class="op">:</span> risk<span class="op">.</span><span class="at">ce</span><span class="op">,</span> <span class="dt">u</span><span class="op">:</span> risk<span class="op">.</span><span class="at">eu</span>}]<span class="op">,</span> {<span class="dt">x</span><span class="op">:</span> <span class="st">"x"</span><span class="op">,</span> <span class="dt">y</span><span class="op">:</span> <span class="st">"u"</span><span class="op">,</span> <span class="dt">text</span><span class="op">:</span> d <span class="kw">=&gt;</span> <span class="vs">`certainty equivalent $</span><span class="sc">${</span>d<span class="op">.</span><span class="at">x</span><span class="op">.</span><span class="fu">toFixed</span>(<span class="dv">0</span>)<span class="sc">}</span><span class="vs">`</span><span class="op">,</span></span>
+<span id="cb8-500"><a href="#cb8-500" aria-hidden="true" tabindex="-1"></a>      <span class="dt">dx</span><span class="op">:</span> <span class="dv">8</span><span class="op">,</span> <span class="dt">dy</span><span class="op">:</span> <span class="dv">16</span><span class="op">,</span> <span class="dt">textAnchor</span><span class="op">:</span> <span class="st">"start"</span><span class="op">,</span> <span class="dt">fill</span><span class="op">:</span> <span class="st">"#eb6834"</span>})</span>
+<span id="cb8-501"><a href="#cb8-501" aria-hidden="true" tabindex="-1"></a>  ]</span>
+<span id="cb8-502"><a href="#cb8-502" aria-hidden="true" tabindex="-1"></a>})</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div id="fig-risk-explorer" class="cell-output cell-output-display quarto-float quarto-figure quarto-figure-center anchored">
+<figure class="quarto-float quarto-float-fig figure">
+<div aria-describedby="fig-risk-explorer-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<div id="ojs-cell-8" data-nodetype="expression">
+
+</div>
+</div>
+<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-risk-explorer-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Figure&nbsp;4: Your utility of money. The dashed line is the gamble’s expected utility; where it meets the curve is the certainty equivalent (orange). The blue dot is the sure amount.
+</figcaption>
+</figure>
+</div>
+</div>
+</section>
+</section>
+<section id="algorithms-code" class="level2">
+<h2 class="anchored" data-anchor-id="algorithms-code">Algorithms &amp; code</h2>
+<section id="utility-and-risk" class="level3">
+<h3 class="anchored" data-anchor-id="utility-and-risk">Utility and risk</h3>
+<div class="tabset-margin-container"></div><div class="panel-tabset" data-group="lang">
+<ul class="nav nav-tabs" role="tablist"><li class="nav-item" role="presentation"><a class="nav-link active" id="tabset-1-1-tab" data-bs-toggle="tab" data-bs-target="#tabset-1-1" role="tab" aria-controls="tabset-1-1" aria-selected="true" href="" aria-current="page">Python</a></li><li class="nav-item" role="presentation"><a class="nav-link" id="tabset-1-2-tab" data-bs-toggle="tab" data-bs-target="#tabset-1-2" role="tab" aria-controls="tabset-1-2" aria-selected="false" href="">Julia</a></li></ul>
+<div class="tab-content" data-group="lang">
+<div id="tabset-1-1" class="tab-pane active" role="tabpanel" aria-labelledby="tabset-1-1-tab">
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb9"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> <span class="fu">expected_utility</span>(probs, utilities) <span class="op">-&gt;</span> <span class="bu">float</span>:</span>
+<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a>    <span class="co">"""Utility of a lottery [S_1: p_1; ...; S_n: p_n] = sum_i p_i U(S_i)."""</span></span>
+<span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> <span class="bu">float</span>(np.<span class="fu">dot</span>(probs, utilities))</span>
+<span id="cb9-4"><a href="#cb9-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-5"><a href="#cb9-5" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> <span class="fu">exponential_utility</span>(x, lam: <span class="bu">float</span>):</span>
+<span id="cb9-6"><a href="#cb9-6" aria-hidden="true" tabindex="-1"></a>    <span class="co">"""U(x) = 1 - exp(-lam x). Concave (risk averse) when lam &gt; 0; the</span></span>
+<span id="cb9-7"><a href="#cb9-7" aria-hidden="true" tabindex="-1"></a><span class="co">    bigger lam, the more strongly sure things are preferred to gambles."""</span></span>
+<span id="cb9-8"><a href="#cb9-8" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> <span class="dv">1</span> <span class="op">-</span> np.<span class="fu">exp</span>(<span class="op">-</span>lam <span class="op">*</span> np.<span class="fu">asarray</span>(x, dtype<span class="op">=</span><span class="bu">float</span>))</span>
+<span id="cb9-9"><a href="#cb9-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-10"><a href="#cb9-10" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> <span class="fu">certainty_equivalent</span>(outcomes, probs, lam: <span class="bu">float</span>) <span class="op">-&gt;</span> <span class="bu">float</span>:</span>
+<span id="cb9-11"><a href="#cb9-11" aria-hidden="true" tabindex="-1"></a>    <span class="co">"""The sure amount whose utility equals the lottery's expected utility,</span></span>
+<span id="cb9-12"><a href="#cb9-12" aria-hidden="true" tabindex="-1"></a><span class="co">    for exponential utility: solve U(ce) = EU by inverting U."""</span></span>
+<span id="cb9-13"><a href="#cb9-13" aria-hidden="true" tabindex="-1"></a>    eu <span class="op">=</span> <span class="fu">expected_utility</span>(probs, <span class="fu">exponential_utility</span>(outcomes, lam))</span>
+<span id="cb9-14"><a href="#cb9-14" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> <span class="bu">float</span>(<span class="op">-</span>np.<span class="fu">log</span>(<span class="dv">1</span> <span class="op">-</span> eu) <span class="op">/</span> lam)       <span class="co"># U^-1(u) = -ln(1 - u) / lam</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</div>
+<div id="tabset-1-2" class="tab-pane" role="tabpanel" aria-labelledby="tabset-1-2-tab">
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb10"><pre class="sourceCode julia snippet code-with-copy"><code class="sourceCode julia"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="im">using</span> <span class="bu">ADM</span></span>
+<span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-3"><a href="#cb10-3" aria-hidden="true" tabindex="-1"></a><span class="co"># Utility of a lottery: the probability-weighted average of its outcomes' utilities.</span></span>
+<span id="cb10-4"><a href="#cb10-4" aria-hidden="true" tabindex="-1"></a><span class="fu">expected_utility</span>(p, u) <span class="op">=</span> <span class="fu">sum</span>(p <span class="op">.*</span> u)</span>
+<span id="cb10-5"><a href="#cb10-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-6"><a href="#cb10-6" aria-hidden="true" tabindex="-1"></a><span class="co"># U(x) = 1 - exp(-λx): concave, i.e. risk averse, for λ &gt; 0.</span></span>
+<span id="cb10-7"><a href="#cb10-7" aria-hidden="true" tabindex="-1"></a><span class="fu">exponential_utility</span>(x, λ) <span class="op">=</span> <span class="fl">1</span> <span class="op">-</span> <span class="fu">exp</span>(<span class="op">-</span>λ <span class="op">*</span> x)</span>
+<span id="cb10-8"><a href="#cb10-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-9"><a href="#cb10-9" aria-hidden="true" tabindex="-1"></a><span class="co"># Sure amount with the same utility as the lottery: invert U(ce) = EU.</span></span>
+<span id="cb10-10"><a href="#cb10-10" aria-hidden="true" tabindex="-1"></a><span class="fu">certainty_equivalent</span>(xs, ps, λ) <span class="op">=</span> <span class="fu">-log</span>(<span class="fl">1</span> <span class="op">-</span> <span class="fu">expected_utility</span>(ps, <span class="fu">exponential_utility</span>.(xs, λ))) <span class="op">/</span> λ</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</div>
+</div>
+</div>
+</section>
+<section id="solving-a-decision-network-and-the-value-of-information" class="level3">
+<h3 class="anchored" data-anchor-id="solving-a-decision-network-and-the-value-of-information">Solving a decision network, and the value of information</h3>
+<p><code>action_utilities</code> fixes the decision to each action in turn and asks inference (Chapter 3) for the probabilities of the outcomes the utility depends on.</p>
+<div class="tabset-margin-container"></div><div class="panel-tabset" data-group="lang">
+<ul class="nav nav-tabs" role="tablist"><li class="nav-item" role="presentation"><a class="nav-link active" id="tabset-2-1-tab" data-bs-toggle="tab" data-bs-target="#tabset-2-1" role="tab" aria-controls="tabset-2-1" aria-selected="true" href="">Python</a></li><li class="nav-item" role="presentation"><a class="nav-link" id="tabset-2-2-tab" data-bs-toggle="tab" data-bs-target="#tabset-2-2" role="tab" aria-controls="tabset-2-2" aria-selected="false" href="">Julia</a></li></ul>
+<div class="tab-content" data-group="lang">
+<div id="tabset-2-1" class="tab-pane active" role="tabpanel" aria-labelledby="tabset-2-1-tab">
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb11"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> <span class="fu">action_utilities</span>(bn, decision: <span class="bu">str</span>, outcomes: <span class="bu">tuple</span>, U, evidence: <span class="bu">dict</span>):</span>
+<span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a>    <span class="co">"""EU(a | evidence) for every action a:</span></span>
+<span id="cb11-3"><a href="#cb11-3" aria-hidden="true" tabindex="-1"></a><span class="co">    sum over outcome values of P(outcome | a, evidence) * U[a, outcome].</span></span>
+<span id="cb11-4"><a href="#cb11-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-5"><a href="#cb11-5" aria-hidden="true" tabindex="-1"></a><span class="co">    The decision has no parents, so fixing it to a is just one more piece</span></span>
+<span id="cb11-6"><a href="#cb11-6" aria-hidden="true" tabindex="-1"></a><span class="co">    of evidence for inference (Ch 3).</span></span>
+<span id="cb11-7"><a href="#cb11-7" aria-hidden="true" tabindex="-1"></a><span class="co">    """</span></span>
+<span id="cb11-8"><a href="#cb11-8" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> np.<span class="fu">array</span>([</span>
+<span id="cb11-9"><a href="#cb11-9" aria-hidden="true" tabindex="-1"></a>        np.<span class="bu">sum</span>(<span class="fu">exact_inference</span>(bn, outcomes, {<span class="op">**</span>evidence, decision: a}).table</span>
+<span id="cb11-10"><a href="#cb11-10" aria-hidden="true" tabindex="-1"></a>               <span class="op">*</span> U[a])</span>
+<span id="cb11-11"><a href="#cb11-11" aria-hidden="true" tabindex="-1"></a>        <span class="cf">for</span> a <span class="kw">in</span> <span class="bu">range</span>(bn.card[decision])</span>
+<span id="cb11-12"><a href="#cb11-12" aria-hidden="true" tabindex="-1"></a>    ])</span>
+<span id="cb11-13"><a href="#cb11-13" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-14"><a href="#cb11-14" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> <span class="fu">best_action</span>(bn, decision: <span class="bu">str</span>, outcomes: <span class="bu">tuple</span>, U, evidence: <span class="bu">dict</span>):</span>
+<span id="cb11-15"><a href="#cb11-15" aria-hidden="true" tabindex="-1"></a>    <span class="co">"""The maximum-expected-utility action and its expected utility."""</span></span>
+<span id="cb11-16"><a href="#cb11-16" aria-hidden="true" tabindex="-1"></a>    eu <span class="op">=</span> <span class="fu">action_utilities</span>(bn, decision, outcomes, U, evidence)</span>
+<span id="cb11-17"><a href="#cb11-17" aria-hidden="true" tabindex="-1"></a>    a <span class="op">=</span> <span class="bu">int</span>(np.<span class="fu">argmax</span>(eu))</span>
+<span id="cb11-18"><a href="#cb11-18" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> a, <span class="bu">float</span>(eu[a])</span>
+<span id="cb11-19"><a href="#cb11-19" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-20"><a href="#cb11-20" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> <span class="fu">value_of_information</span>(bn, decision: <span class="bu">str</span>, outcomes: <span class="bu">tuple</span>, U,</span>
+<span id="cb11-21"><a href="#cb11-21" aria-hidden="true" tabindex="-1"></a>                         evidence: <span class="bu">dict</span>, observe: <span class="bu">str</span>) <span class="op">-&gt;</span> <span class="bu">float</span>:</span>
+<span id="cb11-22"><a href="#cb11-22" aria-hidden="true" tabindex="-1"></a>    <span class="co">"""VOI of observing `observe` before deciding: the expected best EU</span></span>
+<span id="cb11-23"><a href="#cb11-23" aria-hidden="true" tabindex="-1"></a><span class="co">    after seeing its value, minus the best EU without it.</span></span>
+<span id="cb11-24"><a href="#cb11-24" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-25"><a href="#cb11-25" aria-hidden="true" tabindex="-1"></a><span class="co">    `observe` must not depend on the decision (you see it before acting),</span></span>
+<span id="cb11-26"><a href="#cb11-26" aria-hidden="true" tabindex="-1"></a><span class="co">    so the decision's placeholder table never affects P(o | evidence).</span></span>
+<span id="cb11-27"><a href="#cb11-27" aria-hidden="true" tabindex="-1"></a><span class="co">    """</span></span>
+<span id="cb11-28"><a href="#cb11-28" aria-hidden="true" tabindex="-1"></a>    _, now <span class="op">=</span> <span class="fu">best_action</span>(bn, decision, outcomes, U, evidence)</span>
+<span id="cb11-29"><a href="#cb11-29" aria-hidden="true" tabindex="-1"></a>    p <span class="op">=</span> <span class="fu">exact_inference</span>(bn, (observe,), evidence).table    <span class="co"># P(o | evidence)</span></span>
+<span id="cb11-30"><a href="#cb11-30" aria-hidden="true" tabindex="-1"></a>    later <span class="op">=</span> <span class="fl">0.0</span></span>
+<span id="cb11-31"><a href="#cb11-31" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> o <span class="kw">in</span> <span class="bu">range</span>(bn.card[observe]):</span>
+<span id="cb11-32"><a href="#cb11-32" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> p[o] <span class="op">&gt;</span> <span class="dv">0</span>:                           <span class="co"># skip values that can't occur</span></span>
+<span id="cb11-33"><a href="#cb11-33" aria-hidden="true" tabindex="-1"></a>            seen <span class="op">=</span> {<span class="op">**</span>evidence, observe: o}</span>
+<span id="cb11-34"><a href="#cb11-34" aria-hidden="true" tabindex="-1"></a>            later <span class="op">+=</span> p[o] <span class="op">*</span> <span class="fu">best_action</span>(bn, decision, outcomes, U, seen)[<span class="dv">1</span>]</span>
+<span id="cb11-35"><a href="#cb11-35" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> <span class="bu">float</span>(later <span class="op">-</span> now)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</div>
+<div id="tabset-2-2" class="tab-pane" role="tabpanel" aria-labelledby="tabset-2-2-tab">
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb12"><pre class="sourceCode julia snippet code-with-copy"><code class="sourceCode julia"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="co"># P(query = each value | evidence): sum the chain rule over every completion of the other</span></span>
+<span id="cb12-2"><a href="#cb12-2" aria-hidden="true" tabindex="-1"></a><span class="co"># variables, then normalize. Brute force, fine for small networks.</span></span>
+<span id="cb12-3"><a href="#cb12-3" aria-hidden="true" tabindex="-1"></a><span class="kw">function</span> <span class="fu">posterior</span>(bn, query, evidence)</span>
+<span id="cb12-4"><a href="#cb12-4" aria-hidden="true" tabindex="-1"></a>    hidden <span class="op">=</span> [x for x <span class="kw">in</span> <span class="fu">keys</span>(bn.parents) if x <span class="op">!=</span> query <span class="op">&amp;&amp;</span> !<span class="fu">haskey</span>(evidence, x)]</span>
+<span id="cb12-5"><a href="#cb12-5" aria-hidden="true" tabindex="-1"></a>    p <span class="op">=</span> <span class="fu">zeros</span>(bn.card[query])</span>
+<span id="cb12-6"><a href="#cb12-6" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> q <span class="kw">in</span> <span class="fl">1</span><span class="op">:</span>bn.card[query], vals <span class="kw">in</span> <span class="bu">Iterators</span>.<span class="fu">product</span>((<span class="fl">1</span><span class="op">:</span>bn.card[h] <span class="cf">for</span> h <span class="kw">in</span> hidden)<span class="op">...</span>)</span>
+<span id="cb12-7"><a href="#cb12-7" aria-hidden="true" tabindex="-1"></a>        p[q] <span class="op">+=</span> <span class="fu">probability</span>(bn, <span class="fu">merge</span>(evidence, <span class="fu">Dict</span>(query <span class="op">=&gt;</span> q), <span class="fu">Dict</span>(<span class="fu">zip</span>(hidden, vals))))</span>
+<span id="cb12-8"><a href="#cb12-8" aria-hidden="true" tabindex="-1"></a>    <span class="cf">end</span></span>
+<span id="cb12-9"><a href="#cb12-9" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> p <span class="op">./</span> <span class="fu">sum</span>(p)</span>
+<span id="cb12-10"><a href="#cb12-10" aria-hidden="true" tabindex="-1"></a><span class="cf">end</span></span>
+<span id="cb12-11"><a href="#cb12-11" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-12"><a href="#cb12-12" aria-hidden="true" tabindex="-1"></a><span class="co"># EU(a | evidence) for each action a, for the commute network: the decision is :D and</span></span>
+<span id="cb12-13"><a href="#cb12-13" aria-hidden="true" tabindex="-1"></a><span class="co"># the utility depends on :L (late) and the action, U[a, late].</span></span>
+<span id="cb12-14"><a href="#cb12-14" aria-hidden="true" tabindex="-1"></a><span class="fu">action_utilities</span>(bn, U, evidence) <span class="op">=</span></span>
+<span id="cb12-15"><a href="#cb12-15" aria-hidden="true" tabindex="-1"></a>    [<span class="fu">sum</span>(<span class="fu">posterior</span>(bn, <span class="op">:</span>L, <span class="fu">merge</span>(evidence, <span class="fu">Dict</span>(<span class="op">:</span>D <span class="op">=&gt;</span> a))) <span class="op">.*</span> U[a, <span class="op">:</span>]) for a <span class="kw">in</span> <span class="fl">1</span><span class="op">:</span>bn.card[<span class="op">:</span>D]]</span>
+<span id="cb12-16"><a href="#cb12-16" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-17"><a href="#cb12-17" aria-hidden="true" tabindex="-1"></a><span class="kw">function</span> <span class="fu">best_action</span>(bn, U, evidence)</span>
+<span id="cb12-18"><a href="#cb12-18" aria-hidden="true" tabindex="-1"></a>    eu <span class="op">=</span> <span class="fu">action_utilities</span>(bn, U, evidence)</span>
+<span id="cb12-19"><a href="#cb12-19" aria-hidden="true" tabindex="-1"></a>    a <span class="op">=</span> <span class="fu">argmax</span>(eu)</span>
+<span id="cb12-20"><a href="#cb12-20" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> a, eu[a]</span>
+<span id="cb12-21"><a href="#cb12-21" aria-hidden="true" tabindex="-1"></a><span class="kw">end</span></span>
+<span id="cb12-22"><a href="#cb12-22" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-23"><a href="#cb12-23" aria-hidden="true" tabindex="-1"></a><span class="co"># VOI: expected best EU after seeing `observe`, minus the best EU now.</span></span>
+<span id="cb12-24"><a href="#cb12-24" aria-hidden="true" tabindex="-1"></a><span class="kw">function</span> <span class="fu">value_of_information</span>(bn, U, evidence, observe)</span>
+<span id="cb12-25"><a href="#cb12-25" aria-hidden="true" tabindex="-1"></a>    _, now <span class="op">=</span> <span class="fu">best_action</span>(bn, U, evidence)</span>
+<span id="cb12-26"><a href="#cb12-26" aria-hidden="true" tabindex="-1"></a>    p <span class="op">=</span> <span class="fu">posterior</span>(bn, observe, evidence)          <span class="co"># seen before deciding, so the decision can't affect it</span></span>
+<span id="cb12-27"><a href="#cb12-27" aria-hidden="true" tabindex="-1"></a>    later <span class="op">=</span> <span class="fu">sum</span>(p[o] <span class="op">*</span> <span class="fu">best_action</span>(bn, U, <span class="fu">merge</span>(evidence, <span class="fu">Dict</span>(observe <span class="op">=&gt;</span> o)))[<span class="fl">2</span>]</span>
+<span id="cb12-28"><a href="#cb12-28" aria-hidden="true" tabindex="-1"></a>                <span class="cf">for</span> o <span class="kw">in</span> <span class="fu">eachindex</span>(p) <span class="cf">if</span> p[o] <span class="op">&gt;</span> <span class="fl">0</span>)</span>
+<span id="cb12-29"><a href="#cb12-29" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> later <span class="op">-</span> now</span>
+<span id="cb12-30"><a href="#cb12-30" aria-hidden="true" tabindex="-1"></a><span class="cf">end</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</div>
+</div>
+</div>
+</section>
+<section id="run-them-on-the-commute-decision" class="level3">
+<h3 class="anchored" data-anchor-id="run-them-on-the-commute-decision">Run them on the commute decision</h3>
+<div class="tabset-margin-container"></div><div class="panel-tabset" data-group="lang">
+<ul class="nav nav-tabs" role="tablist"><li class="nav-item" role="presentation"><a class="nav-link active" id="tabset-3-1-tab" data-bs-toggle="tab" data-bs-target="#tabset-3-1" role="tab" aria-controls="tabset-3-1" aria-selected="true" href="">Python</a></li><li class="nav-item" role="presentation"><a class="nav-link" id="tabset-3-2-tab" data-bs-toggle="tab" data-bs-target="#tabset-3-2" role="tab" aria-controls="tabset-3-2" aria-selected="false" href="">Julia</a></li></ul>
+<div class="tab-content" data-group="lang">
+<div id="tabset-3-1" class="tab-pane active" role="tabpanel" aria-labelledby="tabset-3-1-tab">
+<div id="50d21440" class="cell" data-execution_count="6">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb13"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> adm.problems.commute <span class="im">import</span> COMMUTE_DECISION <span class="im">as</span> bn, COMMUTE_UTILITY <span class="im">as</span> U</span>
+<span id="cb13-2"><a href="#cb13-2" aria-hidden="true" tabindex="-1"></a>now <span class="op">=</span> <span class="fu">action_utilities</span>(bn, <span class="st">"D"</span>, (<span class="st">"L"</span>,), U, {})                  <span class="co"># nothing observed</span></span>
+<span id="cb13-3"><a href="#cb13-3" aria-hidden="true" tabindex="-1"></a>after_alert <span class="op">=</span> <span class="fu">best_action</span>(bn, <span class="st">"D"</span>, (<span class="st">"L"</span>,), U, {<span class="st">"A"</span>: <span class="dv">1</span>})         <span class="co"># radio alert heard</span></span>
+<span id="cb13-4"><a href="#cb13-4" aria-hidden="true" tabindex="-1"></a>voi <span class="op">=</span> {o: <span class="fu">value_of_information</span>(bn, <span class="st">"D"</span>, (<span class="st">"L"</span>,), U, {}, o) <span class="cf">for</span> o <span class="kw">in</span> (<span class="st">"S"</span>, <span class="st">"R"</span>, <span class="st">"A"</span>, <span class="st">"J"</span>)}</span>
+<span id="cb13-5"><a href="#cb13-5" aria-hidden="true" tabindex="-1"></a>ce <span class="op">=</span> <span class="fu">certainty_equivalent</span>([<span class="dv">0</span>, <span class="dv">100</span>], [<span class="fl">0.5</span>, <span class="fl">0.5</span>], lam<span class="op">=</span><span class="fl">0.01</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</div>
+</div>
+<div id="tabset-3-2" class="tab-pane" role="tabpanel" aria-labelledby="tabset-3-2-tab">
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb14"><pre class="sourceCode julia snippet code-with-copy"><code class="sourceCode julia"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a>bn, U <span class="op">=</span> <span class="fu">commute_decision_network</span>(), COMMUTE_UTILITY</span>
+<span id="cb14-2"><a href="#cb14-2" aria-hidden="true" tabindex="-1"></a>nothing_seen <span class="op">=</span> <span class="fu">Dict</span><span class="dt">{Symbol, Int}</span>()</span>
+<span id="cb14-3"><a href="#cb14-3" aria-hidden="true" tabindex="-1"></a><span class="pp">@assert</span> <span class="fu">action_utilities</span>(bn, U, nothing_seen) <span class="op">≈</span> [<span class="op">-</span><span class="fl">1.643</span>, <span class="op">-</span><span class="fl">2.254</span>, <span class="op">-</span><span class="fl">6.0</span>]</span>
+<span id="cb14-4"><a href="#cb14-4" aria-hidden="true" tabindex="-1"></a><span class="pp">@assert</span> <span class="fu">best_action</span>(bn, U, <span class="fu">Dict</span>(<span class="op">:</span>A <span class="op">=&gt;</span> <span class="fl">2</span>))[<span class="fl">1</span>] <span class="op">==</span> <span class="fl">2</span>      <span class="co"># after an alert (2 = yes): leave early</span></span>
+<span id="cb14-5"><a href="#cb14-5" aria-hidden="true" tabindex="-1"></a><span class="pp">@assert</span> <span class="fu">isapprox</span>(<span class="fu">value_of_information</span>(bn, U, nothing_seen, <span class="op">:</span>J), <span class="fl">0.508</span>; atol <span class="op">=</span> <span class="fl">1e-9</span>)</span>
+<span id="cb14-6"><a href="#cb14-6" aria-hidden="true" tabindex="-1"></a><span class="pp">@assert</span> <span class="fu">isapprox</span>(<span class="fu">value_of_information</span>(bn, U, nothing_seen, <span class="op">:</span>A), <span class="fl">0.0892</span>; atol <span class="op">=</span> <span class="fl">1e-4</span>)</span>
+<span id="cb14-7"><a href="#cb14-7" aria-hidden="true" tabindex="-1"></a><span class="pp">@assert</span> <span class="fu">isapprox</span>(<span class="fu">certainty_equivalent</span>([<span class="fl">0</span>, <span class="fl">100</span>], [<span class="fl">0.5</span>, <span class="fl">0.5</span>], <span class="fl">0.01</span>), <span class="fl">37.99</span>; atol <span class="op">=</span> <span class="fl">0.01</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</div>
+</div>
+</div>
+<div id="4328d39c" class="cell" data-execution_count="7">
+<div class="cell-output cell-output-stdout">
+<pre><code>Expected utility, nothing observed: {'leave on time': np.float64(-1.643), 'leave early': np.float64(-2.254), 'stay home': np.float64(-6.0)}
+After a radio alert: leave early (EU -2.654)
+Value of observing, before deciding: {'S': 0.109, 'R': 0.141, 'A': 0.089, 'J': 0.508}
+Certainty equivalent of a $0/$100 coin flip, lambda = 0.01: $37.99</code></pre>
+</div>
+</div>
+<div class="callout callout-style-default callout-note callout-titled" title="Reading the Julia code (for Python programmers)">
+<div class="callout-header d-flex align-content-center collapsed" data-bs-toggle="collapse" data-bs-target=".callout-2-contents" aria-controls="callout-2" aria-expanded="false" aria-label="Toggle callout">
+<div class="callout-icon-container">
+<i class="callout-icon"></i>
+</div>
+<div class="callout-title-container flex-fill">
+<span class="screen-reader-only">Note</span>Reading the Julia code (for Python programmers)
+</div>
+<div class="callout-btn-toggle d-inline-block border-0 py-1 ps-1 pe-0 float-end"><i class="callout-toggle"></i></div>
+</div>
+<div id="callout-2" class="callout-2-contents callout-collapse collapse">
+<div class="callout-body-container callout-body">
+<ul>
+<li><strong><code>exponential_utility.(xs, λ)</code></strong>: the dot applies the function to every element of <code>xs</code>, like a NumPy ufunc.</li>
+<li><strong><code>merge(d1, d2, d3)</code></strong> combines several dictionaries, with later ones winning, like <code>{**d1, **d2, **d3}</code>.</li>
+<li><strong><code>Iterators.product(...)</code></strong> with <code>...</code> splatting lists every combination of the hidden variables’ values, like <code>itertools.product(*ranges)</code>.</li>
+<li><strong><code>argmax(eu)</code></strong> gives the <em>index</em> of the largest value, like <code>np.argmax</code>. Indices start at 1, so action 2 is “leave early”.</li>
+</ul>
+</div>
+</div>
+</div>
+</section>
+<section id="results" class="level3">
+<h3 class="anchored" data-anchor-id="results">Results</h3>
+<section id="risk-attitude-is-curvature-1" class="level4">
+<h4 class="anchored" data-anchor-id="risk-attitude-is-curvature-1">Risk attitude is curvature</h4>
+<div id="cell-fig-utility-shapes" class="cell" data-execution_count="8">
+<div class="cell-output cell-output-display">
+<div id="fig-utility-shapes" class="quarto-float quarto-figure quarto-figure-center anchored" alt="Line chart of utility against money from 0 to 100 dollars. A concave curve (risk averse, lambda 0.01) reaches utility 0.5 at about 38 dollars; a straight line (risk neutral) at 50 dollars; a convex curve (risk seeking, lambda minus 0.01) at about 62 dollars. A dashed horizontal line marks utility 0.5.">
+<figure class="quarto-float quarto-float-fig figure">
+<div aria-describedby="fig-utility-shapes-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<img src="ch06-simple-decisions_files/figure-html/fig-utility-shapes-output-1.png" alt="Line chart of utility against money from 0 to 100 dollars. A concave curve (risk averse, lambda 0.01) reaches utility 0.5 at about 38 dollars; a straight line (risk neutral) at 50 dollars; a convex curve (risk seeking, lambda minus 0.01) at about 62 dollars. A dashed horizontal line marks utility 0.5." width="556" height="343" class="figure-img">
+</div>
+<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-utility-shapes-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Figure&nbsp;5: Three utilities of money, rescaled so U($0) = 0 and U($100) = 1. For a coin flip between $0 and $100 the expected utility is 0.5 for all three (dashed line); where each curve reaches 0.5 is its certainty equivalent.
+</figcaption>
+</figure>
+</div>
+</div>
+</div>
+<p>The risk-averse curve reaches the gamble’s expected utility at $38, so that person would sell the $50-average gamble for $38. The risk seeker would demand $62 before giving it up.</p>
+</section>
+<section id="how-the-best-action-depends-on-belief" class="level4">
+<h4 class="anchored" data-anchor-id="how-the-best-action-depends-on-belief">How the best action depends on belief</h4>
+<p>The only thing the evidence changes is the probability of a jam. <a href="#fig-eu-vs-jam" class="quarto-xref">Figure&nbsp;6</a> plots each action’s expected utility against that probability. Leaving early overtakes leaving on time once a jam is more than about 43% likely. Each piece of evidence moves you along this axis.</p>
+<div id="cell-fig-eu-vs-jam" class="cell" data-execution_count="9">
+<div class="cell-output cell-output-display">
+<div id="fig-eu-vs-jam" class="quarto-float quarto-figure quarto-figure-center anchored" alt="Line chart with P(jam) from 0 to 1 across and expected utility up the side. Leave on time starts highest at minus 0.5 and falls steeply to minus 5; leave early falls gently from minus 2 to minus 3; stay home is flat at minus 6. The on-time and early lines cross at about 0.43. Dashed vertical lines at 0.20 (no alert) and 0.25 (no information) lie left of the crossing, where leaving on time is best; one at 0.65 (alert) lies right of it, where leaving early is best.">
+<figure class="quarto-float quarto-float-fig figure">
+<div aria-describedby="fig-eu-vs-jam-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<img src="ch06-simple-decisions_files/figure-html/fig-eu-vs-jam-output-1.png" alt="Line chart with P(jam) from 0 to 1 across and expected utility up the side. Leave on time starts highest at minus 0.5 and falls steeply to minus 5; leave early falls gently from minus 2 to minus 3; stay home is flat at minus 6. The on-time and early lines cross at about 0.43. Dashed vertical lines at 0.20 (no alert) and 0.25 (no information) lie left of the crossing, where leaving on time is best; one at 0.65 (alert) lies right of it, where leaving early is best." width="541" height="333" class="figure-img">
+</div>
+<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-eu-vs-jam-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Figure&nbsp;6: Expected utility of each action as a function of P(jam). The actions trade places where the lines cross (about 43%). Vertical lines mark P(jam) with no information, after no radio alert, and after an alert.
+</figcaption>
+</figure>
+</div>
+</div>
+</div>
+</section>
+<section id="what-information-is-worth" class="level4">
+<h4 class="anchored" data-anchor-id="what-information-is-worth">What information is worth</h4>
+<p><a href="#fig-voi" class="quarto-xref">Figure&nbsp;7</a> compares the value of observing each variable before deciding, and shows how the traffic app’s value depends on how much you mind being late. Information matters most when the decision is a close call. Both curves peak at a lateness cost of about 14, exactly where the no-information choice flips from on time to early. When lateness barely matters (below about 5), you’d leave on time whatever you saw. When it matters a lot (near 40), you’d leave early whatever you saw. The radio’s value is zero outside a narrow band of costs, because an alert shifts P(jam) less than the app does.</p>
+<div id="cell-fig-voi" class="cell" data-execution_count="10">
+<div class="cell-output cell-output-display">
+<div id="fig-voi" class="quarto-float quarto-figure quarto-figure-center anchored" alt="Two panels. The left is a bar chart of the value of information: traffic jam about 0.51 is highest, then roadwork about 0.14, storm about 0.11, and radio alert about 0.09. The right is a line chart against the cost of being late from 0 to 40: the traffic-app line is zero below a cost of about 5, rises to a peak of about 0.95 at a cost of about 14, then falls back to zero at 40; the radio line is nonzero only between costs of about 7 and 16, peaking near 0.23 at the same place.">
+<figure class="quarto-float quarto-float-fig figure">
+<div aria-describedby="fig-voi-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<img src="ch06-simple-decisions_files/figure-html/fig-voi-output-1.png" alt="Two panels. The left is a bar chart of the value of information: traffic jam about 0.51 is highest, then roadwork about 0.14, storm about 0.11, and radio alert about 0.09. The right is a line chart against the cost of being late from 0 to 40: the traffic-app line is zero below a cost of about 5, rises to a peak of about 0.95 at a cost of about 14, then falls back to zero at 40; the radio line is nonzero only between costs of about 7 and 16, peaking near 0.23 at the same place." width="948" height="314" class="figure-img">
+</div>
+<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-voi-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Figure&nbsp;7: Left: value of observing each variable before deciding (costs as in the worked example). Right: value of checking the traffic app, and the radio, as the cost of being late varies; information is worth most when the choice is borderline.
+</figcaption>
+</figure>
+</div>
+</div>
+</div>
+</section>
+</section>
+</section>
+<section id="solved-problems" class="level2">
+<h2 class="anchored" data-anchor-id="solved-problems">Solved problems</h2>
+<p><strong>Problem 1: the money pump.</strong> Someone prefers on time ≻ early, early ≻ home, and home ≻ on time. Show how they could be made to lose money.</p>
+<div class="callout callout-style-default callout-tip callout-titled" title="Solution">
+<div class="callout-header d-flex align-content-center collapsed" data-bs-toggle="collapse" data-bs-target=".callout-3-contents" aria-controls="callout-3" aria-expanded="false" aria-label="Toggle callout">
+<div class="callout-icon-container">
+<i class="callout-icon"></i>
+</div>
+<div class="callout-title-container flex-fill">
+<span class="screen-reader-only">Tip</span>Solution
+</div>
+<div class="callout-btn-toggle d-inline-block border-0 py-1 ps-1 pe-0 float-end"><i class="callout-toggle"></i></div>
+</div>
+<div id="callout-3" class="callout-3-contents callout-collapse collapse">
+<div class="callout-body-container callout-body">
+<p>Start them with “home”. They prefer “early”, so they’ll pay a small fee, say 1 cent, to switch to it. They prefer “on time” to “early”, so they pay another cent to switch. They prefer “home” to “on time”, so they pay another cent, and they’re back where they started, 3 cents poorer. Repeat forever. Transitivity (<a href="#eq-vnm" class="quarto-xref">Equation&nbsp;1</a>) rules this out, and any utility function automatically satisfies it, since numbers can’t go in circles.</p>
+</div>
+</div>
+</div>
+<p><strong>Problem 2: reading a utility off a gamble.</strong> On a scale with <span class="math inline">\(U(\$0) = 0\)</span> and <span class="math inline">\(U(\$100) = 1\)</span>, you’re indifferent between $40 for sure and a 50% chance at $100. What is <span class="math inline">\(U(\$40)\)</span>, and are you risk averse?</p>
+<div class="callout callout-style-default callout-tip callout-titled" title="Solution">
+<div class="callout-header d-flex align-content-center collapsed" data-bs-toggle="collapse" data-bs-target=".callout-4-contents" aria-controls="callout-4" aria-expanded="false" aria-label="Toggle callout">
+<div class="callout-icon-container">
+<i class="callout-icon"></i>
+</div>
+<div class="callout-title-container flex-fill">
+<span class="screen-reader-only">Tip</span>Solution
+</div>
+<div class="callout-btn-toggle d-inline-block border-0 py-1 ps-1 pe-0 float-end"><i class="callout-toggle"></i></div>
+</div>
+<div id="callout-4" class="callout-4-contents callout-collapse collapse">
+<div class="callout-body-container callout-body">
+<p>By <a href="#eq-elicitation" class="quarto-xref">Equation&nbsp;5</a>, <span class="math inline">\(U(\$40) = 0.5\)</span>. The gamble’s expected money is $50, but you’d accept $40 for it: the certainty equivalent is below the expected value, so you’re <strong>risk averse</strong>, with a risk premium of $10. Your utility curve passes through <span class="math inline">\((40, 0.5)\)</span>, above the straight line from <span class="math inline">\((0, 0)\)</span> to <span class="math inline">\((100, 1)\)</span>, which would give <span class="math inline">\(0.4\)</span> at $40. That’s what concave means.</p>
+</div>
+</div>
+</div>
+<p><strong>Problem 3: when is information worthless?</strong> You already know the app shows a jam. Why is checking the radio now worth exactly 0? Give a second, different reason information can be worthless.</p>
+<div class="callout callout-style-default callout-tip callout-titled" title="Solution">
+<div class="callout-header d-flex align-content-center collapsed" data-bs-toggle="collapse" data-bs-target=".callout-5-contents" aria-controls="callout-5" aria-expanded="false" aria-label="Toggle callout">
+<div class="callout-icon-container">
+<i class="callout-icon"></i>
+</div>
+<div class="callout-title-container flex-fill">
+<span class="screen-reader-only">Tip</span>Solution
+</div>
+<div class="callout-btn-toggle d-inline-block border-0 py-1 ps-1 pe-0 float-end"><i class="callout-toggle"></i></div>
+</div>
+<div id="callout-5" class="callout-5-contents callout-collapse collapse">
+<div class="callout-body-container callout-body">
+<p>Given a jam, leaving early is best (EU −3 vs −5 for on time). The radio only tells you about storms, and once the jam is known, the storm doesn’t affect lateness (it’s blocked by the jam; <a href="../part1/ch02-representation.html">Ch 2</a>). So every radio result leaves the same best action, and <a href="#eq-voi" class="quarto-xref">Equation&nbsp;7</a> gives 0.</p>
+<p>A second reason: the observation <em>could</em> shift your beliefs, but not enough to cross a decision threshold. If lateness cost only 1 point, you’d leave on time whatever the radio or the app said, so both would be worth 0 (<a href="#fig-voi" class="quarto-xref">Figure&nbsp;7</a>, right panel, near cost 0).</p>
+</div>
+</div>
+</div>
+<p><strong>Problem 4: the Allais choices.</strong> Show directly that someone who prefers 1A to 1B <em>and</em> 2B to 2A cannot have any utility function.</p>
+<div class="callout callout-style-default callout-tip callout-titled" title="Solution">
+<div class="callout-header d-flex align-content-center collapsed" data-bs-toggle="collapse" data-bs-target=".callout-6-contents" aria-controls="callout-6" aria-expanded="false" aria-label="Toggle callout">
+<div class="callout-icon-container">
+<i class="callout-icon"></i>
+</div>
+<div class="callout-title-container flex-fill">
+<span class="screen-reader-only">Tip</span>Solution
+</div>
+<div class="callout-btn-toggle d-inline-block border-0 py-1 ps-1 pe-0 float-end"><i class="callout-toggle"></i></div>
+</div>
+<div id="callout-6" class="callout-6-contents callout-collapse collapse">
+<div class="callout-body-container callout-body">
+<p>As in <a href="#irrationality">Irrationality</a>: 1A ≻ 1B gives <span class="math inline">\(0.11u_1 &gt; 0.10u_5 + 0.01u_0\)</span>, and 2B ≻ 2A gives <span class="math inline">\(0.10u_5 + 0.01u_0 &gt; 0.11u_1\)</span>. Both can’t be true. The pair 2A/2B is the pair 1A/1B with an 89% chance of $1M replaced by an 89% chance of $0 <em>in both</em>. Independence says such a common change can’t flip the preference, so the flip is exactly a violation of independence.</p>
+</div>
+</div>
+</div>
+</section>
+<section id="recap" class="level2">
+<h2 class="anchored" data-anchor-id="recap">Recap</h2>
+<ol type="1">
+<li><strong>Rational preferences (<a href="#eq-vnm" class="quarto-xref">Equation&nbsp;1</a>) imply a utility function,</strong> and gambles are valued by expected utility (<a href="#eq-lottery" class="quarto-xref">Equation&nbsp;2</a>). <em>Why it matters:</em> it justifies “maximize expected utility”, and with it the reward-maximizing objective of every later chapter, as the consequence of consistency rather than an arbitrary choice.</li>
+<li><strong>The curvature of a utility function is its attitude to risk,</strong> summarized by the certainty equivalent (<a href="#eq-certainty-equivalent" class="quarto-xref">Equation&nbsp;3</a>, <a href="#eq-exponential-utility" class="quarto-xref">Equation&nbsp;4</a>). <em>Why it matters:</em> the same expected money can be a good or a bad deal depending on the decision maker, which matters for any agent acting for a person.</li>
+<li><strong>Utilities can be elicited by comparing outcomes with gambles (<a href="#eq-elicitation" class="quarto-xref">Equation&nbsp;5</a>).</strong> <em>Why it matters:</em> utilities are measurable, not guessed, and that’s how rewards are designed in practice.</li>
+<li><strong>Choose the action with the maximum expected utility (<a href="#eq-meu" class="quarto-xref">Equation&nbsp;6</a>),</strong> computed with inference over a decision network. <em>Why it matters:</em> this is one-step decision making, and <a href="../part2/ch07-exact-solution-methods.html">Chapter 7</a>’s Bellman equation is exactly this rule applied at every step, with future value as part of the utility.</li>
+<li><strong>The value of information (<a href="#eq-voi" class="quarto-xref">Equation&nbsp;7</a>) is never negative, and zero unless the observation could change the decision.</strong> <em>Why it matters:</em> it tells an agent what to measure and what to ignore, which is the core of exploration (Ch 15) and of information gathering under partial observability (Part IV).</li>
+</ol>
+</section>
+<section id="cheat-sheet-connections" class="level2">
+<h2 class="anchored" data-anchor-id="cheat-sheet-connections">Cheat sheet &amp; connections</h2>
+<div id="tbl-cheatsheet" class="quarto-float quarto-figure quarto-figure-center anchored">
+<figure class="quarto-float quarto-float-tbl figure">
+<figcaption class="quarto-float-caption-top quarto-float-caption quarto-float-tbl" id="tbl-cheatsheet-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Table&nbsp;4: Key equations from this page (★ = well-known by name).
+</figcaption>
+<div aria-describedby="tbl-cheatsheet-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<table class="caption-top table">
+<colgroup>
+<col style="width: 33%">
+<col style="width: 33%">
+<col style="width: 33%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Name</th>
+<th>Formula</th>
+<th>Ref</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>★ Rational preference axioms</td>
+<td>completeness, transitivity, continuity, independence</td>
+<td><a href="#eq-vnm" class="quarto-xref">Equation&nbsp;1</a></td>
+</tr>
+<tr class="even">
+<td>★ Expected utility of a lottery</td>
+<td><span class="math inline">\(U([S_1{:}\,p_1; \ldots]) = \sum_i p_i U(S_i)\)</span></td>
+<td><a href="#eq-lottery" class="quarto-xref">Equation&nbsp;2</a></td>
+</tr>
+<tr class="odd">
+<td>Certainty equivalent</td>
+<td><span class="math inline">\(U(x_{\text{ce}}) = \mathbb{E}[U(x)]\)</span></td>
+<td><a href="#eq-certainty-equivalent" class="quarto-xref">Equation&nbsp;3</a></td>
+</tr>
+<tr class="even">
+<td>Exponential utility</td>
+<td><span class="math inline">\(U(x) = 1 - e^{-\lambda x}\)</span>, <span class="math inline">\(\ x_{\text{ce}} = -\frac1\lambda \ln \mathbb{E}[e^{-\lambda x}]\)</span></td>
+<td><a href="#eq-exponential-utility" class="quarto-xref">Equation&nbsp;4</a></td>
+</tr>
+<tr class="odd">
+<td>Elicitation</td>
+<td><span class="math inline">\(S \sim [S_\top{:}\,p; S_\bot{:}\,1-p] \Rightarrow U(S) = p\)</span></td>
+<td><a href="#eq-elicitation" class="quarto-xref">Equation&nbsp;5</a></td>
+</tr>
+<tr class="even">
+<td>★ Maximum expected utility</td>
+<td><span class="math inline">\(a^* = \arg\max_a \sum_{s'} P(s' \mid a, o) U(s')\)</span></td>
+<td><a href="#eq-meu" class="quarto-xref">Equation&nbsp;6</a></td>
+</tr>
+<tr class="odd">
+<td>★ Value of information</td>
+<td><span class="math inline">\(\sum_{o'} P(o' \mid o) EU^*(o, o') - EU^*(o)\)</span></td>
+<td><a href="#eq-voi" class="quarto-xref">Equation&nbsp;7</a></td>
+</tr>
+</tbody>
+</table>
+</div>
+</figure>
+</div>
+<p><strong>Common pitfalls</strong></p>
+<ul>
+<li><strong>Maximizing expected <em>money</em>.</strong> Money isn’t utility. For a risk-averse decision maker, the higher-average gamble can be the wrong choice.</li>
+<li><strong>Paying for information that can’t change the decision.</strong> Check whether any possible result would flip the best action. If none would, its value is 0.</li>
+<li><strong>Letting the decision influence your beliefs about its inputs.</strong> In a decision network, choosing an action doesn’t make a storm more likely. Condition on the decision only for its <em>consequences</em>.</li>
+<li><strong>Treating human choices as data about rational utilities.</strong> People show the certainty effect and framing effects. Elicit carefully, and expect inconsistencies.</li>
+</ul>
+<p><strong>Connections</strong></p>
+<ul>
+<li><a href="../part1/ch03-inference.html">Ch 3 · Inference</a> computes every probability used in a decision network.</li>
+<li><a href="../part2/ch07-exact-solution-methods.html">Ch 7 · Exact Solution Methods</a> chains this one-step rule into sequential decisions.</li>
+<li><a href="../part3/ch15-exploration-and-exploitation.html">Ch 15 · Exploration and Exploitation</a> is about deciding when information is worth its cost.</li>
+<li><a href="../part4/ch20-exact-belief-state-planning.html">Ch 20 · Exact Belief State Planning</a> chooses actions for their information value as well as their reward.</li>
+</ul>
+
+
+</section>
+
+</main> <!-- /main -->
+<script type="ojs-module-contents">
+eyJjb250ZW50cyI6W3sibWV0aG9kTmFtZSI6ImludGVycHJldCIsImNlbGxOYW1lIjoib2pzLWNlbGwtMSIsImlubGluZSI6ZmFsc2UsInNvdXJjZSI6ImRlYyA9IEZpbGVBdHRhY2htZW50KFwiZGF0YS9jaDA2LWRlY2lzaW9uLmpzb25cIikuanNvbigpXG52aWV3b2YgYWxlcnQgPSBJbnB1dHMucmFkaW8oW1widW5rbm93blwiLCBcInllc1wiLCBcIm5vXCJdLCB7bGFiZWw6IFwiUmFkaW8gYWxlcnRcIiwgdmFsdWU6IFwidW5rbm93blwifSlcbnZpZXdvZiBqYW0gPSBJbnB1dHMucmFkaW8oW1widW5rbm93blwiLCBcInllc1wiLCBcIm5vXCJdLCB7bGFiZWw6IFwiVHJhZmZpYyBhcHAgc2hvd3MgYSBqYW1cIiwgdmFsdWU6IFwidW5rbm93blwifSlcbnZpZXdvZiBsYXRlQ29zdCA9IElucHV0cy5yYW5nZShbMCwgNDBdLCB7c3RlcDogMSwgdmFsdWU6IDEwLCBsYWJlbDogXCJDb3N0IG9mIGJlaW5nIGxhdGVcIn0pXG52aWV3b2YgZWFybHlDb3N0ID0gSW5wdXRzLnJhbmdlKFswLCAxMF0sIHtzdGVwOiAwLjUsIHZhbHVlOiAyLCBsYWJlbDogXCJDb3N0IG9mIGxlYXZpbmcgZWFybHlcIn0pXG52aWV3b2YgaG9tZUNvc3QgPSBJbnB1dHMucmFuZ2UoWzAsIDIwXSwge3N0ZXA6IDAuNSwgdmFsdWU6IDYsIGxhYmVsOiBcIkNvc3Qgb2Ygc3RheWluZyBob21lXCJ9KVxuIn0seyJtZXRob2ROYW1lIjoiaW50ZXJwcmV0IiwiY2VsbE5hbWUiOiJvanMtY2VsbC0yIiwiaW5saW5lIjpmYWxzZSwic291cmNlIjoiY2hvaWNlID0ge1xuICBjb25zdCBjb2RlID0gdiA9PiB2ID09PSBcInVua25vd25cIiA/IFwidVwiIDogdiA9PT0gXCJ5ZXNcIiA/IDEgOiAwO1xuICAvLyBFVSBvZiBlYWNoIGFjdGlvbiB1bmRlciBldmlkZW5jZSBrZXkgazogbWludXMgdGhlIGV4cGVjdGVkIGxhdGVuZXNzIGNvc3QsIG1pbnVzIHRoZSBhY3Rpb24ncyBvd24gY29zdC5cbiAgY29uc3QgZXUgPSBrID0+IGRlYy50YWJsZXNba10ucExhdGUubWFwKChwLCBkKSA9PiAtbGF0ZUNvc3QgKiBwIC0gWzAsIGVhcmx5Q29zdCwgaG9tZUNvc3RdW2RdKTtcbiAgY29uc3QgYmVzdCA9IGsgPT4gZDMubWF4KGV1KGspKTtcbiAgY29uc3Qga2V5ID0gKGEsIGopID0+IGBBJHthfUoke2p9YDtcbiAgY29uc3QgYSA9IGNvZGUoYWxlcnQpLCBqID0gY29kZShqYW0pLCBoZXJlID0ga2V5KGEsIGopO1xuICAvLyBWT0kgKEBlcS12b2kpOiBhdmVyYWdlIGJlc3QgRVUgYWZ0ZXIgc2VlaW5nIHRoZSB2YXJpYWJsZSwgbWludXMgdGhlIGJlc3QgRVUgbm93LlxuICBjb25zdCB2b2lBbGVydCA9IGEgIT09IFwidVwiID8gMCA6IGRlYy50YWJsZXNbaGVyZV0ucEFsZXJ0ICogYmVzdChrZXkoMSwgaikpICsgKDEgLSBkZWMudGFibGVzW2hlcmVdLnBBbGVydCkgKiBiZXN0KGtleSgwLCBqKSkgLSBiZXN0KGhlcmUpO1xuICBjb25zdCB2b2lKYW0gPSBqICE9PSBcInVcIiA/IDAgOiBkZWMudGFibGVzW2hlcmVdLnBKYW0gKiBiZXN0KGtleShhLCAxKSkgKyAoMSAtIGRlYy50YWJsZXNbaGVyZV0ucEphbSkgKiBiZXN0KGtleShhLCAwKSkgLSBiZXN0KGhlcmUpO1xuICBjb25zdCB2YWx1ZXMgPSBldShoZXJlKTtcbiAgcmV0dXJuIHt2YWx1ZXMsIGJlc3RJbmRleDogdmFsdWVzLmluZGV4T2YoZDMubWF4KHZhbHVlcykpLCB2b2lBbGVydCwgdm9pSmFtLCBrbm93bjoge2FsZXJ0OiBhICE9PSBcInVcIiwgamFtOiBqICE9PSBcInVcIn19O1xufVxuIn0seyJtZXRob2ROYW1lIjoiaW50ZXJwcmV0IiwiY2VsbE5hbWUiOiJvanMtY2VsbC0zIiwiaW5saW5lIjpmYWxzZSwic291cmNlIjoibWRgKipCZXN0OiAke2RlYy5hY3Rpb25zW2Nob2ljZS5iZXN0SW5kZXhdfS4qKiBDaGVja2luZyB0aGUgcmFkaW8gZmlyc3QgaXMgd29ydGggJHtjaG9pY2Uua25vd24uYWxlcnQgPyBcIm5vdGhpbmcgbW9yZSAoYWxyZWFkeSBrbm93bilcIiA6IFwiKipcIiArIGNob2ljZS52b2lBbGVydC50b0ZpeGVkKDMpICsgXCIqKlwifTsgY2hlY2tpbmcgdGhlIHRyYWZmaWMgYXBwIGlzIHdvcnRoICR7Y2hvaWNlLmtub3duLmphbSA/IFwibm90aGluZyBtb3JlIChhbHJlYWR5IGtub3duKVwiIDogXCIqKlwiICsgY2hvaWNlLnZvaUphbS50b0ZpeGVkKDMpICsgXCIqKlwifSBwb2ludHMuYFxuIn0seyJtZXRob2ROYW1lIjoiaW50ZXJwcmV0IiwiY2VsbE5hbWUiOiJvanMtY2VsbC00IiwiaW5saW5lIjpmYWxzZSwic291cmNlIjoiUGxvdC5wbG90KHtcbiAgd2lkdGg6IDY0MCwgaGVpZ2h0OiAxNjAsIG1hcmdpbkxlZnQ6IDExMCxcbiAgc3R5bGU6IHtiYWNrZ3JvdW5kOiBkZWMuc3R5bGUuc3VyZmFjZSwgY29sb3I6IGRlYy5zdHlsZS5pbmt9LFxuICB4OiB7bGFiZWw6IFwiRXhwZWN0ZWQgdXRpbGl0eSAocG9pbnRzKVwiLCBncmlkOiB0cnVlfSxcbiAgeToge2RvbWFpbjogZGVjLmFjdGlvbnMsIGxhYmVsOiBudWxsfSxcbiAgbWFya3M6IFtcbiAgICBQbG90LmJhclgoY2hvaWNlLnZhbHVlcy5tYXAoKHYsIGkpID0+ICh7YWN0aW9uOiBkZWMuYWN0aW9uc1tpXSwgdiwgYmVzdDogaSA9PT0gY2hvaWNlLmJlc3RJbmRleH0pKSxcbiAgICAgIHt4OiBcInZcIiwgeTogXCJhY3Rpb25cIiwgZmlsbDogZCA9PiBkLmJlc3QgPyBkZWMuc3R5bGUuYmx1ZSA6IGRlYy5zdHlsZS5tdXRlZCwgcng6IDN9KSxcbiAgICAvLyBCYXJzIHJ1biBsZWZ0IGZyb20gMCB0byB2LCBzbyBhIGxhYmVsIHN0YXJ0aW5nIGp1c3QgcmlnaHQgb2YgdiBzaXRzIGluc2lkZSB0aGUgYmFyLlxuICAgIC8vIFNraXAgbGFiZWxzIG9uIGJhcnMgdG9vIHNob3J0IHRvIGhvbGQgdGhlbS5cbiAgICBQbG90LnRleHQoY2hvaWNlLnZhbHVlcy5tYXAoKHYsIGkpID0+ICh7YWN0aW9uOiBkZWMuYWN0aW9uc1tpXSwgdn0pKVxuICAgICAgICAuZmlsdGVyKGQgPT4gZC52IDwgLTAuMTUgKiBNYXRoLmFicyhkMy5taW4oY2hvaWNlLnZhbHVlcykpKSxcbiAgICAgIHt4OiBcInZcIiwgeTogXCJhY3Rpb25cIiwgdGV4dDogZCA9PiBkLnYudG9GaXhlZCgyKSwgZHg6IDYsIHRleHRBbmNob3I6IFwic3RhcnRcIiwgZmlsbDogXCJ3aGl0ZVwifSksXG4gICAgUGxvdC5ydWxlWChbMF0pXG4gIF1cbn0pXG4ifSx7Im1ldGhvZE5hbWUiOiJpbnRlcnByZXQiLCJjZWxsTmFtZSI6Im9qcy1jZWxsLTUiLCJpbmxpbmUiOmZhbHNlLCJzb3VyY2UiOiJ2aWV3b2YgbGFtID0gSW5wdXRzLnJhbmdlKFstMC4wNCwgMC4wNl0sIHtzdGVwOiAwLjAwNSwgdmFsdWU6IDAuMDEsIGxhYmVsOiBcIlJpc2sgYXZlcnNpb24gzrtcIn0pXG52aWV3b2YgcFdpbiA9IElucHV0cy5yYW5nZShbMCwgMV0sIHtzdGVwOiAwLjA1LCB2YWx1ZTogMC41LCBsYWJlbDogXCJDaGFuY2Ugb2Ygd2lubmluZyAkMTAwXCJ9KVxudmlld29mIHN1cmUgPSBJbnB1dHMucmFuZ2UoWzAsIDEwMF0sIHtzdGVwOiAxLCB2YWx1ZTogNDAsIGxhYmVsOiBcIlN1cmUgYW1vdW50ICgkKVwifSlcbiJ9LHsibWV0aG9kTmFtZSI6ImludGVycHJldCIsImNlbGxOYW1lIjoib2pzLWNlbGwtNiIsImlubGluZSI6ZmFsc2UsInNvdXJjZSI6InJpc2sgPSB7XG4gIC8vIEV4cG9uZW50aWFsIHV0aWxpdHkgcmVzY2FsZWQgc28gVSgwKSA9IDAgYW5kIFUoMTAwKSA9IDE7IGEgc3RyYWlnaHQgbGluZSBhdCDOuyA9IDAuXG4gIGNvbnN0IFUgPSB4ID0+IE1hdGguYWJzKGxhbSkgPCAxZS05ID8geCAvIDEwMCA6ICgxIC0gTWF0aC5leHAoLWxhbSAqIHgpKSAvICgxIC0gTWF0aC5leHAoLWxhbSAqIDEwMCkpO1xuICBjb25zdCBVaW52ID0gdSA9PiBNYXRoLmFicyhsYW0pIDwgMWUtOSA/IDEwMCAqIHUgOiAtTWF0aC5sb2coMSAtIHUgKiAoMSAtIE1hdGguZXhwKC1sYW0gKiAxMDApKSkgLyBsYW07XG4gIGNvbnN0IGV1ID0gcFdpbiAqIFUoMTAwKTsgICAgICAgICAgICAgICAgIC8vIFUoMCkgPSAwLCBzbyBvbmx5IHRoZSB3aW4gY29udHJpYnV0ZXNcbiAgY29uc3QgY2UgPSBVaW52KGV1KTtcbiAgY29uc3QgY3VydmUgPSBkMy5yYW5nZSgwLCAxMDAuNSwgMSkubWFwKHggPT4gKHt4LCB1OiBVKHgpfSkpO1xuICByZXR1cm4ge1UsIGV1LCBjZSwgY3VydmUsIHRha2VTdXJlOiBVKHN1cmUpID4gZXV9O1xufVxuIn0seyJtZXRob2ROYW1lIjoiaW50ZXJwcmV0IiwiY2VsbE5hbWUiOiJvanMtY2VsbC03IiwiaW5saW5lIjpmYWxzZSwic291cmNlIjoibWRgR2FtYmxlOiBleHBlY3RlZCB2YWx1ZSAqKiQkeygxMDAgKiBwV2luKS50b0ZpeGVkKDApfSoqLCBleHBlY3RlZCB1dGlsaXR5ICR7cmlzay5ldS50b0ZpeGVkKDMpfSwgY2VydGFpbnR5IGVxdWl2YWxlbnQgKiokJHtyaXNrLmNlLnRvRml4ZWQoMSl9KiouICR7cmlzay50YWtlU3VyZSA/IFwiVGFrZSB0aGUgKipzdXJlICRcIiArIHN1cmUgKyBcIioqLlwiIDogXCJUYWtlIHRoZSAqKmdhbWJsZSoqLlwifWBcbiJ9LHsibWV0aG9kTmFtZSI6ImludGVycHJldCIsImNlbGxOYW1lIjoib2pzLWNlbGwtOCIsImlubGluZSI6ZmFsc2UsInNvdXJjZSI6IlBsb3QucGxvdCh7XG4gIHdpZHRoOiA2NDAsIGhlaWdodDogMzAwLFxuICBzdHlsZToge2JhY2tncm91bmQ6IFwiI2ZjZmNmYlwiLCBjb2xvcjogXCIjMGIwYjBiXCJ9LFxuICB4OiB7ZG9tYWluOiBbMCwgMTAwXSwgbGFiZWw6IFwiTW9uZXkgKCQpXCIsIGdyaWQ6IHRydWV9LCB5OiB7ZG9tYWluOiBbMCwgMV0sIGxhYmVsOiBcIlV0aWxpdHlcIiwgZ3JpZDogdHJ1ZX0sXG4gIG1hcmtzOiBbXG4gICAgUGxvdC5saW5lKHJpc2suY3VydmUsIHt4OiBcInhcIiwgeTogXCJ1XCIsIHN0cm9rZTogXCIjNTI1MTRlXCIsIHN0cm9rZVdpZHRoOiAyfSksXG4gICAgUGxvdC5ydWxlWShbcmlzay5ldV0sIHtzdHJva2U6IFwiI2ViNjgzNFwiLCBzdHJva2VEYXNoYXJyYXk6IFwiNCwzXCJ9KSxcbiAgICBQbG90LmRvdChbe3g6IHJpc2suY2UsIHU6IHJpc2suZXV9XSwge3g6IFwieFwiLCB5OiBcInVcIiwgcjogNiwgZmlsbDogXCIjZWI2ODM0XCJ9KSxcbiAgICBQbG90LmRvdChbe3g6IHN1cmUsIHU6IHJpc2suVShzdXJlKX1dLCB7eDogXCJ4XCIsIHk6IFwidVwiLCByOiA2LCBmaWxsOiBcIiMyYTc4ZDZcIn0pLFxuICAgIFBsb3QudGV4dChbe3g6IHJpc2suY2UsIHU6IHJpc2suZXV9XSwge3g6IFwieFwiLCB5OiBcInVcIiwgdGV4dDogZCA9PiBgY2VydGFpbnR5IGVxdWl2YWxlbnQgJCR7ZC54LnRvRml4ZWQoMCl9YCxcbiAgICAgIGR4OiA4LCBkeTogMTYsIHRleHRBbmNob3I6IFwic3RhcnRcIiwgZmlsbDogXCIjZWI2ODM0XCJ9KVxuICBdXG59KVxuIn0seyJtZXRob2ROYW1lIjoiaW50ZXJwcmV0UXVpZXQiLCJzb3VyY2UiOiJzaGlueUlucHV0KCdhbGVydCcpIn0seyJtZXRob2ROYW1lIjoiaW50ZXJwcmV0UXVpZXQiLCJzb3VyY2UiOiJzaGlueUlucHV0KCdqYW0nKSJ9LHsibWV0aG9kTmFtZSI6ImludGVycHJldFF1aWV0Iiwic291cmNlIjoic2hpbnlJbnB1dCgnbGF0ZUNvc3QnKSJ9LHsibWV0aG9kTmFtZSI6ImludGVycHJldFF1aWV0Iiwic291cmNlIjoic2hpbnlJbnB1dCgnZWFybHlDb3N0JykifSx7Im1ldGhvZE5hbWUiOiJpbnRlcnByZXRRdWlldCIsInNvdXJjZSI6InNoaW55SW5wdXQoJ2hvbWVDb3N0JykifSx7Im1ldGhvZE5hbWUiOiJpbnRlcnByZXRRdWlldCIsInNvdXJjZSI6InNoaW55SW5wdXQoJ2xhbScpIn0seyJtZXRob2ROYW1lIjoiaW50ZXJwcmV0UXVpZXQiLCJzb3VyY2UiOiJzaGlueUlucHV0KCdwV2luJykifSx7Im1ldGhvZE5hbWUiOiJpbnRlcnByZXRRdWlldCIsInNvdXJjZSI6InNoaW55SW5wdXQoJ3N1cmUnKSJ9XX0=
+</script>
+<script type="module">
+if (window.location.protocol === "file:") { alert("The OJS runtime does not work with file:// URLs. Please use a web server to view this document."); }
+window._ojs.paths.runtimeToDoc = "../../part1";
+window._ojs.paths.runtimeToRoot = "../..";
+window._ojs.paths.docToRoot = "..";
+window._ojs.selfContained = false;
+window._ojs.runtime.interpretFromScriptTags();
+</script>
+<script id="quarto-html-after-body" type="application/javascript">
+  window.document.addEventListener("DOMContentLoaded", function (event) {
+    // Ensure there is a toggle, if there isn't float one in the top right
+    if (window.document.querySelector('.quarto-color-scheme-toggle') === null) {
+      const a = window.document.createElement('a');
+      a.classList.add('top-right');
+      a.classList.add('quarto-color-scheme-toggle');
+      a.href = "";
+      a.onclick = function() { try { window.quartoToggleColorScheme(); } catch {} return false; };
+      const i = window.document.createElement("i");
+      i.classList.add('bi');
+      a.appendChild(i);
+      window.document.body.appendChild(a);
+    }
+    setColorSchemeToggle(hasAlternateSentinel())
+    const icon = "";
+    const anchorJS = new window.AnchorJS();
+    anchorJS.options = {
+      placement: 'right',
+      icon: icon
+    };
+    anchorJS.add('.anchored');
+    const isCodeAnnotation = (el) => {
+      for (const clz of el.classList) {
+        if (clz.startsWith('code-annotation-')) {                     
+          return true;
+        }
+      }
+      return false;
+    }
+    const onCopySuccess = function(e) {
+      // button target
+      const button = e.trigger;
+      // don't keep focus
+      button.blur();
+      // flash "checked"
+      button.classList.add('code-copy-button-checked');
+      var currentTitle = button.getAttribute("title");
+      button.setAttribute("title", "Copied!");
+      let tooltip;
+      if (window.bootstrap) {
+        button.setAttribute("data-bs-toggle", "tooltip");
+        button.setAttribute("data-bs-placement", "left");
+        button.setAttribute("data-bs-title", "Copied!");
+        tooltip = new bootstrap.Tooltip(button, 
+          { trigger: "manual", 
+            customClass: "code-copy-button-tooltip",
+            offset: [0, -8]});
+        tooltip.show();    
+      }
+      setTimeout(function() {
+        if (tooltip) {
+          tooltip.hide();
+          button.removeAttribute("data-bs-title");
+          button.removeAttribute("data-bs-toggle");
+          button.removeAttribute("data-bs-placement");
+        }
+        button.setAttribute("title", currentTitle);
+        button.classList.remove('code-copy-button-checked');
+      }, 1000);
+      // clear code selection
+      e.clearSelection();
+    }
+    const getTextToCopy = function(trigger) {
+      const outerScaffold = trigger.parentElement.cloneNode(true);
+      const codeEl = outerScaffold.querySelector('code');
+      for (const childEl of codeEl.children) {
+        if (isCodeAnnotation(childEl)) {
+          childEl.remove();
+        }
+      }
+      return codeEl.innerText;
+    }
+    const clipboard = new window.ClipboardJS('.code-copy-button:not([data-in-quarto-modal])', {
+      text: getTextToCopy
+    });
+    clipboard.on('success', onCopySuccess);
+    if (window.document.getElementById('quarto-embedded-source-code-modal')) {
+      const clipboardModal = new window.ClipboardJS('.code-copy-button[data-in-quarto-modal]', {
+        text: getTextToCopy,
+        container: window.document.getElementById('quarto-embedded-source-code-modal')
+      });
+      clipboardModal.on('success', onCopySuccess);
+    }
+      var localhostRegex = new RegExp(/^(?:http|https):\/\/localhost\:?[0-9]*\//);
+      var mailtoRegex = new RegExp(/^mailto:/);
+        var filterRegex = new RegExp("https:\/\/laventura\.github\.io\/adm-companion\/");
+      var isInternal = (href) => {
+          return filterRegex.test(href) || localhostRegex.test(href) || mailtoRegex.test(href);
+      }
+      // Inspect non-navigation links and adorn them if external
+     var links = window.document.querySelectorAll('a[href]:not(.nav-link):not(.navbar-brand):not(.toc-action):not(.sidebar-link):not(.sidebar-item-toggle):not(.pagination-link):not(.no-external):not([aria-hidden]):not(.dropdown-item):not(.quarto-navigation-tool):not(.about-link)');
+      for (var i=0; i<links.length; i++) {
+        const link = links[i];
+        if (!isInternal(link.href)) {
+          // undo the damage that might have been done by quarto-nav.js in the case of
+          // links that we want to consider external
+          if (link.dataset.originalHref !== undefined) {
+            link.href = link.dataset.originalHref;
+          }
+        }
+      }
+    function tippyHover(el, contentFn, onTriggerFn, onUntriggerFn) {
+      const config = {
+        allowHTML: true,
+        maxWidth: 500,
+        delay: 100,
+        arrow: false,
+        appendTo: function(el) {
+            return el.parentElement;
+        },
+        interactive: true,
+        interactiveBorder: 10,
+        theme: 'quarto',
+        placement: 'bottom-start',
+      };
+      if (contentFn) {
+        config.content = contentFn;
+      }
+      if (onTriggerFn) {
+        config.onTrigger = onTriggerFn;
+      }
+      if (onUntriggerFn) {
+        config.onUntrigger = onUntriggerFn;
+      }
+      window.tippy(el, config); 
+    }
+    const noterefs = window.document.querySelectorAll('a[role="doc-noteref"]');
+    for (var i=0; i<noterefs.length; i++) {
+      const ref = noterefs[i];
+      tippyHover(ref, function() {
+        // use id or data attribute instead here
+        let href = ref.getAttribute('data-footnote-href') || ref.getAttribute('href');
+        try { href = new URL(href).hash; } catch {}
+        const id = href.replace(/^#\/?/, "");
+        const note = window.document.getElementById(id);
+        if (note) {
+          return note.innerHTML;
+        } else {
+          return "";
+        }
+      });
+    }
+    const xrefs = window.document.querySelectorAll('a.quarto-xref');
+    const processXRef = (id, note) => {
+      // Strip column container classes
+      const stripColumnClz = (el) => {
+        el.classList.remove("page-full", "page-columns");
+        if (el.children) {
+          for (const child of el.children) {
+            stripColumnClz(child);
+          }
+        }
+      }
+      stripColumnClz(note)
+      if (id === null || id.startsWith('sec-')) {
+        // Special case sections, only their first couple elements
+        const container = document.createElement("div");
+        if (note.children && note.children.length > 2) {
+          container.appendChild(note.children[0].cloneNode(true));
+          for (let i = 1; i < note.children.length; i++) {
+            const child = note.children[i];
+            if (child.tagName === "P" && child.innerText === "") {
+              continue;
+            } else {
+              container.appendChild(child.cloneNode(true));
+              break;
+            }
+          }
+          if (window.Quarto?.typesetMath) {
+            window.Quarto.typesetMath(container);
+          }
+          return container.innerHTML
+        } else {
+          if (window.Quarto?.typesetMath) {
+            window.Quarto.typesetMath(note);
+          }
+          return note.innerHTML;
+        }
+      } else {
+        // Remove any anchor links if they are present
+        const anchorLink = note.querySelector('a.anchorjs-link');
+        if (anchorLink) {
+          anchorLink.remove();
+        }
+        if (window.Quarto?.typesetMath) {
+          window.Quarto.typesetMath(note);
+        }
+        if (note.classList.contains("callout")) {
+          return note.outerHTML;
+        } else {
+          return note.innerHTML;
+        }
+      }
+    }
+    for (var i=0; i<xrefs.length; i++) {
+      const xref = xrefs[i];
+      tippyHover(xref, undefined, function(instance) {
+        instance.disable();
+        let url = xref.getAttribute('href');
+        let hash = undefined; 
+        if (url.startsWith('#')) {
+          hash = url;
+        } else {
+          try { hash = new URL(url).hash; } catch {}
+        }
+        if (hash) {
+          const id = hash.replace(/^#\/?/, "");
+          const note = window.document.getElementById(id);
+          if (note !== null) {
+            try {
+              const html = processXRef(id, note.cloneNode(true));
+              instance.setContent(html);
+            } finally {
+              instance.enable();
+              instance.show();
+            }
+          } else {
+            // See if we can fetch this
+            fetch(url.split('#')[0])
+            .then(res => res.text())
+            .then(html => {
+              const parser = new DOMParser();
+              const htmlDoc = parser.parseFromString(html, "text/html");
+              const note = htmlDoc.getElementById(id);
+              if (note !== null) {
+                const html = processXRef(id, note);
+                instance.setContent(html);
+              } 
+            }).finally(() => {
+              instance.enable();
+              instance.show();
+            });
+          }
+        } else {
+          // See if we can fetch a full url (with no hash to target)
+          // This is a special case and we should probably do some content thinning / targeting
+          fetch(url)
+          .then(res => res.text())
+          .then(html => {
+            const parser = new DOMParser();
+            const htmlDoc = parser.parseFromString(html, "text/html");
+            const note = htmlDoc.querySelector('main.content');
+            if (note !== null) {
+              // This should only happen for chapter cross references
+              // (since there is no id in the URL)
+              // remove the first header
+              if (note.children.length > 0 && note.children[0].tagName === "HEADER") {
+                note.children[0].remove();
+              }
+              const html = processXRef(null, note);
+              instance.setContent(html);
+            } 
+          }).finally(() => {
+            instance.enable();
+            instance.show();
+          });
+        }
+      }, function(instance) {
+      });
+    }
+        let selectedAnnoteEl;
+        const selectorForAnnotation = ( cell, annotation) => {
+          let cellAttr = 'data-code-cell="' + cell + '"';
+          let lineAttr = 'data-code-annotation="' +  annotation + '"';
+          const selector = 'span[' + cellAttr + '][' + lineAttr + ']';
+          return selector;
+        }
+        const selectCodeLines = (annoteEl) => {
+          const doc = window.document;
+          const targetCell = annoteEl.getAttribute("data-target-cell");
+          const targetAnnotation = annoteEl.getAttribute("data-target-annotation");
+          const annoteSpan = window.document.querySelector(selectorForAnnotation(targetCell, targetAnnotation));
+          const lines = annoteSpan.getAttribute("data-code-lines").split(",");
+          const lineIds = lines.map((line) => {
+            return targetCell + "-" + line;
+          })
+          let top = null;
+          let height = null;
+          let parent = null;
+          if (lineIds.length > 0) {
+              //compute the position of the single el (top and bottom and make a div)
+              const el = window.document.getElementById(lineIds[0]);
+              top = el.offsetTop;
+              height = el.offsetHeight;
+              parent = el.parentElement.parentElement;
+            if (lineIds.length > 1) {
+              const lastEl = window.document.getElementById(lineIds[lineIds.length - 1]);
+              const bottom = lastEl.offsetTop + lastEl.offsetHeight;
+              height = bottom - top;
+            }
+            if (top !== null && height !== null && parent !== null) {
+              // cook up a div (if necessary) and position it 
+              let div = window.document.getElementById("code-annotation-line-highlight");
+              if (div === null) {
+                div = window.document.createElement("div");
+                div.setAttribute("id", "code-annotation-line-highlight");
+                div.style.position = 'absolute';
+                parent.appendChild(div);
+              }
+              div.style.top = top - 2 + "px";
+              div.style.height = height + 4 + "px";
+              div.style.left = 0;
+              let gutterDiv = window.document.getElementById("code-annotation-line-highlight-gutter");
+              if (gutterDiv === null) {
+                gutterDiv = window.document.createElement("div");
+                gutterDiv.setAttribute("id", "code-annotation-line-highlight-gutter");
+                gutterDiv.style.position = 'absolute';
+                const codeCell = window.document.getElementById(targetCell);
+                const gutter = codeCell.querySelector('.code-annotation-gutter');
+                gutter.appendChild(gutterDiv);
+              }
+              gutterDiv.style.top = top - 2 + "px";
+              gutterDiv.style.height = height + 4 + "px";
+            }
+            selectedAnnoteEl = annoteEl;
+          }
+        };
+        const unselectCodeLines = () => {
+          const elementsIds = ["code-annotation-line-highlight", "code-annotation-line-highlight-gutter"];
+          elementsIds.forEach((elId) => {
+            const div = window.document.getElementById(elId);
+            if (div) {
+              div.remove();
+            }
+          });
+          selectedAnnoteEl = undefined;
+        };
+          // Handle positioning of the toggle
+      window.addEventListener(
+        "resize",
+        throttle(() => {
+          elRect = undefined;
+          if (selectedAnnoteEl) {
+            selectCodeLines(selectedAnnoteEl);
+          }
+        }, 10)
+      );
+      function throttle(fn, ms) {
+      let throttle = false;
+      let timer;
+        return (...args) => {
+          if(!throttle) { // first call gets through
+              fn.apply(this, args);
+              throttle = true;
+          } else { // all the others get throttled
+              if(timer) clearTimeout(timer); // cancel #2
+              timer = setTimeout(() => {
+                fn.apply(this, args);
+                timer = throttle = false;
+              }, ms);
+          }
+        };
+      }
+        // Attach click handler to the DT
+        const annoteDls = window.document.querySelectorAll('dt[data-target-cell]');
+        for (const annoteDlNode of annoteDls) {
+          annoteDlNode.addEventListener('click', (event) => {
+            const clickedEl = event.target;
+            if (clickedEl !== selectedAnnoteEl) {
+              unselectCodeLines();
+              const activeEl = window.document.querySelector('dt[data-target-cell].code-annotation-active');
+              if (activeEl) {
+                activeEl.classList.remove('code-annotation-active');
+              }
+              selectCodeLines(clickedEl);
+              clickedEl.classList.add('code-annotation-active');
+            } else {
+              // Unselect the line
+              unselectCodeLines();
+              clickedEl.classList.remove('code-annotation-active');
+            }
+          });
+        }
+    const findCites = (el) => {
+      const parentEl = el.parentElement;
+      if (parentEl) {
+        const cites = parentEl.dataset.cites;
+        if (cites) {
+          return {
+            el,
+            cites: cites.split(' ')
+          };
+        } else {
+          return findCites(el.parentElement)
+        }
+      } else {
+        return undefined;
+      }
+    };
+    var bibliorefs = window.document.querySelectorAll('a[role="doc-biblioref"]');
+    for (var i=0; i<bibliorefs.length; i++) {
+      const ref = bibliorefs[i];
+      const citeInfo = findCites(ref);
+      if (citeInfo) {
+        tippyHover(citeInfo.el, function() {
+          var popup = window.document.createElement('div');
+          citeInfo.cites.forEach(function(cite) {
+            var citeDiv = window.document.createElement('div');
+            citeDiv.classList.add('hanging-indent');
+            citeDiv.classList.add('csl-entry');
+            var biblioDiv = window.document.getElementById('ref-' + cite);
+            if (biblioDiv) {
+              citeDiv.innerHTML = biblioDiv.innerHTML;
+            }
+            popup.appendChild(citeDiv);
+          });
+          return popup.innerHTML;
+        });
+      }
+    }
+  });
+  </script>
+<nav class="page-navigation">
+  <div class="nav-page nav-page-previous">
+      <a href="../part1/ch05-structure-learning.html" class="pagination-link" aria-label="5 · Structure Learning">
+        <i class="bi bi-arrow-left-short"></i> <span class="nav-page-text">5 · Structure Learning</span>
+      </a>          
+  </div>
+  <div class="nav-page nav-page-next">
+      <a href="../part2/ch07-exact-solution-methods.html" class="pagination-link" aria-label="7 · Exact Solution Methods">
+        <span class="nav-page-text">7 · Exact Solution Methods</span> <i class="bi bi-arrow-right-short"></i>
+      </a>
+  </div>
+</nav>
+</div> <!-- /content -->
+<footer class="footer">
+  <div class="nav-footer">
+    <div class="nav-footer-left">
+      &nbsp;
+    </div>   
+    <div class="nav-footer-center">
+<p>An independent, unofficial companion to <em>Algorithms for Decision Making</em> (MIT Press, 2022). The book is freely available at <a href="https://algorithmsbook.com">algorithmsbook.com</a>. Site text and figures © Atul Acharya, <a href="https://creativecommons.org/licenses/by-nc/4.0/">CC BY-NC 4.0</a>; code <a href="https://opensource.org/license/mit">MIT</a>.</p>
+</div>
+    <div class="nav-footer-right">
+      &nbsp;
+    </div>
+  </div>
+</footer>
+
+
+
+
+</body></html>

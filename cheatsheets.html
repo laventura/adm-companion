@@ -1,0 +1,2477 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en"><head>
+
+<meta charset="utf-8">
+<meta name="generator" content="quarto-1.9.38">
+
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+
+
+<title>Cheat sheets – ADM Companion</title>
+<style>
+/* Default styles provided by pandoc.
+** See https://pandoc.org/MANUAL.html#variables-for-html for config info.
+*/
+code{white-space: pre-wrap;}
+span.smallcaps{font-variant: small-caps;}
+div.columns{display: flex; gap: min(4vw, 1.5em);}
+div.column{flex: auto; overflow-x: auto;}
+div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+ul.task-list{list-style: none;}
+ul.task-list li input[type="checkbox"] {
+  width: 0.8em;
+  margin: 0 0.8em 0.2em -1em; /* quarto-specific, see https://github.com/quarto-dev/quarto-cli/issues/4556 */ 
+  vertical-align: middle;
+}
+</style>
+
+
+<script src="site_libs/quarto-nav/quarto-nav.js"></script>
+<script src="site_libs/quarto-nav/headroom.min.js"></script>
+<script src="site_libs/clipboard/clipboard.min.js"></script>
+<script src="site_libs/quarto-search/autocomplete.umd.js"></script>
+<script src="site_libs/quarto-search/fuse.min.js"></script>
+<script src="site_libs/quarto-search/quarto-search.js"></script>
+<meta name="quarto:offset" content="./">
+<link href="./intro/ch01-introduction.html" rel="next">
+<link href="./notation.html" rel="prev">
+<script src="site_libs/quarto-html/quarto.js" type="module"></script>
+<script src="site_libs/quarto-html/tabsets/tabsets.js" type="module"></script>
+<script src="site_libs/quarto-html/popper.min.js"></script>
+<script src="site_libs/quarto-html/tippy.umd.min.js"></script>
+<script src="site_libs/quarto-html/anchor.min.js"></script>
+<link href="site_libs/quarto-html/tippy.css" rel="stylesheet">
+<link href="site_libs/quarto-html/quarto-syntax-highlighting-de63f62b328812d8e578a4d74e282472.css" rel="stylesheet" class="quarto-color-scheme" id="quarto-text-highlighting-styles">
+<link href="site_libs/quarto-html/quarto-syntax-highlighting-dark-6b6957c917596b414ec0b78690761e87.css" rel="stylesheet" class="quarto-color-scheme quarto-color-alternate" id="quarto-text-highlighting-styles">
+<link href="site_libs/quarto-html/quarto-syntax-highlighting-de63f62b328812d8e578a4d74e282472.css" rel="stylesheet" class="quarto-color-scheme-extra" id="quarto-text-highlighting-styles">
+<script src="site_libs/bootstrap/bootstrap.min.js"></script>
+<link href="site_libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
+<link href="site_libs/bootstrap/bootstrap-d1de39f35053749ff84d2df96798693d.min.css" rel="stylesheet" append-hash="true" class="quarto-color-scheme" id="quarto-bootstrap" data-mode="light">
+<link href="site_libs/bootstrap/bootstrap-dark-a6f4e11c7ca7fab1bededaf21cc7b528.min.css" rel="stylesheet" append-hash="true" class="quarto-color-scheme quarto-color-alternate" id="quarto-bootstrap" data-mode="dark">
+<link href="site_libs/bootstrap/bootstrap-d1de39f35053749ff84d2df96798693d.min.css" rel="stylesheet" append-hash="true" class="quarto-color-scheme-extra" id="quarto-bootstrap" data-mode="light">
+<script id="quarto-search-options" type="application/json">{
+  "location": "sidebar",
+  "copy-button": false,
+  "collapse-after": 3,
+  "panel-placement": "start",
+  "type": "textbox",
+  "limit": 50,
+  "keyboard-shortcut": [
+    "f",
+    "/",
+    "s"
+  ],
+  "show-item-context": false,
+  "language": {
+    "search-no-results-text": "No results",
+    "search-matching-documents-text": "matching documents",
+    "search-copy-link-title": "Copy link to search",
+    "search-hide-matches-text": "Hide additional matches",
+    "search-more-match-text": "more match in this document",
+    "search-more-matches-text": "more matches in this document",
+    "search-clear-button-title": "Clear",
+    "search-text-placeholder": "",
+    "search-detached-cancel-button-title": "Cancel",
+    "search-submit-button-title": "Submit",
+    "search-label": "Search"
+  }
+}</script>
+
+  <script src="https://cdnjs.cloudflare.com/polyfill/v3/polyfill.min.js?features=es6"></script>
+  <script defer="" src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml-full.js" type="text/javascript"></script>
+
+<script type="text/javascript">
+const typesetMath = (el) => {
+  if (window.MathJax) {
+    // MathJax Typeset
+    window.MathJax.typeset([el]);
+  } else if (window.katex) {
+    // KaTeX Render
+    var mathElements = el.getElementsByClassName("math");
+    var macros = [];
+    for (var i = 0; i < mathElements.length; i++) {
+      var texText = mathElements[i].firstChild;
+      if (mathElements[i].tagName == "SPAN" && texText && texText.data) {
+        window.katex.render(texText.data, mathElements[i], {
+          displayMode: mathElements[i].classList.contains('display'),
+          throwOnError: false,
+          macros: macros,
+          fleqn: false
+        });
+      }
+    }
+  }
+}
+window.Quarto = {
+  typesetMath
+};
+</script>
+
+</head>
+
+<body class="nav-sidebar docked quarto-light"><script id="quarto-html-before-body" type="application/javascript">
+    const toggleBodyColorMode = (bsSheetEl) => {
+      const mode = bsSheetEl.getAttribute("data-mode");
+      const bodyEl = window.document.querySelector("body");
+      if (mode === "dark") {
+        bodyEl.classList.add("quarto-dark");
+        bodyEl.classList.remove("quarto-light");
+      } else {
+        bodyEl.classList.add("quarto-light");
+        bodyEl.classList.remove("quarto-dark");
+      }
+    }
+    const toggleBodyColorPrimary = () => {
+      const bsSheetEl = window.document.querySelector("link#quarto-bootstrap:not([rel=disabled-stylesheet])");
+      if (bsSheetEl) {
+        toggleBodyColorMode(bsSheetEl);
+      }
+    }
+    const setColorSchemeToggle = (alternate) => {
+      const toggles = window.document.querySelectorAll('.quarto-color-scheme-toggle');
+      for (let i=0; i < toggles.length; i++) {
+        const toggle = toggles[i];
+        if (toggle) {
+          if (alternate) {
+            toggle.classList.add("alternate");
+          } else {
+            toggle.classList.remove("alternate");
+          }
+        }
+      }
+    };
+    const toggleColorMode = (alternate) => {
+      // Switch the stylesheets
+      const primaryStylesheets = window.document.querySelectorAll('link.quarto-color-scheme:not(.quarto-color-alternate)');
+      const alternateStylesheets = window.document.querySelectorAll('link.quarto-color-scheme.quarto-color-alternate');
+      manageTransitions('#quarto-margin-sidebar .nav-link', false);
+      if (alternate) {
+        // note: dark is layered on light, we don't disable primary!
+        enableStylesheet(alternateStylesheets);
+        for (const sheetNode of alternateStylesheets) {
+          if (sheetNode.id === "quarto-bootstrap") {
+            toggleBodyColorMode(sheetNode);
+          }
+        }
+      } else {
+        disableStylesheet(alternateStylesheets);
+        enableStylesheet(primaryStylesheets)
+        toggleBodyColorPrimary();
+      }
+      manageTransitions('#quarto-margin-sidebar .nav-link', true);
+      // Switch the toggles
+      setColorSchemeToggle(alternate)
+      // Hack to workaround the fact that safari doesn't
+      // properly recolor the scrollbar when toggling (#1455)
+      if (navigator.userAgent.indexOf('Safari') > 0 && navigator.userAgent.indexOf('Chrome') == -1) {
+        manageTransitions("body", false);
+        window.scrollTo(0, 1);
+        setTimeout(() => {
+          window.scrollTo(0, 0);
+          manageTransitions("body", true);
+        }, 40);
+      }
+    }
+    const disableStylesheet = (stylesheets) => {
+      for (let i=0; i < stylesheets.length; i++) {
+        const stylesheet = stylesheets[i];
+        stylesheet.rel = 'disabled-stylesheet';
+      }
+    }
+    const enableStylesheet = (stylesheets) => {
+      for (let i=0; i < stylesheets.length; i++) {
+        const stylesheet = stylesheets[i];
+        if(stylesheet.rel !== 'stylesheet') { // for Chrome, which will still FOUC without this check
+          stylesheet.rel = 'stylesheet';
+        }
+      }
+    }
+    const manageTransitions = (selector, allowTransitions) => {
+      const els = window.document.querySelectorAll(selector);
+      for (let i=0; i < els.length; i++) {
+        const el = els[i];
+        if (allowTransitions) {
+          el.classList.remove('notransition');
+        } else {
+          el.classList.add('notransition');
+        }
+      }
+    }
+    const isFileUrl = () => {
+      return window.location.protocol === 'file:';
+    }
+    const hasAlternateSentinel = () => {
+      let styleSentinel = getColorSchemeSentinel();
+      if (styleSentinel !== null) {
+        return styleSentinel === "alternate";
+      } else {
+        return false;
+      }
+    }
+    const setStyleSentinel = (alternate) => {
+      const value = alternate ? "alternate" : "default";
+      if (!isFileUrl()) {
+        window.localStorage.setItem("quarto-color-scheme", value);
+      } else {
+        localAlternateSentinel = value;
+      }
+    }
+    const getColorSchemeSentinel = () => {
+      if (!isFileUrl()) {
+        const storageValue = window.localStorage.getItem("quarto-color-scheme");
+        return storageValue != null ? storageValue : localAlternateSentinel;
+      } else {
+        return localAlternateSentinel;
+      }
+    }
+    const toggleGiscusIfUsed = (isAlternate, darkModeDefault) => {
+      const baseTheme = document.querySelector('#giscus-base-theme')?.value ?? 'light';
+      const alternateTheme = document.querySelector('#giscus-alt-theme')?.value ?? 'dark';
+      let newTheme = '';
+      if(authorPrefersDark) {
+        newTheme = isAlternate ? baseTheme : alternateTheme;
+      } else {
+        newTheme = isAlternate ? alternateTheme : baseTheme;
+      }
+      const changeGiscusTheme = () => {
+        // From: https://github.com/giscus/giscus/issues/336
+        const sendMessage = (message) => {
+          const iframe = document.querySelector('iframe.giscus-frame');
+          if (!iframe) return;
+          iframe.contentWindow.postMessage({ giscus: message }, 'https://giscus.app');
+        }
+        sendMessage({
+          setConfig: {
+            theme: newTheme
+          }
+        });
+      }
+      const isGiscussLoaded = window.document.querySelector('iframe.giscus-frame') !== null;
+      if (isGiscussLoaded) {
+        changeGiscusTheme();
+      }
+    };
+    const authorPrefersDark = false;
+    const darkModeDefault = authorPrefersDark;
+      document.querySelector('link#quarto-text-highlighting-styles.quarto-color-scheme-extra').rel = 'disabled-stylesheet';
+      document.querySelector('link#quarto-bootstrap.quarto-color-scheme-extra').rel = 'disabled-stylesheet';
+    let localAlternateSentinel = darkModeDefault ? 'alternate' : 'default';
+    // Dark / light mode switch
+    window.quartoToggleColorScheme = () => {
+      // Read the current dark / light value
+      let toAlternate = !hasAlternateSentinel();
+      toggleColorMode(toAlternate);
+      setStyleSentinel(toAlternate);
+      toggleGiscusIfUsed(toAlternate, darkModeDefault);
+      window.dispatchEvent(new Event('resize'));
+    };
+    // Switch to dark mode if need be
+    if (hasAlternateSentinel()) {
+      toggleColorMode(true);
+    } else {
+      toggleColorMode(false);
+    }
+  </script>
+
+<div id="quarto-search-results"></div>
+  <header id="quarto-header" class="headroom fixed-top">
+  <nav class="quarto-secondary-nav">
+    <div class="container-fluid d-flex">
+      <button type="button" class="quarto-btn-toggle btn" data-bs-toggle="collapse" role="button" data-bs-target=".quarto-sidebar-collapse-item" aria-controls="quarto-sidebar" aria-expanded="false" aria-label="Toggle sidebar navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">
+        <i class="bi bi-layout-text-sidebar-reverse"></i>
+      </button>
+        <nav class="quarto-page-breadcrumbs" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="./cheatsheets.html">Cheat sheets</a></li></ol></nav>
+        <a class="flex-grow-1" role="navigation" data-bs-toggle="collapse" data-bs-target=".quarto-sidebar-collapse-item" aria-controls="quarto-sidebar" aria-expanded="false" aria-label="Toggle sidebar navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">      
+        </a>
+      <button type="button" class="btn quarto-search-button" aria-label="Search" onclick="window.quartoOpenSearch();">
+        <i class="bi bi-search"></i>
+      </button>
+    </div>
+  </nav>
+</header>
+<!-- content -->
+<div id="quarto-content" class="quarto-container page-columns page-rows-contents page-layout-article">
+<!-- sidebar -->
+  <nav id="quarto-sidebar" class="sidebar collapse collapse-horizontal quarto-sidebar-collapse-item sidebar-navigation docked overflow-auto">
+    <div class="pt-lg-2 mt-2 text-left sidebar-header">
+    <div class="sidebar-title mb-0 py-0">
+      <a href="./">ADM Companion</a> 
+        <div class="sidebar-tools-main">
+  <a href="" class="quarto-color-scheme-toggle quarto-navigation-tool  px-1" onclick="window.quartoToggleColorScheme(); return false;" title="Toggle dark mode"><i class="bi"></i></a>
+</div>
+    </div>
+      </div>
+        <div class="mt-2 flex-shrink-0 align-items-center">
+        <div class="sidebar-search">
+        <div id="quarto-search" class="" title="Search"></div>
+        </div>
+        </div>
+    <div class="sidebar-menu-container"> 
+    <ul class="list-unstyled mt-1">
+        <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./index.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Algorithms for Decision Making - Companion</span></a>
+  </div>
+</li>
+        <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./notation.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Notation</span></a>
+  </div>
+</li>
+        <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./cheatsheets.html" class="sidebar-item-text sidebar-link active">
+ <span class="menu-text">Cheat sheets</span></a>
+  </div>
+</li>
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-1" role="navigation" aria-expanded="false">
+ <span class="menu-text">Introduction</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-1" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-1" class="collapse list-unstyled sidebar-section depth1 ">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./intro/ch01-introduction.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">1 · Introduction</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-2" role="navigation" aria-expanded="false">
+ <span class="menu-text">Part I — Probabilistic Reasoning</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-2" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-2" class="collapse list-unstyled sidebar-section depth1 ">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./part1/ch02-representation.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">2 · Representation</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./part1/ch03-inference.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">3 · Inference</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./part1/ch04-parameter-learning.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">4 · Parameter Learning</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./part1/ch05-structure-learning.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">5 · Structure Learning</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./part1/ch06-simple-decisions.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">6 · Simple Decisions</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-3" role="navigation" aria-expanded="false">
+ <span class="menu-text">Part II — Sequential Problems</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-3" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-3" class="collapse list-unstyled sidebar-section depth1 ">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./part2/ch07-exact-solution-methods.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">7 · Exact Solution Methods</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./part2/ch08-approximate-value-functions.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">8 · Approximate Value Functions</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./part2/ch09-online-planning.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">9 · Online Planning</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./part2/ch10-policy-search.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">10 · Policy Search</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./part2/ch11-policy-gradient-estimation.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">11 · Policy Gradient Estimation</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./part2/ch12-policy-gradient-optimization.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">12 · Policy Gradient Optimization</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./part2/ch13-actor-critic-methods.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">13 · Actor-Critic Methods</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./part2/ch14-policy-validation.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">14 · Policy Validation</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-4" role="navigation" aria-expanded="false">
+ <span class="menu-text">Part III — Model Uncertainty</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-4" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-4" class="collapse list-unstyled sidebar-section depth1 ">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./part3/ch15-exploration-and-exploitation.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">15 · Exploration and Exploitation</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./part3/ch16-model-based-methods.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">16 · Model-Based Methods</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./part3/ch17-model-free-methods.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">17 · Model-Free Methods</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./part3/ch18-imitation-learning.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">18 · Imitation Learning</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-5" role="navigation" aria-expanded="false">
+ <span class="menu-text">Part IV — State Uncertainty</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-5" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-5" class="collapse list-unstyled sidebar-section depth1 ">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./part4/ch19-beliefs.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">19 · Beliefs</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./part4/ch20-exact-belief-state-planning.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">20 · Exact Belief State Planning</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./part4/ch21-offline-belief-state-planning.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">21 · Offline Belief State Planning</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./part4/ch22-online-belief-state-planning.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">22 · Online Belief State Planning</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./part4/ch23-controller-abstractions.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">23 · Controller Abstractions</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-6" role="navigation" aria-expanded="false">
+ <span class="menu-text">Part V — Multiagent Systems</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-6" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-6" class="collapse list-unstyled sidebar-section depth1 ">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./part5/ch24-multiagent-reasoning.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">24 · Multiagent Reasoning</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./part5/ch25-sequential-problems.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">25 · Sequential Problems</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./part5/ch26-state-uncertainty.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">26 · State Uncertainty</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./part5/ch27-collaborative-agents.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">27 · Collaborative Agents</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-7" role="navigation" aria-expanded="false">
+ <span class="menu-text">Appendices</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-7" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-7" class="collapse list-unstyled sidebar-section depth1 ">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./appendices/a-mathematical-concepts.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">A · Mathematical Concepts</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./appendices/b-probability-distributions.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">B · Probability Distributions</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./appendices/c-computational-complexity.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">C · Computational Complexity</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./appendices/d-neural-representations.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">D · Neural Representations</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./appendices/e-search-algorithms.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">E · Search Algorithms</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./appendices/f-problems.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">F · Problems</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+    </ul>
+    </div>
+</nav>
+<div id="quarto-sidebar-glass" class="quarto-sidebar-collapse-item" data-bs-toggle="collapse" data-bs-target=".quarto-sidebar-collapse-item"></div>
+<!-- margin-sidebar -->
+    <div id="quarto-margin-sidebar" class="sidebar margin-sidebar">
+        <nav id="TOC" role="doc-toc" class="toc-active">
+    <h2 id="toc-title">On this page</h2>
+   
+  <ul>
+  <li><a href="#introduction" id="toc-introduction" class="nav-link active" data-scroll-target="#introduction">Introduction</a>
+  <ul class="collapse">
+  <li><a href="#introduction-1" id="toc-introduction-1" class="nav-link" data-scroll-target="#introduction-1">1 · Introduction</a></li>
+  </ul></li>
+  <li><a href="#part-i-probabilistic-reasoning" id="toc-part-i-probabilistic-reasoning" class="nav-link" data-scroll-target="#part-i-probabilistic-reasoning">Part I — Probabilistic Reasoning</a>
+  <ul class="collapse">
+  <li><a href="#representation" id="toc-representation" class="nav-link" data-scroll-target="#representation">2 · Representation</a></li>
+  <li><a href="#inference" id="toc-inference" class="nav-link" data-scroll-target="#inference">3 · Inference</a></li>
+  <li><a href="#parameter-learning" id="toc-parameter-learning" class="nav-link" data-scroll-target="#parameter-learning">4 · Parameter Learning</a></li>
+  <li><a href="#structure-learning" id="toc-structure-learning" class="nav-link" data-scroll-target="#structure-learning">5 · Structure Learning</a></li>
+  <li><a href="#simple-decisions" id="toc-simple-decisions" class="nav-link" data-scroll-target="#simple-decisions">6 · Simple Decisions</a></li>
+  </ul></li>
+  <li><a href="#part-ii-sequential-problems" id="toc-part-ii-sequential-problems" class="nav-link" data-scroll-target="#part-ii-sequential-problems">Part II — Sequential Problems</a>
+  <ul class="collapse">
+  <li><a href="#exact-solution-methods" id="toc-exact-solution-methods" class="nav-link" data-scroll-target="#exact-solution-methods">7 · Exact Solution Methods</a></li>
+  <li><a href="#approximate-value-functions" id="toc-approximate-value-functions" class="nav-link" data-scroll-target="#approximate-value-functions">8 · Approximate Value Functions</a></li>
+  <li><a href="#online-planning" id="toc-online-planning" class="nav-link" data-scroll-target="#online-planning">9 · Online Planning</a></li>
+  <li><a href="#policy-search" id="toc-policy-search" class="nav-link" data-scroll-target="#policy-search">10 · Policy Search</a></li>
+  <li><a href="#policy-gradient-estimation" id="toc-policy-gradient-estimation" class="nav-link" data-scroll-target="#policy-gradient-estimation">11 · Policy Gradient Estimation</a></li>
+  <li><a href="#policy-gradient-optimization" id="toc-policy-gradient-optimization" class="nav-link" data-scroll-target="#policy-gradient-optimization">12 · Policy Gradient Optimization</a></li>
+  <li><a href="#actor-critic-methods" id="toc-actor-critic-methods" class="nav-link" data-scroll-target="#actor-critic-methods">13 · Actor-Critic Methods</a></li>
+  <li><a href="#policy-validation" id="toc-policy-validation" class="nav-link" data-scroll-target="#policy-validation">14 · Policy Validation</a></li>
+  </ul></li>
+  <li><a href="#part-iii-model-uncertainty" id="toc-part-iii-model-uncertainty" class="nav-link" data-scroll-target="#part-iii-model-uncertainty">Part III — Model Uncertainty</a>
+  <ul class="collapse">
+  <li><a href="#exploration-and-exploitation" id="toc-exploration-and-exploitation" class="nav-link" data-scroll-target="#exploration-and-exploitation">15 · Exploration and Exploitation</a></li>
+  <li><a href="#model-based-methods" id="toc-model-based-methods" class="nav-link" data-scroll-target="#model-based-methods">16 · Model-Based Methods</a></li>
+  <li><a href="#model-free-methods" id="toc-model-free-methods" class="nav-link" data-scroll-target="#model-free-methods">17 · Model-Free Methods</a></li>
+  <li><a href="#imitation-learning" id="toc-imitation-learning" class="nav-link" data-scroll-target="#imitation-learning">18 · Imitation Learning</a></li>
+  </ul></li>
+  <li><a href="#part-iv-state-uncertainty" id="toc-part-iv-state-uncertainty" class="nav-link" data-scroll-target="#part-iv-state-uncertainty">Part IV — State Uncertainty</a>
+  <ul class="collapse">
+  <li><a href="#beliefs" id="toc-beliefs" class="nav-link" data-scroll-target="#beliefs">19 · Beliefs</a></li>
+  <li><a href="#exact-belief-state-planning" id="toc-exact-belief-state-planning" class="nav-link" data-scroll-target="#exact-belief-state-planning">20 · Exact Belief State Planning</a></li>
+  <li><a href="#offline-belief-state-planning" id="toc-offline-belief-state-planning" class="nav-link" data-scroll-target="#offline-belief-state-planning">21 · Offline Belief State Planning</a></li>
+  <li><a href="#online-belief-state-planning" id="toc-online-belief-state-planning" class="nav-link" data-scroll-target="#online-belief-state-planning">22 · Online Belief State Planning</a></li>
+  <li><a href="#controller-abstractions" id="toc-controller-abstractions" class="nav-link" data-scroll-target="#controller-abstractions">23 · Controller Abstractions</a></li>
+  </ul></li>
+  <li><a href="#part-v-multiagent-systems" id="toc-part-v-multiagent-systems" class="nav-link" data-scroll-target="#part-v-multiagent-systems">Part V — Multiagent Systems</a>
+  <ul class="collapse">
+  <li><a href="#multiagent-reasoning" id="toc-multiagent-reasoning" class="nav-link" data-scroll-target="#multiagent-reasoning">24 · Multiagent Reasoning</a></li>
+  <li><a href="#sequential-problems" id="toc-sequential-problems" class="nav-link" data-scroll-target="#sequential-problems">25 · Sequential Problems</a></li>
+  <li><a href="#state-uncertainty" id="toc-state-uncertainty" class="nav-link" data-scroll-target="#state-uncertainty">26 · State Uncertainty</a></li>
+  <li><a href="#collaborative-agents" id="toc-collaborative-agents" class="nav-link" data-scroll-target="#collaborative-agents">27 · Collaborative Agents</a></li>
+  </ul></li>
+  </ul>
+</nav>
+    </div>
+<!-- main -->
+<main class="content" id="quarto-document-content">
+
+
+<header id="title-block-header" class="quarto-title-block default">
+<div class="quarto-title">
+<h1 class="title">Cheat sheets</h1>
+<p class="subtitle lead">Every chapter’s key equations on one page</p>
+</div>
+
+
+
+<div class="quarto-title-meta">
+
+    
+  
+    
+  </div>
+  
+
+
+</header>
+
+
+<p>Each chapter page ends with a cheat sheet of its key equations. This page collects them all, in book order. A ★ marks equations well known by name. Each “eq.” link opens the full explanation on the chapter page: the equation in words, term by term, and why it holds.</p>
+<section id="introduction" class="level2">
+<h2 class="anchored" data-anchor-id="introduction">Introduction</h2>
+<section id="introduction-1" class="level3">
+<h3 class="anchored" data-anchor-id="introduction-1"><a href="./intro/ch01-introduction.html">1 · Introduction</a></h3>
+<table class="caption-top table">
+<thead>
+<tr class="header">
+<th>Name</th>
+<th>Formula</th>
+<th>Ref</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Discounted return</td>
+<td><span class="math inline">\(\sum_{t=1}^{\infty} \gamma^{t-1} r_t\)</span></td>
+<td><a href="./intro/ch01-introduction.html#eq-return">eq.</a></td>
+</tr>
+<tr class="even">
+<td>★ Maximum expected utility</td>
+<td><span class="math inline">\(a^* = \arg\max_a \sum_{s'} P(s' \mid a, o)\, U(s')\)</span></td>
+<td><a href="./intro/ch01-introduction.html#eq-meu">eq.</a></td>
+</tr>
+<tr class="odd">
+<td>Constant reward <span class="math inline">\(r\)</span> forever</td>
+<td><span class="math inline">\(r / (1 - \gamma)\)</span></td>
+<td>Problem 2</td>
+</tr>
+</tbody>
+</table>
+</section>
+</section>
+<section id="part-i-probabilistic-reasoning" class="level2">
+<h2 class="anchored" data-anchor-id="part-i-probabilistic-reasoning">Part I — Probabilistic Reasoning</h2>
+<section id="representation" class="level3">
+<h3 class="anchored" data-anchor-id="representation"><a href="./part1/ch02-representation.html">2 · Representation</a></h3>
+<table class="caption-top table">
+<thead>
+<tr class="header">
+<th>Name</th>
+<th>Formula</th>
+<th>Ref</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Normalization</td>
+<td><span class="math inline">\(\sum_x P(x) = 1\)</span>, <span class="math inline">\(\ \int p(x)\,dx = 1\)</span></td>
+<td><a href="./part1/ch02-representation.html#eq-normalization">eq.</a></td>
+</tr>
+<tr class="even">
+<td>★ Gaussian</td>
+<td><span class="math inline">\(\mathcal{N}(x \mid \mu, \sigma^2) = \frac{1}{\sigma\sqrt{2\pi}} e^{-(x-\mu)^2 / 2\sigma^2}\)</span></td>
+<td><a href="./part1/ch02-representation.html#eq-gaussian">eq.</a></td>
+</tr>
+<tr class="odd">
+<td>Mixture</td>
+<td><span class="math inline">\(p(x) = \sum_i \rho_i \mathcal{N}(x \mid \mu_i, \sigma_i^2)\)</span></td>
+<td><a href="./part1/ch02-representation.html#eq-mixture">eq.</a></td>
+</tr>
+<tr class="even">
+<td>★ Multivariate Gaussian</td>
+<td><span class="math inline">\(\mathcal{N}(\mathbf{x} \mid \boldsymbol\mu, \boldsymbol\Sigma)\)</span>, with elliptical contours</td>
+<td><a href="./part1/ch02-representation.html#eq-mvn">eq.</a></td>
+</tr>
+<tr class="odd">
+<td>★ Conditional probability</td>
+<td><span class="math inline">\(P(x \mid y) = P(x, y) / P(y)\)</span></td>
+<td><a href="./part1/ch02-representation.html#eq-conditional">eq.</a></td>
+</tr>
+<tr class="even">
+<td>Linear Gaussian</td>
+<td><span class="math inline">\(p(x \mid y) = \mathcal{N}(x \mid my + b, \sigma^2)\)</span></td>
+<td><a href="./part1/ch02-representation.html#eq-linear-gaussian">eq.</a></td>
+</tr>
+<tr class="odd">
+<td>Sigmoid</td>
+<td><span class="math inline">\(P(x^1 \mid y) = 1 / (1 + e^{-2(y - \theta_1)/\theta_2})\)</span></td>
+<td><a href="./part1/ch02-representation.html#eq-sigmoid">eq.</a></td>
+</tr>
+<tr class="even">
+<td>★ Chain rule (Bayes net)</td>
+<td><span class="math inline">\(P(x_{1:n}) = \prod_i P(x_i \mid \mathrm{pa}(x_i))\)</span></td>
+<td><a href="./part1/ch02-representation.html#eq-chain-rule">eq.</a></td>
+</tr>
+<tr class="odd">
+<td>Conditional independence</td>
+<td><span class="math inline">\(P(x, y \mid z) = P(x \mid z) P(y \mid z)\)</span></td>
+<td><a href="./part1/ch02-representation.html#eq-cond-indep">eq.</a></td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="inference" class="level3">
+<h3 class="anchored" data-anchor-id="inference"><a href="./part1/ch03-inference.html">3 · Inference</a></h3>
+<table class="caption-top table">
+<thead>
+<tr class="header">
+<th>Name</th>
+<th>Formula</th>
+<th>Ref</th>
+<th>Cost</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Enumeration</td>
+<td><span class="math inline">\(P(q \mid e) \propto \sum_h P(q, h, e)\)</span></td>
+<td><a href="./part1/ch03-inference.html#eq-enumeration">eq.</a></td>
+<td>exponential in hidden variables</td>
+</tr>
+<tr class="even">
+<td>★ Naive Bayes</td>
+<td><span class="math inline">\(P(c \mid o_{1:n}) \propto P(c) \prod_i P(o_i \mid c)\)</span></td>
+<td><a href="./part1/ch03-inference.html#eq-naive-bayes">eq.</a></td>
+<td><span class="math inline">\(O(n \lvert C \rvert)\)</span></td>
+</tr>
+<tr class="odd">
+<td>★ Sum-product</td>
+<td>Push each <span class="math inline">\(\sum\)</span> inside the factors that don’t mention it</td>
+<td><a href="./part1/ch03-inference.html#eq-sum-product">eq.</a></td>
+<td>set by the largest factor</td>
+</tr>
+<tr class="even">
+<td>Rejection estimate</td>
+<td><span class="math inline">\(\#(q, e) / \#(e)\)</span></td>
+<td><a href="./part1/ch03-inference.html#eq-rejection">eq.</a></td>
+<td>wastes a fraction <span class="math inline">\(1 - P(e)\)</span></td>
+</tr>
+<tr class="odd">
+<td>Likelihood weight</td>
+<td><span class="math inline">\(w = \prod_{e_i} P(e_i \mid \mathrm{pa}(e_i))\)</span></td>
+<td><a href="./part1/ch03-inference.html#eq-likelihood-weight">eq.</a></td>
+<td>every sample used</td>
+</tr>
+<tr class="even">
+<td>Gibbs update</td>
+<td><span class="math inline">\(P(x_i \mid x_{-i}) \propto P(x_i \mid \mathrm{pa}) \prod_{\text{children}} P(c \mid \mathrm{pa}(c))\)</span></td>
+<td><a href="./part1/ch03-inference.html#eq-gibbs">eq.</a></td>
+<td>per sweep: <span class="math inline">\(O(n)\)</span> blanket updates</td>
+</tr>
+<tr class="odd">
+<td>★ Gaussian conditioning</td>
+<td><span class="math inline">\(\boldsymbol\mu_{a \mid b} = \boldsymbol\mu_a + \boldsymbol\Sigma_{ab} \boldsymbol\Sigma_{bb}^{-1}(\mathbf{b} - \boldsymbol\mu_b)\)</span></td>
+<td><a href="./part1/ch03-inference.html#eq-gaussian-condition">eq.</a></td>
+<td><span class="math inline">\(O(d^3)\)</span></td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="parameter-learning" class="level3">
+<h3 class="anchored" data-anchor-id="parameter-learning"><a href="./part1/ch04-parameter-learning.html">4 · Parameter Learning</a></h3>
+<table class="caption-top table">
+<thead>
+<tr class="header">
+<th>Name</th>
+<th>Formula</th>
+<th>Ref</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Log-likelihood</td>
+<td><span class="math inline">\(\ell(\theta) = \sum_i \log P(x_i \mid \theta)\)</span></td>
+<td><a href="./part1/ch04-parameter-learning.html#eq-log-likelihood">eq.</a></td>
+</tr>
+<tr class="even">
+<td>★ ML estimate (counts)</td>
+<td><span class="math inline">\(\hat\theta_{ijk} = m_{ijk} / \sum_{k'} m_{ijk'}\)</span></td>
+<td><a href="./part1/ch04-parameter-learning.html#eq-ml-counts">eq.</a></td>
+</tr>
+<tr class="odd">
+<td>Gaussian ML</td>
+<td><span class="math inline">\(\hat\mu = \frac1m \sum x_i\)</span>, <span class="math inline">\(\ \hat\sigma^2 = \frac1m \sum (x_i - \hat\mu)^2\)</span></td>
+<td><a href="./part1/ch04-parameter-learning.html#eq-gaussian-ml">eq.</a></td>
+</tr>
+<tr class="even">
+<td>★ Beta update</td>
+<td><span class="math inline">\(\mathrm{Beta}(\alpha, \beta) \to \mathrm{Beta}(\alpha + m_1, \beta + m_0)\)</span>; mean <span class="math inline">\(\frac{\alpha + m_1}{\alpha + \beta + m}\)</span></td>
+<td><a href="./part1/ch04-parameter-learning.html#eq-beta-update">eq.</a></td>
+</tr>
+<tr class="odd">
+<td>Dirichlet posterior mean</td>
+<td><span class="math inline">\(\frac{\alpha_k + m_k}{\sum_{k'} (\alpha_{k'} + m_{k'})}\)</span></td>
+<td><a href="./part1/ch04-parameter-learning.html#eq-dirichlet">eq.</a></td>
+</tr>
+<tr class="even">
+<td>Kernel density</td>
+<td><span class="math inline">\(\hat p(x) = \frac1m \sum_i \mathcal{N}(x \mid x_i, h^2)\)</span></td>
+<td><a href="./part1/ch04-parameter-learning.html#eq-kde">eq.</a></td>
+</tr>
+<tr class="odd">
+<td>★ EM</td>
+<td>E: expected counts from <span class="math inline">\(P(\text{missing} \mid \text{observed}, \theta)\)</span>; M: normalize them</td>
+<td><a href="./part1/ch04-parameter-learning.html#eq-em">eq.</a></td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="structure-learning" class="level3">
+<h3 class="anchored" data-anchor-id="structure-learning"><a href="./part1/ch05-structure-learning.html">5 · Structure Learning</a></h3>
+<table class="caption-top table">
+<thead>
+<tr class="header">
+<th>Name</th>
+<th>Formula</th>
+<th>Ref</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>★ Bayesian score</td>
+<td><span class="math inline">\(\ln P(G) + \sum_{i,j} \Big[\ln \frac{\Gamma(\alpha_{ij0})}{\Gamma(\alpha_{ij0} + m_{ij0})} + \sum_k \ln \frac{\Gamma(\alpha_{ijk} + m_{ijk})}{\Gamma(\alpha_{ijk})}\Big]\)</span></td>
+<td><a href="./part1/ch05-structure-learning.html#eq-bayesian-score">eq.</a></td>
+</tr>
+<tr class="even">
+<td>Decomposability</td>
+<td><span class="math inline">\(\ln P(D \mid G) = \sum_i \mathrm{score}(x_i, \mathrm{pa}(x_i))\)</span></td>
+<td><a href="./part1/ch05-structure-learning.html#eq-decomposable">eq.</a></td>
+</tr>
+<tr class="odd">
+<td>Counting DAGs</td>
+<td><span class="math inline">\(a(n) = \sum_k (-1)^{k+1} \binom{n}{k} 2^{k(n-k)} a(n-k)\)</span></td>
+<td><a href="./part1/ch05-structure-learning.html#eq-dag-count">eq.</a></td>
+</tr>
+<tr class="even">
+<td>★ Markov equivalence</td>
+<td>same skeleton and same v-structures</td>
+<td><a href="./part1/ch05-structure-learning.html#eq-markov-equivalence">eq.</a></td>
+</tr>
+<tr class="odd">
+<td>BDeu prior</td>
+<td><span class="math inline">\(\alpha_{ijk} = \kappa / (q_i r_i)\)</span>: score-equivalent</td>
+<td><a href="./part1/ch05-structure-learning.html#eq-bdeu">eq.</a></td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="simple-decisions" class="level3">
+<h3 class="anchored" data-anchor-id="simple-decisions"><a href="./part1/ch06-simple-decisions.html">6 · Simple Decisions</a></h3>
+<table class="caption-top table">
+<thead>
+<tr class="header">
+<th>Name</th>
+<th>Formula</th>
+<th>Ref</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>★ Rational preference axioms</td>
+<td>completeness, transitivity, continuity, independence</td>
+<td><a href="./part1/ch06-simple-decisions.html#eq-vnm">eq.</a></td>
+</tr>
+<tr class="even">
+<td>★ Expected utility of a lottery</td>
+<td><span class="math inline">\(U([S_1{:}\,p_1; \ldots]) = \sum_i p_i U(S_i)\)</span></td>
+<td><a href="./part1/ch06-simple-decisions.html#eq-lottery">eq.</a></td>
+</tr>
+<tr class="odd">
+<td>Certainty equivalent</td>
+<td><span class="math inline">\(U(x_{\text{ce}}) = \mathbb{E}[U(x)]\)</span></td>
+<td><a href="./part1/ch06-simple-decisions.html#eq-certainty-equivalent">eq.</a></td>
+</tr>
+<tr class="even">
+<td>Exponential utility</td>
+<td><span class="math inline">\(U(x) = 1 - e^{-\lambda x}\)</span>, <span class="math inline">\(\ x_{\text{ce}} = -\frac1\lambda \ln \mathbb{E}[e^{-\lambda x}]\)</span></td>
+<td><a href="./part1/ch06-simple-decisions.html#eq-exponential-utility">eq.</a></td>
+</tr>
+<tr class="odd">
+<td>Elicitation</td>
+<td><span class="math inline">\(S \sim [S_\top{:}\,p; S_\bot{:}\,1-p] \Rightarrow U(S) = p\)</span></td>
+<td><a href="./part1/ch06-simple-decisions.html#eq-elicitation">eq.</a></td>
+</tr>
+<tr class="even">
+<td>★ Maximum expected utility</td>
+<td><span class="math inline">\(a^* = \arg\max_a \sum_{s'} P(s' \mid a, o) U(s')\)</span></td>
+<td><a href="./part1/ch06-simple-decisions.html#eq-meu">eq.</a></td>
+</tr>
+<tr class="odd">
+<td>★ Value of information</td>
+<td><span class="math inline">\(\sum_{o'} P(o' \mid o) EU^*(o, o') - EU^*(o)\)</span></td>
+<td><a href="./part1/ch06-simple-decisions.html#eq-voi">eq.</a></td>
+</tr>
+</tbody>
+</table>
+</section>
+</section>
+<section id="part-ii-sequential-problems" class="level2">
+<h2 class="anchored" data-anchor-id="part-ii-sequential-problems">Part II — Sequential Problems</h2>
+<section id="exact-solution-methods" class="level3">
+<h3 class="anchored" data-anchor-id="exact-solution-methods"><a href="./part2/ch07-exact-solution-methods.html">7 · Exact Solution Methods</a></h3>
+<table class="caption-top table">
+<thead>
+<tr class="header">
+<th>Name</th>
+<th>Formula</th>
+<th>Ref</th>
+<th>Cost per iteration</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Value of a policy</td>
+<td><span class="math inline">\(U^\pi(s) = \mathbb{E}\big[\sum_t \gamma^t r_t \mid s_0 = s\big]\)</span></td>
+<td><a href="./part2/ch07-exact-solution-methods.html#eq-value">eq.</a></td>
+<td>—</td>
+</tr>
+<tr class="even">
+<td>★ Bellman expectation equation</td>
+<td><span class="math inline">\(U^\pi(s) = R(s,\pi(s)) + \gamma \sum_{s'} T(s' \mid s,\pi(s))\, U^\pi(s')\)</span></td>
+<td><a href="./part2/ch07-exact-solution-methods.html#eq-policy-evaluation">eq.</a></td>
+<td><span class="math inline">\(O(\lvert\mathcal{S}\rvert^2)\)</span> per sweep</td>
+</tr>
+<tr class="odd">
+<td>Matrix form (exact evaluation)</td>
+<td><span class="math inline">\(\mathbf{U}^\pi = (\mathbf{I} - \gamma \mathbf{T}^\pi)^{-1} \mathbf{R}^\pi\)</span></td>
+<td><a href="./part2/ch07-exact-solution-methods.html#eq-policy-evaluation-exact">eq.</a></td>
+<td><span class="math inline">\(O(\lvert\mathcal{S}\rvert^3)\)</span></td>
+</tr>
+<tr class="even">
+<td>★ Q-function (lookahead)</td>
+<td><span class="math inline">\(Q(s,a) = R(s,a) + \gamma \sum_{s'} T(s' \mid s,a)\, U(s')\)</span></td>
+<td><a href="./part2/ch07-exact-solution-methods.html#eq-lookahead">eq.</a></td>
+<td><span class="math inline">\(O(\lvert\mathcal{S}\rvert^2 \lvert\mathcal{A}\rvert)\)</span></td>
+</tr>
+<tr class="odd">
+<td>Greedy policy</td>
+<td><span class="math inline">\(\pi(s) = \arg\max_a Q(s,a)\)</span></td>
+<td><a href="./part2/ch07-exact-solution-methods.html#eq-greedy">eq.</a></td>
+<td><span class="math inline">\(O(\lvert\mathcal{S}\rvert \lvert\mathcal{A}\rvert)\)</span> given <span class="math inline">\(Q\)</span></td>
+</tr>
+<tr class="even">
+<td>★ Bellman optimality equation</td>
+<td><span class="math inline">\(U^*(s) = \max_a Q^*(s,a)\)</span></td>
+<td><a href="./part2/ch07-exact-solution-methods.html#eq-bellman">eq.</a></td>
+<td>—</td>
+</tr>
+<tr class="odd">
+<td>★ Bellman backup</td>
+<td><span class="math inline">\(U_{k+1}(s) = \max_a \big(R(s,a) + \gamma \sum_{s'} T(s' \mid s,a)\, U_k(s')\big)\)</span></td>
+<td><a href="./part2/ch07-exact-solution-methods.html#eq-backup">eq.</a></td>
+<td><span class="math inline">\(O(\lvert\mathcal{S}\rvert^2 \lvert\mathcal{A}\rvert)\)</span></td>
+</tr>
+<tr class="even">
+<td>Residual stopping rule</td>
+<td><span class="math inline">\(\lVert U_{k+1} - U_k \rVert_\infty &lt; \epsilon(1-\gamma)/\gamma\)</span></td>
+<td><a href="./part2/ch07-exact-solution-methods.html#eq-residual">eq.</a></td>
+<td><span class="math inline">\(O(\lvert\mathcal{S}\rvert)\)</span></td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="approximate-value-functions" class="level3">
+<h3 class="anchored" data-anchor-id="approximate-value-functions"><a href="./part2/ch08-approximate-value-functions.html">8 · Approximate Value Functions</a></h3>
+<table class="caption-top table">
+<thead>
+<tr class="header">
+<th>Name</th>
+<th>Formula</th>
+<th>Ref</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Greedy policy from <span class="math inline">\(U_\theta\)</span></td>
+<td><span class="math inline">\(\pi(s) = \arg\max_a R(s,a) + \gamma \sum_{s'} T(s' \mid s,a) U_\theta(s')\)</span></td>
+<td><a href="./part2/ch08-approximate-value-functions.html#eq-greedy-approx">eq.</a></td>
+</tr>
+<tr class="even">
+<td>Approximate value iteration</td>
+<td>back up <span class="math inline">\(u_i\)</span> at each <span class="math inline">\(s_i\)</span>, then <span class="math inline">\(\theta \leftarrow \operatorname{fit}(S, u)\)</span></td>
+<td><a href="./part2/ch08-approximate-value-functions.html#eq-avi">eq.</a></td>
+</tr>
+<tr class="odd">
+<td>Linear approximation</td>
+<td><span class="math inline">\(U_\theta(s) = \theta^\top \beta(s)\)</span></td>
+<td><a href="./part2/ch08-approximate-value-functions.html#eq-linear-approx">eq.</a></td>
+</tr>
+<tr class="even">
+<td><span class="math inline">\(k\)</span>-nearest neighbor</td>
+<td>average of the <span class="math inline">\(k\)</span> closest stored values</td>
+<td><a href="./part2/ch08-approximate-value-functions.html#eq-knn">eq.</a></td>
+</tr>
+<tr class="odd">
+<td>Kernel smoothing</td>
+<td><span class="math inline">\(\beta_i(s) = k(s, s_i) / \sum_j k(s, s_j)\)</span></td>
+<td><a href="./part2/ch08-approximate-value-functions.html#eq-kernel">eq.</a></td>
+</tr>
+<tr class="even">
+<td>Bilinear interpolation</td>
+<td>corner weights = opposite areas</td>
+<td><a href="./part2/ch08-approximate-value-functions.html#eq-bilinear">eq.</a></td>
+</tr>
+<tr class="odd">
+<td>Simplex interpolation</td>
+<td><span class="math inline">\(d+1\)</span> corners, weights = gaps between sorted fractions</td>
+<td><a href="./part2/ch08-approximate-value-functions.html#eq-simplex">eq.</a></td>
+</tr>
+<tr class="even">
+<td>★ Least squares</td>
+<td><span class="math inline">\(\theta = (X^\top X)^{-1} X^\top u = X^+ u\)</span></td>
+<td><a href="./part2/ch08-approximate-value-functions.html#eq-least-squares">eq.</a></td>
+</tr>
+<tr class="odd">
+<td>Neural network regression</td>
+<td><span class="math inline">\(\theta \leftarrow \theta - \alpha \nabla_\theta \text{MSE}\)</span></td>
+<td><a href="./part2/ch08-approximate-value-functions.html#eq-neural-net">eq.</a></td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="online-planning" class="level3">
+<h3 class="anchored" data-anchor-id="online-planning"><a href="./part2/ch09-online-planning.html">9 · Online Planning</a></h3>
+<table class="caption-top table">
+<thead>
+<tr class="header">
+<th>Name</th>
+<th>Formula</th>
+<th>Ref</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Forward search</td>
+<td><span class="math inline">\(U_d(s) = \max_a R(s,a) + \gamma \sum_{s'} T(s' \mid s,a) U_{d-1}(s')\)</span>, <span class="math inline">\(U_0 = U\)</span></td>
+<td><a href="./part2/ch09-online-planning.html#eq-forward-search">eq.</a></td>
+</tr>
+<tr class="even">
+<td>Rollout estimate</td>
+<td><span class="math inline">\(\hat U^\pi(s) = \sum_{t=1}^d \gamma^{t-1} r_t\)</span></td>
+<td><a href="./part2/ch09-online-planning.html#eq-rollout">eq.</a></td>
+</tr>
+<tr class="odd">
+<td>Branch and bound</td>
+<td>skip <span class="math inline">\(a\)</span> if <span class="math inline">\(\overline{Q}(s,a) &lt;\)</span> best found</td>
+<td><a href="./part2/ch09-online-planning.html#eq-bnb">eq.</a></td>
+</tr>
+<tr class="even">
+<td>Sparse sampling</td>
+<td><span class="math inline">\(\hat Q_d(s,a) = \frac1m \sum_i \big(r^{(i)} + \gamma \max_{a'} \hat Q_{d-1}(s'^{(i)}, a')\big)\)</span></td>
+<td><a href="./part2/ch09-online-planning.html#eq-sparse">eq.</a></td>
+</tr>
+<tr class="odd">
+<td>★ UCB1</td>
+<td><span class="math inline">\(Q(s,a) + c\sqrt{\log N(s) / N(s,a)}\)</span></td>
+<td><a href="./part2/ch09-online-planning.html#eq-ucb1">eq.</a></td>
+</tr>
+<tr class="even">
+<td>MCTS update</td>
+<td><span class="math inline">\(Q \leftarrow Q + (q - Q)/N\)</span></td>
+<td><a href="./part2/ch09-online-planning.html#eq-mcts-update">eq.</a></td>
+</tr>
+<tr class="odd">
+<td>Heuristic search</td>
+<td>greedy walks; <span class="math inline">\(U(s) \leftarrow \max_a (R + \gamma \sum T U)\)</span> from <span class="math inline">\(\overline U \ge U^*\)</span></td>
+<td><a href="./part2/ch09-online-planning.html#eq-heuristic">eq.</a></td>
+</tr>
+<tr class="even">
+<td>Solved state</td>
+<td>residual <span class="math inline">\(&lt; \delta\)</span> on the greedy envelope</td>
+<td><a href="./part2/ch09-online-planning.html#eq-solved">eq.</a></td>
+</tr>
+<tr class="odd">
+<td>Open-loop planning</td>
+<td><span class="math inline">\(\max_{a_{1:d}} \mathbb{E}\big[\sum_t \gamma^{t-1} R\big]\)</span></td>
+<td><a href="./part2/ch09-online-planning.html#eq-open-loop">eq.</a></td>
+</tr>
+<tr class="even">
+<td>Deterministic MPC</td>
+<td><span class="math inline">\(\max \sum_t \gamma^t R(s_t,a_t)\)</span> s.t. <span class="math inline">\(s_{t+1} = T(s_t,a_t)\)</span></td>
+<td><a href="./part2/ch09-online-planning.html#eq-mpc">eq.</a></td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="policy-search" class="level3">
+<h3 class="anchored" data-anchor-id="policy-search"><a href="./part2/ch10-policy-search.html">10 · Policy Search</a></h3>
+<table class="caption-top table">
+<thead>
+<tr class="header">
+<th>Name</th>
+<th>Formula</th>
+<th>Ref</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Policy value</td>
+<td><span class="math inline">\(U(\theta) = \mathbb{E}_\tau[R(\tau)]\)</span></td>
+<td><a href="./part2/ch10-policy-search.html#eq-policy-value">eq.</a></td>
+</tr>
+<tr class="even">
+<td>Monte Carlo evaluation</td>
+<td><span class="math inline">\(\hat U = \frac1m \sum_i R(\tau^{(i)})\)</span>, variance <span class="math inline">\(\operatorname{Var}[R]/m\)</span></td>
+<td><a href="./part2/ch10-policy-search.html#eq-mc-eval">eq.</a></td>
+</tr>
+<tr class="odd">
+<td>Hooke–Jeeves</td>
+<td>best of <span class="math inline">\(\theta, \theta \pm \alpha e_i\)</span>; else <span class="math inline">\(\alpha \leftarrow c\alpha\)</span></td>
+<td><a href="./part2/ch10-policy-search.html#eq-hooke-jeeves">eq.</a></td>
+</tr>
+<tr class="even">
+<td>Genetic algorithm</td>
+<td>child = random elite <span class="math inline">\(+\ \sigma\epsilon\)</span></td>
+<td><a href="./part2/ch10-policy-search.html#eq-ga">eq.</a></td>
+</tr>
+<tr class="odd">
+<td>Search objective</td>
+<td><span class="math inline">\(\max_\psi \mathbb{E}_{\theta \sim p(\cdot\mid\psi)}[U(\theta)]\)</span></td>
+<td><a href="./part2/ch10-policy-search.html#eq-search-objective">eq.</a></td>
+</tr>
+<tr class="even">
+<td>Cross entropy</td>
+<td>refit <span class="math inline">\(\mu, \Sigma\)</span> to the elites</td>
+<td><a href="./part2/ch10-policy-search.html#eq-cem">eq.</a></td>
+</tr>
+<tr class="odd">
+<td>★ Search gradient</td>
+<td><span class="math inline">\(\mathbb{E}[U(\theta)\nabla_\psi \log p(\theta \mid \psi)]\)</span></td>
+<td><a href="./part2/ch10-policy-search.html#eq-search-gradient">eq.</a></td>
+</tr>
+<tr class="even">
+<td>Rank weights</td>
+<td><span class="math inline">\(w^{(i)} \propto \max(0, \log(\frac m2 + 1) - \log i)\)</span>, minus <span class="math inline">\(\frac1m\)</span></td>
+<td><a href="./part2/ch10-policy-search.html#eq-rank-weights">eq.</a></td>
+</tr>
+<tr class="odd">
+<td>Isotropic ES</td>
+<td><span class="math inline">\(\frac1\sigma \sum_i w^{(i)} \epsilon^{(i)}\)</span>, with <span class="math inline">\(\pm\epsilon\)</span> pairs</td>
+<td><a href="./part2/ch10-policy-search.html#eq-isotropic-es">eq.</a></td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="policy-gradient-estimation" class="level3">
+<h3 class="anchored" data-anchor-id="policy-gradient-estimation"><a href="./part2/ch11-policy-gradient-estimation.html">11 · Policy Gradient Estimation</a></h3>
+<table class="caption-top table">
+<thead>
+<tr class="header">
+<th>Name</th>
+<th>Formula</th>
+<th>Ref</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Finite difference</td>
+<td><span class="math inline">\(\big(U(\theta + \delta e_i) - U(\theta)\big)/\delta\)</span></td>
+<td><a href="./part2/ch11-policy-gradient-estimation.html#eq-finite-difference">eq.</a></td>
+</tr>
+<tr class="even">
+<td>Regression gradient</td>
+<td><span class="math inline">\(\Delta\Theta^+ \Delta U\)</span></td>
+<td><a href="./part2/ch11-policy-gradient-estimation.html#eq-regression-gradient">eq.</a></td>
+</tr>
+<tr class="odd">
+<td>★ Likelihood ratio</td>
+<td><span class="math inline">\(\mathbb{E}_\tau[\nabla\log p_\theta(\tau) R(\tau)]\)</span>, <span class="math inline">\(\nabla\log p_\theta(\tau) = \sum_k \nabla\log\pi_\theta(a^{(k)} \mid s^{(k)})\)</span></td>
+<td><a href="./part2/ch11-policy-gradient-estimation.html#eq-likelihood-ratio">eq.</a></td>
+</tr>
+<tr class="even">
+<td>Reward-to-go</td>
+<td><span class="math inline">\(\mathbb{E}\big[\sum_k \nabla\log\pi_\theta\, \gamma^{k-1} r_{\text{to-go}}^{(k)}\big]\)</span></td>
+<td><a href="./part2/ch11-policy-gradient-estimation.html#eq-reward-to-go">eq.</a></td>
+</tr>
+<tr class="odd">
+<td>★ Baseline (REINFORCE)</td>
+<td><span class="math inline">\(\mathbb{E}\big[\sum_k \nabla\log\pi_\theta\, \gamma^{k-1} (r_{\text{to-go}}^{(k)} - r_{\text{base}}(s^{(k)}))\big]\)</span></td>
+<td><a href="./part2/ch11-policy-gradient-estimation.html#eq-baseline">eq.</a></td>
+</tr>
+<tr class="even">
+<td>Best constant baseline</td>
+<td><span class="math inline">\(\mathbb{E}[\ell_i^2 r_{\text{to-go}}] / \mathbb{E}[\ell_i^2]\)</span></td>
+<td><a href="./part2/ch11-policy-gradient-estimation.html#eq-optimal-baseline">eq.</a></td>
+</tr>
+<tr class="odd">
+<td>Advantage form</td>
+<td><span class="math inline">\(\mathbb{E}\big[\sum_k \nabla\log\pi_\theta\, \gamma^{k-1} A_\theta(s^{(k)}, a^{(k)})\big]\)</span></td>
+<td><a href="./part2/ch11-policy-gradient-estimation.html#eq-advantage">eq.</a></td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="policy-gradient-optimization" class="level3">
+<h3 class="anchored" data-anchor-id="policy-gradient-optimization"><a href="./part2/ch12-policy-gradient-optimization.html">12 · Policy Gradient Optimization</a></h3>
+<table class="caption-top table">
+<thead>
+<tr class="header">
+<th>Name</th>
+<th>Formula</th>
+<th>Ref</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Gradient ascent</td>
+<td><span class="math inline">\(\theta \leftarrow \theta + \alpha \nabla U\)</span></td>
+<td><a href="./part2/ch12-policy-gradient-optimization.html#eq-gradient-ascent">eq.</a></td>
+</tr>
+<tr class="even">
+<td>Restricted step</td>
+<td><span class="math inline">\(\theta + \sqrt{2\epsilon}\, \nabla U / \lVert\nabla U\rVert\)</span></td>
+<td><a href="./part2/ch12-policy-gradient-optimization.html#eq-restricted">eq.</a></td>
+</tr>
+<tr class="odd">
+<td>Fisher information</td>
+<td><span class="math inline">\(F = \mathbb{E}[\nabla\log p\, \nabla\log p^\top]\)</span>; <span class="math inline">\(D_{\text{KL}} \approx \frac12 \Delta^\top F \Delta\)</span></td>
+<td><a href="./part2/ch12-policy-gradient-optimization.html#eq-fisher">eq.</a></td>
+</tr>
+<tr class="even">
+<td>★ Natural gradient</td>
+<td><span class="math inline">\(\theta + \sqrt{2\epsilon / \nabla U^\top u}\ u\)</span>, <span class="math inline">\(u = F^{-1}\nabla U\)</span></td>
+<td><a href="./part2/ch12-policy-gradient-optimization.html#eq-natural-gradient">eq.</a></td>
+</tr>
+<tr class="odd">
+<td>Surrogate objective</td>
+<td><span class="math inline">\(\mathbb{E}\big[\frac{\pi_{\theta'}}{\pi_\theta} A_\theta\big]\)</span></td>
+<td><a href="./part2/ch12-policy-gradient-optimization.html#eq-surrogate">eq.</a></td>
+</tr>
+<tr class="even">
+<td>Trust region (TRPO)</td>
+<td>accept if surrogate improves and <span class="math inline">\(\mathbb{E}_s[D_{\text{KL}}] \le \epsilon\)</span>; else halve</td>
+<td><a href="./part2/ch12-policy-gradient-optimization.html#eq-trust-region">eq.</a></td>
+</tr>
+<tr class="odd">
+<td>★ PPO clipped objective</td>
+<td><span class="math inline">\(\mathbb{E}[\min(wA, \operatorname{clamp}(w, 1\pm\epsilon)A)]\)</span></td>
+<td><a href="./part2/ch12-policy-gradient-optimization.html#eq-ppo">eq.</a></td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="actor-critic-methods" class="level3">
+<h3 class="anchored" data-anchor-id="actor-critic-methods"><a href="./part2/ch13-actor-critic-methods.html">13 · Actor-Critic Methods</a></h3>
+<table class="caption-top table">
+<thead>
+<tr class="header">
+<th>Name</th>
+<th>Formula</th>
+<th>Ref</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>★ TD residual</td>
+<td><span class="math inline">\(\delta_k = r_k + \gamma U_\phi(s_{k+1}) - U_\phi(s_k)\)</span></td>
+<td><a href="./part2/ch13-actor-critic-methods.html#eq-td-residual">eq.</a></td>
+</tr>
+<tr class="even">
+<td>Critic gradient</td>
+<td><span class="math inline">\(\sum_k (U_\phi(s_k) - r_{\text{to-go}}^{(k)}) \nabla_\phi U_\phi(s_k)\)</span></td>
+<td><a href="./part2/ch13-actor-critic-methods.html#eq-critic">eq.</a></td>
+</tr>
+<tr class="odd">
+<td><span class="math inline">\(k\)</span>-step advantage</td>
+<td><span class="math inline">\(\sum_{\ell \le k} \gamma^{\ell-1} r_\ell + \gamma^k U(s_{k+1}) - U(s) = \sum_{\ell \le k}\gamma^{\ell-1}\delta_\ell\)</span></td>
+<td><a href="./part2/ch13-actor-critic-methods.html#eq-k-step">eq.</a></td>
+</tr>
+<tr class="even">
+<td>★ GAE</td>
+<td><span class="math inline">\(\sum_k (\gamma\lambda)^{k-1} \delta_k\)</span></td>
+<td><a href="./part2/ch13-actor-critic-methods.html#eq-gae">eq.</a></td>
+</tr>
+<tr class="odd">
+<td>★ Deterministic policy gradient</td>
+<td><span class="math inline">\(\mathbb{E}_s[\nabla_\theta\pi_\theta(s)\, \nabla_a Q_\phi(s, a)]\)</span></td>
+<td><a href="./part2/ch13-actor-critic-methods.html#eq-dpg">eq.</a></td>
+</tr>
+<tr class="even">
+<td>PUCT</td>
+<td><span class="math inline">\(Q(s,a) + c\,\pi_\theta(a \mid s)\sqrt{N(s)}/(1 + N(s,a))\)</span></td>
+<td><a href="./part2/ch13-actor-critic-methods.html#eq-puct">eq.</a></td>
+</tr>
+<tr class="odd">
+<td>Tree search targets</td>
+<td><span class="math inline">\(\pi_{\text{MCTS}} \propto N^\eta\)</span>, <span class="math inline">\(U_{\text{MCTS}} = \max_a Q\)</span></td>
+<td><a href="./part2/ch13-actor-critic-methods.html#eq-tree-targets">eq.</a></td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="policy-validation" class="level3">
+<h3 class="anchored" data-anchor-id="policy-validation"><a href="./part2/ch14-policy-validation.html">14 · Policy Validation</a></h3>
+<table class="caption-top table">
+<thead>
+<tr class="header">
+<th>Name</th>
+<th>Formula</th>
+<th>Ref</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Performance metric</td>
+<td><span class="math inline">\(f(\pi) = \mathbb{E}_\tau[f_{\text{traj}}(\tau)]\)</span>, <span class="math inline">\(P(\tau) = b(s_1)\prod_t T(s_{t+1} \mid s_t, \pi(s_t))\)</span></td>
+<td><a href="./part2/ch14-policy-validation.html#eq-metric">eq.</a></td>
+</tr>
+<tr class="even">
+<td>Additive metric</td>
+<td><span class="math inline">\(f(\pi) = \sum_s f_{\text{state}}(s)\, b(s)\)</span> by policy evaluation</td>
+<td><a href="./part2/ch14-policy-validation.html#eq-additive">eq.</a></td>
+</tr>
+<tr class="odd">
+<td>★ Standard error</td>
+<td><span class="math inline">\(\hat\sigma/\sqrt n\)</span>; relative: <span class="math inline">\(\hat\sigma/(\hat\mu\sqrt n)\)</span></td>
+<td><a href="./part2/ch14-policy-validation.html#eq-standard-error">eq.</a></td>
+</tr>
+<tr class="even">
+<td>★ Importance sampling</td>
+<td><span class="math inline">\(\frac1n\sum_i f_{\text{traj}}(\tau^{(i)})\,P(\tau^{(i)})/P'(\tau^{(i)})\)</span>, <span class="math inline">\(\tau^{(i)} \sim P'\)</span></td>
+<td><a href="./part2/ch14-policy-validation.html#eq-importance">eq.</a></td>
+</tr>
+<tr class="odd">
+<td>Optimal proposal</td>
+<td><span class="math inline">\(P^* \propto |f_{\text{traj}}|\,P\)</span>; per step <span class="math inline">\(P'(\nu \mid s) \propto P(\nu)\,\hat U(s')\)</span></td>
+<td><a href="./part2/ch14-policy-validation.html#eq-optimal-proposal">eq.</a></td>
+</tr>
+<tr class="even">
+<td>Robust Bellman update</td>
+<td><span class="math inline">\(\max_a \min_i (R_i + \gamma \sum_{s'} T_i U_k)\)</span></td>
+<td><a href="./part2/ch14-policy-validation.html#eq-robust">eq.</a></td>
+</tr>
+<tr class="odd">
+<td>Pareto dominance</td>
+<td>no worse on every metric, better on one</td>
+<td><a href="./part2/ch14-policy-validation.html#eq-pareto">eq.</a></td>
+</tr>
+<tr class="even">
+<td>Adversarial reward</td>
+<td><span class="math inline">\(-R(s, \pi(s)) + \lambda \log T(s' \mid s, \pi(s))\)</span></td>
+<td><a href="./part2/ch14-policy-validation.html#eq-adversarial">eq.</a></td>
+</tr>
+</tbody>
+</table>
+</section>
+</section>
+<section id="part-iii-model-uncertainty" class="level2">
+<h2 class="anchored" data-anchor-id="part-iii-model-uncertainty">Part III — Model Uncertainty</h2>
+<section id="exploration-and-exploitation" class="level3">
+<h3 class="anchored" data-anchor-id="exploration-and-exploitation"><a href="./part3/ch15-exploration-and-exploitation.html">15 · Exploration and Exploitation</a></h3>
+<table class="caption-top table">
+<thead>
+<tr class="header">
+<th>Name</th>
+<th>Formula</th>
+<th>Ref</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>★ Regret</td>
+<td><span class="math inline">\(h\theta^* - \mathbb{E}[\sum_t r_t] = \mathbb{E}[\sum_t (\theta^* - \theta_{a_t})]\)</span></td>
+<td><a href="./part3/ch15-exploration-and-exploitation.html#eq-regret">eq.</a></td>
+</tr>
+<tr class="even">
+<td>★ Posterior win probability</td>
+<td><span class="math inline">\(\rho_a = (w_a + 1)/(w_a + \ell_a + 2)\)</span></td>
+<td><a href="./part3/ch15-exploration-and-exploitation.html#eq-posterior">eq.</a></td>
+</tr>
+<tr class="odd">
+<td>ε-greedy</td>
+<td>random arm w.p. <span class="math inline">\(\varepsilon_t\)</span>, else greedy; <span class="math inline">\(\varepsilon_{t+1} = \alpha\varepsilon_t\)</span></td>
+<td><a href="./part3/ch15-exploration-and-exploitation.html#eq-epsilon">eq.</a></td>
+</tr>
+<tr class="even">
+<td>Softmax</td>
+<td><span class="math inline">\(P(a) \propto \exp(\lambda\rho_a)\)</span></td>
+<td><a href="./part3/ch15-exploration-and-exploitation.html#eq-softmax">eq.</a></td>
+</tr>
+<tr class="odd">
+<td>Quantile</td>
+<td><span class="math inline">\(\arg\max_a F^{-1}_{\text{Beta}(w_a+1, \ell_a+1)}(\alpha)\)</span></td>
+<td><a href="./part3/ch15-exploration-and-exploitation.html#eq-quantile">eq.</a></td>
+</tr>
+<tr class="even">
+<td>★ UCB1</td>
+<td><span class="math inline">\(\arg\max_a \rho_a + c\sqrt{\log N / N(a)}\)</span></td>
+<td><a href="./part3/ch15-exploration-and-exploitation.html#eq-ucb">eq.</a></td>
+</tr>
+<tr class="odd">
+<td>★ Thompson sampling</td>
+<td><span class="math inline">\(\tilde\theta_a \sim \text{Beta}(w_a + 1, \ell_a + 1)\)</span>; pull <span class="math inline">\(\arg\max_a \tilde\theta_a\)</span></td>
+<td><a href="./part3/ch15-exploration-and-exploitation.html#eq-thompson">eq.</a></td>
+</tr>
+<tr class="even">
+<td>Bayes-optimal values</td>
+<td><span class="math inline">\(Q^*_r = \rho_a(1 + U^*_{r-1}(\text{win})) + (1 - \rho_a)U^*_{r-1}(\text{loss})\)</span></td>
+<td><a href="./part3/ch15-exploration-and-exploitation.html#eq-bayes-optimal">eq.</a></td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="model-based-methods" class="level3">
+<h3 class="anchored" data-anchor-id="model-based-methods"><a href="./part3/ch16-model-based-methods.html">16 · Model-Based Methods</a></h3>
+<table class="caption-top table">
+<thead>
+<tr class="header">
+<th>Name</th>
+<th>Formula</th>
+<th>Ref</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Maximum likelihood model</td>
+<td><span class="math inline">\(\hat T = N(s, a, s')/N(s, a)\)</span>, <span class="math inline">\(\hat R = \rho(s, a)/N(s, a)\)</span></td>
+<td><a href="./part3/ch16-model-based-methods.html#eq-ml">eq.</a></td>
+</tr>
+<tr class="even">
+<td>Prioritized sweeping priority</td>
+<td><span class="math inline">\(\max_{a^-} \hat T(s \mid s^-, a^-)\,|U(s) - u|\)</span></td>
+<td><a href="./part3/ch16-model-based-methods.html#eq-priority">eq.</a></td>
+</tr>
+<tr class="odd">
+<td>R-MAX model</td>
+<td>under-tried: reward <span class="math inline">\(r_{\max}\)</span>, self-loop; else maximum likelihood</td>
+<td><a href="./part3/ch16-model-based-methods.html#eq-rmax">eq.</a></td>
+</tr>
+<tr class="even">
+<td>★ Dirichlet posterior</td>
+<td><span class="math inline">\(\mathrm{Dir}(\boldsymbol\alpha_0 + \mathbf N(s, a))\)</span>; predictive <span class="math inline">\(\alpha(s, a, s')/\sum_{s''}\alpha(s, a, s'')\)</span></td>
+<td><a href="./part3/ch16-model-based-methods.html#eq-dirichlet">eq.</a></td>
+</tr>
+<tr class="odd">
+<td>Bayes-adaptive Bellman equation</td>
+<td><span class="math inline">\(U^*(s, b) = \max_a (R + \gamma \sum_{s'} P(s' \mid s, b, a) U^*(s', \tau(s, b, a, s')))\)</span></td>
+<td><a href="./part3/ch16-model-based-methods.html#eq-bamdp">eq.</a></td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="model-free-methods" class="level3">
+<h3 class="anchored" data-anchor-id="model-free-methods"><a href="./part3/ch17-model-free-methods.html">17 · Model-Free Methods</a></h3>
+<table class="caption-top table">
+<thead>
+<tr class="header">
+<th>Name</th>
+<th>Formula</th>
+<th>Ref</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Incremental mean</td>
+<td><span class="math inline">\(\hat x \leftarrow \hat x + \alpha(x - \hat x)\)</span>; <span class="math inline">\(\sum\alpha = \infty\)</span>, <span class="math inline">\(\sum\alpha^2 &lt; \infty\)</span></td>
+<td><a href="./part3/ch17-model-free-methods.html#eq-incremental">eq.</a></td>
+</tr>
+<tr class="even">
+<td>★ Q-learning</td>
+<td><span class="math inline">\(Q(s, a) \mathrel{+}= \alpha(r + \gamma\max_{a'}Q(s', a') - Q(s, a))\)</span></td>
+<td><a href="./part3/ch17-model-free-methods.html#eq-q-learning">eq.</a></td>
+</tr>
+<tr class="odd">
+<td>★ Sarsa</td>
+<td><span class="math inline">\(Q(s, a) \mathrel{+}= \alpha(r + \gamma Q(s', a') - Q(s, a))\)</span></td>
+<td><a href="./part3/ch17-model-free-methods.html#eq-sarsa">eq.</a></td>
+</tr>
+<tr class="even">
+<td>Sarsa(λ)</td>
+<td><span class="math inline">\(Q \mathrel{+}= \alpha\delta N\)</span>, <span class="math inline">\(N \leftarrow \gamma\lambda N\)</span></td>
+<td><a href="./part3/ch17-model-free-methods.html#eq-traces">eq.</a></td>
+</tr>
+<tr class="odd">
+<td>★ Potential-based shaping</td>
+<td><span class="math inline">\(F(s, a, s') = \gamma\beta(s') - \beta(s)\)</span></td>
+<td><a href="./part3/ch17-model-free-methods.html#eq-shaping">eq.</a></td>
+</tr>
+<tr class="even">
+<td>Gradient Q-learning</td>
+<td><span class="math inline">\(\theta \mathrel{+}= \alpha(r + \gamma\max_{a'}Q_\theta(s', a') - Q_\theta(s, a))\nabla_\theta Q_\theta(s, a)\)</span></td>
+<td><a href="./part3/ch17-model-free-methods.html#eq-gradient-q">eq.</a></td>
+</tr>
+<tr class="odd">
+<td>Experience replay</td>
+<td>average the gradient over a random batch from a buffer</td>
+<td><a href="./part3/ch17-model-free-methods.html#eq-replay">eq.</a></td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="imitation-learning" class="level3">
+<h3 class="anchored" data-anchor-id="imitation-learning"><a href="./part3/ch18-imitation-learning.html">18 · Imitation Learning</a></h3>
+<table class="caption-top table">
+<thead>
+<tr class="header">
+<th>Name</th>
+<th>Formula</th>
+<th>Ref</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Behavioral cloning</td>
+<td><span class="math inline">\(\max_\theta \sum_{(s, a) \in \mathcal{D}} \log\pi_\theta(a \mid s)\)</span></td>
+<td><a href="./part3/ch18-imitation-learning.html#eq-bc">eq.</a></td>
+</tr>
+<tr class="even">
+<td>DAgger</td>
+<td>add <span class="math inline">\((s, \pi_E(s))\)</span> for states the learner visits; retrain on all data</td>
+<td><a href="./part3/ch18-imitation-learning.html#eq-dagger">eq.</a></td>
+</tr>
+<tr class="odd">
+<td>SMILe mixture</td>
+<td><span class="math inline">\((1 - \beta)^k\pi_E + \sum_{i \le k}\beta(1 - \beta)^{i-1}\hat\pi^{(i)}\)</span></td>
+<td><a href="./part3/ch18-imitation-learning.html#eq-smile">eq.</a></td>
+</tr>
+<tr class="even">
+<td>★ Feature expectations</td>
+<td><span class="math inline">\(\mathbb{E}[U] = \phi^\top\mu_\pi\)</span>, <span class="math inline">\(\mu_\pi = \mathbb{E}[\sum_k \gamma^{k-1}\beta(s^{(k)}, a^{(k)})]\)</span></td>
+<td><a href="./part3/ch18-imitation-learning.html#eq-features">eq.</a></td>
+</tr>
+<tr class="odd">
+<td>Maximum margin weights</td>
+<td><span class="math inline">\(\max t\)</span> s.t. <span class="math inline">\(\phi^\top\mu_E \ge \phi^\top\mu^{(i)} + t\)</span>, <span class="math inline">\(\|\phi\| \le 1\)</span></td>
+<td><a href="./part3/ch18-imitation-learning.html#eq-max-margin">eq.</a></td>
+</tr>
+<tr class="even">
+<td>★ Maximum entropy IRL</td>
+<td><span class="math inline">\(P_\phi(\tau) \propto \exp R_\phi(\tau)\)</span>; gradient = demo counts − expected counts</td>
+<td><a href="./part3/ch18-imitation-learning.html#eq-maxent">eq.</a></td>
+</tr>
+<tr class="odd">
+<td>GAIL</td>
+<td><span class="math inline">\(\min_\theta\max_\phi \mathbb{E}_{\pi_\theta}[\log C_\phi] + \mathbb{E}_{\mathcal{D}}[\log(1 - C_\phi)]\)</span></td>
+<td><a href="./part3/ch18-imitation-learning.html#eq-gail">eq.</a></td>
+</tr>
+</tbody>
+</table>
+</section>
+</section>
+<section id="part-iv-state-uncertainty" class="level2">
+<h2 class="anchored" data-anchor-id="part-iv-state-uncertainty">Part IV — State Uncertainty</h2>
+<section id="beliefs" class="level3">
+<h3 class="anchored" data-anchor-id="beliefs"><a href="./part4/ch19-beliefs.html">19 · Beliefs</a></h3>
+<table class="caption-top table">
+<thead>
+<tr class="header">
+<th>Name</th>
+<th>Formula</th>
+<th>Ref</th>
+<th>Cost per step</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Belief</td>
+<td><span class="math inline">\(b(s) = P(s_t = s \mid a_{1:t}, o_{1:t})\)</span></td>
+<td><a href="./part4/ch19-beliefs.html#eq-belief">eq.</a></td>
+<td>—</td>
+</tr>
+<tr class="even">
+<td>★ Bayes’ rule</td>
+<td><span class="math inline">\(P(s \mid o) \propto P(o \mid s)\, P(s)\)</span></td>
+<td><a href="./part4/ch19-beliefs.html#eq-bayes">eq.</a></td>
+<td>—</td>
+</tr>
+<tr class="odd">
+<td>★ Belief update (Bayes filter)</td>
+<td><span class="math inline">\(b'(s') \propto O(o \mid a, s') \sum_s T(s' \mid s, a)\, b(s)\)</span></td>
+<td><a href="./part4/ch19-beliefs.html#eq-belief-update">eq.</a></td>
+<td><span class="math inline">\(O(\lvert\mathcal{S}\rvert^2)\)</span></td>
+</tr>
+<tr class="even">
+<td>★ Kalman predict</td>
+<td><span class="math inline">\(\boldsymbol\mu_p = \mathbf{T}_s \boldsymbol\mu_b + \mathbf{T}_a a,\ \ \boldsymbol\Sigma_p = \mathbf{T}_s \boldsymbol\Sigma_b \mathbf{T}_s^\top + \boldsymbol\Sigma_s\)</span></td>
+<td><a href="./part4/ch19-beliefs.html#eq-kalman-predict">eq.</a></td>
+<td><span class="math inline">\(O(d^3)\)</span></td>
+</tr>
+<tr class="odd">
+<td>★ Kalman gain and correct</td>
+<td><span class="math inline">\(\mathbf{K} = \boldsymbol\Sigma_p \mathbf{O}_s^\top (\mathbf{O}_s \boldsymbol\Sigma_p \mathbf{O}_s^\top + \boldsymbol\Sigma_o)^{-1}\)</span>, <span class="math inline">\(\ \boldsymbol\mu_b' = \boldsymbol\mu_p + \mathbf{K}(o - \mathbf{O}_s \boldsymbol\mu_p)\)</span></td>
+<td><a href="./part4/ch19-beliefs.html#eq-kalman-correct">eq.</a></td>
+<td><span class="math inline">\(O(d^3)\)</span></td>
+</tr>
+<tr class="even">
+<td>Particle weights</td>
+<td><span class="math inline">\(w^{(i)} \propto O(o \mid a, s'^{(i)})\)</span>, <span class="math inline">\(s'^{(i)} \sim T(\cdot \mid s^{(i)}, a)\)</span></td>
+<td><a href="./part4/ch19-beliefs.html#eq-particles">eq.</a></td>
+<td><span class="math inline">\(O(N)\)</span></td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="exact-belief-state-planning" class="level3">
+<h3 class="anchored" data-anchor-id="exact-belief-state-planning"><a href="./part4/ch20-exact-belief-state-planning.html">20 · Exact Belief State Planning</a></h3>
+<table class="caption-top table">
+<thead>
+<tr class="header">
+<th>Name</th>
+<th>Formula</th>
+<th>Ref</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>★ Belief-state MDP</td>
+<td><span class="math inline">\(R(b, a) = \sum_s R(s, a)b(s)\)</span>; <span class="math inline">\(b' = \text{Update}(b, a, o)\)</span> w.p. <span class="math inline">\(P(o \mid b, a)\)</span></td>
+<td><a href="./part4/ch20-exact-belief-state-planning.html#eq-belief-mdp">eq.</a></td>
+</tr>
+<tr class="even">
+<td>Conditional plan utility</td>
+<td><span class="math inline">\(U^\pi(s) = R(s, \pi()) + \gamma\sum_{s'}T\sum_o O\,U^{\pi(o)}(s')\)</span></td>
+<td><a href="./part4/ch20-exact-belief-state-planning.html#eq-plan">eq.</a></td>
+</tr>
+<tr class="odd">
+<td>★ Alpha vectors</td>
+<td><span class="math inline">\(U^\pi(b) = \alpha_\pi^\top b\)</span>; <span class="math inline">\(U^*(b) = \max_\pi \alpha_\pi^\top b\)</span></td>
+<td><a href="./part4/ch20-exact-belief-state-planning.html#eq-alpha">eq.</a></td>
+</tr>
+<tr class="even">
+<td>One-step lookahead</td>
+<td><span class="math inline">\(\arg\max_a R(b, a) + \gamma\sum_o P(o \mid b, a)U^\Gamma(\text{Update}(b, a, o))\)</span></td>
+<td><a href="./part4/ch20-exact-belief-state-planning.html#eq-lookahead">eq.</a></td>
+</tr>
+<tr class="odd">
+<td>Dominance LP</td>
+<td><span class="math inline">\(\max\delta\)</span> s.t. <span class="math inline">\(\alpha^\top b \ge \alpha'^\top b + \delta\)</span>, <span class="math inline">\(b\)</span> a distribution</td>
+<td><a href="./part4/ch20-exact-belief-state-planning.html#eq-prune">eq.</a></td>
+</tr>
+<tr class="even">
+<td>★ POMDP value iteration backup</td>
+<td><span class="math inline">\(\alpha(s) = R(s, a) + \gamma\sum_{s'}T(s' \mid s, a)\sum_o O(o \mid a, s')\alpha_o(s')\)</span></td>
+<td><a href="./part4/ch20-exact-belief-state-planning.html#eq-expand">eq.</a></td>
+</tr>
+<tr class="odd">
+<td>Certainty equivalence</td>
+<td><span class="math inline">\(a = -K\mu_b\)</span></td>
+<td><a href="./part4/ch20-exact-belief-state-planning.html#eq-lqg">eq.</a></td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="offline-belief-state-planning" class="level3">
+<h3 class="anchored" data-anchor-id="offline-belief-state-planning"><a href="./part4/ch21-offline-belief-state-planning.html">21 · Offline Belief State Planning</a></h3>
+<table class="caption-top table">
+<thead>
+<tr class="header">
+<th>Name</th>
+<th>Formula</th>
+<th>Ref</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>★ QMDP</td>
+<td><span class="math inline">\(\alpha_a(s) = R(s, a) + \gamma\sum_{s'}T(s' \mid s, a)\max_{a'}\alpha_{a'}(s')\)</span></td>
+<td><a href="./part4/ch21-offline-belief-state-planning.html#eq-qmdp">eq.</a></td>
+</tr>
+<tr class="even">
+<td>Fast informed bound</td>
+<td><span class="math inline">\(\alpha_a(s) = R + \gamma\sum_o\max_{a'}\sum_{s'}O\,T\,\alpha_{a'}(s')\)</span></td>
+<td><a href="./part4/ch21-offline-belief-state-planning.html#eq-fib">eq.</a></td>
+</tr>
+<tr class="odd">
+<td>BAWS and blind bounds</td>
+<td><span class="math inline">\(\max_a\min_s R(s, a)/(1 - \gamma)\)</span>; <span class="math inline">\(\alpha_a = R + \gamma T\alpha_a\)</span></td>
+<td><a href="./part4/ch21-offline-belief-state-planning.html#eq-lower">eq.</a></td>
+</tr>
+<tr class="even">
+<td>★ Point-based backup</td>
+<td>best <span class="math inline">\(\alpha_{a,o}\)</span> at <span class="math inline">\(\text{Update}(b, a, o)\)</span>, combined, best at <span class="math inline">\(b\)</span></td>
+<td><a href="./part4/ch21-offline-belief-state-planning.html#eq-pbvi">eq.</a></td>
+</tr>
+<tr class="odd">
+<td>Sawtooth</td>
+<td><span class="math inline">\(\min_{(b', u')}\, u_E^\top b + \rho(b, b')(u' - u_E^\top b')\)</span></td>
+<td><a href="./part4/ch21-offline-belief-state-planning.html#eq-sawtooth">eq.</a></td>
+</tr>
+<tr class="even">
+<td>Gap-driven search</td>
+<td>follow <span class="math inline">\(\pi_{\text{hi}}\)</span>, the widest-gap observation; stop at <span class="math inline">\(\delta/\gamma^d\)</span></td>
+<td><a href="./part4/ch21-offline-belief-state-planning.html#eq-gap">eq.</a></td>
+</tr>
+<tr class="odd">
+<td>Triangulation</td>
+<td><span class="math inline">\(U(b) = \sum_i\lambda_i U(b^{(i)})\)</span> over the enclosing grid simplex</td>
+<td><a href="./part4/ch21-offline-belief-state-planning.html#eq-triangulated">eq.</a></td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="online-belief-state-planning" class="level3">
+<h3 class="anchored" data-anchor-id="online-belief-state-planning"><a href="./part4/ch22-online-belief-state-planning.html">22 · Online Belief State Planning</a></h3>
+<table class="caption-top table">
+<thead>
+<tr class="header">
+<th>Name</th>
+<th>Formula</th>
+<th>Ref</th>
+<th>Cost per decision</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Forward search</td>
+<td><span class="math inline">\(Q_d(b, a) = R(b, a) + \gamma\sum_o P(o \mid b, a)\,U_{d-1}(b'_o)\)</span></td>
+<td><a href="./part4/ch22-online-belief-state-planning.html#eq-forward">eq.</a></td>
+<td><span class="math inline">\(O((|\mathcal{A}||\mathcal{O}|)^d)\)</span></td>
+</tr>
+<tr class="even">
+<td>Depth error</td>
+<td><span class="math inline">\(|U_d - U^*| \le \gamma^d \varepsilon\)</span></td>
+<td><a href="./part4/ch22-online-belief-state-planning.html#eq-depth">eq.</a></td>
+<td></td>
+</tr>
+<tr class="odd">
+<td>Branch and bound</td>
+<td>skip <span class="math inline">\(a\)</span> if <span class="math inline">\(Q_{\text{hi}}(b, a) \le\)</span> best found</td>
+<td><a href="./part4/ch22-online-belief-state-planning.html#eq-bb">eq.</a></td>
+<td>at most forward search</td>
+</tr>
+<tr class="even">
+<td>Sparse sampling</td>
+<td>average of <span class="math inline">\(m\)</span> samples of <span class="math inline">\(r + \gamma U_{d-1}(b')\)</span></td>
+<td><a href="./part4/ch22-online-belief-state-planning.html#eq-sparse">eq.</a></td>
+<td><span class="math inline">\(O((|\mathcal{A}|\,m)^d)\)</span></td>
+</tr>
+<tr class="odd">
+<td>★ UCB1 over histories</td>
+<td><span class="math inline">\(Q(h, a) + c\sqrt{\log N(h)/N(h, a)}\)</span></td>
+<td><a href="./part4/ch22-online-belief-state-planning.html#eq-ucb">eq.</a></td>
+<td><span class="math inline">\(O(m\,d)\)</span> for <span class="math inline">\(m\)</span> simulations</td>
+</tr>
+<tr class="even">
+<td>Determinized successor</td>
+<td>first <span class="math inline">\((s', o)\)</span> with cumulative <span class="math inline">\(P \ge \Phi_{ij}\)</span></td>
+<td><a href="./part4/ch22-online-belief-state-planning.html#eq-determinized">eq.</a></td>
+<td><span class="math inline">\(O(|\mathcal{A}|^d m)\)</span></td>
+</tr>
+<tr class="odd">
+<td>Gap-guided search</td>
+<td><span class="math inline">\(\arg\max_a Q_{\text{hi}}\)</span>, then the widest-gap observation</td>
+<td><a href="./part4/ch22-online-belief-state-planning.html#eq-gap">eq.</a></td>
+<td>per exploration <span class="math inline">\(O(d\,|\mathcal{A}||\mathcal{O}|)\)</span></td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="controller-abstractions" class="level3">
+<h3 class="anchored" data-anchor-id="controller-abstractions"><a href="./part4/ch23-controller-abstractions.html">23 · Controller Abstractions</a></h3>
+<table class="caption-top table">
+<thead>
+<tr class="header">
+<th>Name</th>
+<th>Formula</th>
+<th>Ref</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Controller evaluation</td>
+<td><span class="math inline">\(U(x, s) = \sum_a \psi(a \mid x)[R(s, a) + \gamma\sum_{s'} T \sum_o O \sum_{x'} \eta\, U(x', s')]\)</span></td>
+<td><a href="./part4/ch23-controller-abstractions.html#eq-eval">eq.</a></td>
+</tr>
+<tr class="even">
+<td>Node values over beliefs</td>
+<td><span class="math inline">\(U(x, b) = \alpha_x^\top b\)</span>; start at <span class="math inline">\(\arg\max_x \alpha_x^\top b\)</span></td>
+<td><a href="./part4/ch23-controller-abstractions.html#eq-node-value">eq.</a></td>
+</tr>
+<tr class="odd">
+<td>Pointwise dominance</td>
+<td><span class="math inline">\(U(x, s) \le U(x', s)\)</span> for all <span class="math inline">\(s\)</span></td>
+<td><a href="./part4/ch23-controller-abstractions.html#eq-dominance">eq.</a></td>
+</tr>
+<tr class="even">
+<td>Fixed-size program</td>
+<td><span class="math inline">\(\max \sum_s b(s) U(x_1, s)\)</span> s.t. <a href="./part4/ch23-controller-abstractions.html#eq-eval">eq.</a>, <span class="math inline">\(\psi\)</span> and <span class="math inline">\(\eta\)</span> distributions</td>
+<td><a href="./part4/ch23-controller-abstractions.html#eq-nlp">eq.</a></td>
+</tr>
+<tr class="odd">
+<td>Controller gradient</td>
+<td><span class="math inline">\(v^\top(\partial r_\theta + \gamma\,\partial T_\theta\, u_\theta)\)</span>, <span class="math inline">\(v = (I - \gamma T_\theta)^{-\top}\beta\)</span></td>
+<td><a href="./part4/ch23-controller-abstractions.html#eq-gradient">eq.</a></td>
+</tr>
+<tr class="even">
+<td>Simplex projection</td>
+<td><span class="math inline">\(\max(y - \tau, 0)\)</span>, <span class="math inline">\(\tau\)</span> so it sums to 1</td>
+<td><a href="./part4/ch23-controller-abstractions.html#eq-proj">eq.</a></td>
+</tr>
+</tbody>
+</table>
+</section>
+</section>
+<section id="part-v-multiagent-systems" class="level2">
+<h2 class="anchored" data-anchor-id="part-v-multiagent-systems">Part V — Multiagent Systems</h2>
+<section id="multiagent-reasoning" class="level3">
+<h3 class="anchored" data-anchor-id="multiagent-reasoning"><a href="./part5/ch24-multiagent-reasoning.html">24 · Multiagent Reasoning</a></h3>
+<table class="caption-top table">
+<thead>
+<tr class="header">
+<th>Name</th>
+<th>Formula</th>
+<th>Ref</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Utility</td>
+<td><span class="math inline">\(U^i(\boldsymbol{\pi}) = \sum_{\boldsymbol{a}} R^i(\boldsymbol{a}) \prod_j \pi^j(a^j)\)</span></td>
+<td><a href="./part5/ch24-multiagent-reasoning.html#eq-utility">eq.</a></td>
+</tr>
+<tr class="even">
+<td>Best response</td>
+<td><span class="math inline">\(\arg\max_{a^i} U^i(a^i, \boldsymbol{\pi}^{-i})\)</span></td>
+<td><a href="./part5/ch24-multiagent-reasoning.html#eq-best-response">eq.</a></td>
+</tr>
+<tr class="odd">
+<td>Softmax response</td>
+<td><span class="math inline">\(\pi^i(a^i) \propto \exp(\lambda U^i(a^i, \boldsymbol{\pi}^{-i}))\)</span></td>
+<td><a href="./part5/ch24-multiagent-reasoning.html#eq-softmax">eq.</a></td>
+</tr>
+<tr class="even">
+<td>★ Nash equilibrium</td>
+<td><span class="math inline">\(U^i(\boldsymbol{\pi}) \ge U^i(a^i, \boldsymbol{\pi}^{-i})\)</span> for all <span class="math inline">\(i, a^i\)</span></td>
+<td><a href="./part5/ch24-multiagent-reasoning.html#eq-nash">eq.</a></td>
+</tr>
+<tr class="odd">
+<td>★ Correlated equilibrium</td>
+<td><span class="math inline">\(\sum_{\boldsymbol{a}^{-i}} [R^i(a^i, \boldsymbol{a}^{-i}) - R^i(a^{i\prime}, \boldsymbol{a}^{-i})]\,\pi(a^i, \boldsymbol{a}^{-i}) \ge 0\)</span></td>
+<td><a href="./part5/ch24-multiagent-reasoning.html#eq-correlated">eq.</a></td>
+</tr>
+<tr class="even">
+<td>Fictitious play</td>
+<td>best-respond to <span class="math inline">\(\hat{\pi}^j \propto N(j, \cdot)\)</span></td>
+<td><a href="./part5/ch24-multiagent-reasoning.html#eq-fictitious">eq.</a></td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="sequential-problems" class="level3">
+<h3 class="anchored" data-anchor-id="sequential-problems"><a href="./part5/ch25-sequential-problems.html">25 · Sequential Problems</a></h3>
+<table class="caption-top table">
+<thead>
+<tr class="header">
+<th>Name</th>
+<th>Formula</th>
+<th>Ref</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Policy evaluation</td>
+<td><span class="math inline">\(U^{\boldsymbol{\pi}, i}(s) = R^i(s, \boldsymbol{\pi}(s)) + \gamma \sum_{s'} T(s' \mid s, \boldsymbol{\pi}(s)) U^{\boldsymbol{\pi}, i}(s')\)</span></td>
+<td><a href="./part5/ch25-sequential-problems.html#eq-mg-eval">eq.</a></td>
+</tr>
+<tr class="even">
+<td>Best response MDP</td>
+<td><span class="math inline">\(T' = T(s' \mid s, a^i, \boldsymbol{\pi}^{-i}(s))\)</span>, <span class="math inline">\(R' = R^i(s, a^i, \boldsymbol{\pi}^{-i}(s))\)</span></td>
+<td><a href="./part5/ch25-sequential-problems.html#eq-response-mdp">eq.</a></td>
+</tr>
+<tr class="odd">
+<td>★ Nash equilibrium</td>
+<td>no agent gains by deviating, in any state</td>
+<td><a href="./part5/ch25-sequential-problems.html#eq-mg-nash">eq.</a></td>
+</tr>
+<tr class="even">
+<td>Fictitious play</td>
+<td>best-respond to <span class="math inline">\(\hat{\pi}^j(a^j \mid s) \propto N(j, a^j, s)\)</span></td>
+<td><a href="./part5/ch25-sequential-problems.html#eq-mg-fictitious">eq.</a></td>
+</tr>
+<tr class="odd">
+<td>Nash Q-learning</td>
+<td><span class="math inline">\(Q^i \leftarrow Q^i + \alpha(R^i + \gamma\, U^i_{\text{stage}}(s') - Q^i)\)</span></td>
+<td><a href="./part5/ch25-sequential-problems.html#eq-nash-q">eq.</a></td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="state-uncertainty" class="level3">
+<h3 class="anchored" data-anchor-id="state-uncertainty"><a href="./part5/ch26-state-uncertainty.html">26 · State Uncertainty</a></h3>
+<table class="caption-top table">
+<thead>
+<tr class="header">
+<th>Name</th>
+<th>Formula</th>
+<th>Ref</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Joint plan evaluation</td>
+<td><span class="math inline">\(U^{\boldsymbol{\pi}}(s) = R(s, \boldsymbol{\pi}()) + \gamma \sum_{s'} T \sum_{\boldsymbol{o}} O\, U^{\boldsymbol{\pi}(\boldsymbol{o})}(s')\)</span></td>
+<td><a href="./part5/ch26-state-uncertainty.html#eq-plan-eval">eq.</a></td>
+</tr>
+<tr class="even">
+<td>Joint controller evaluation</td>
+<td><span class="math inline">\(U(\boldsymbol{x}, s) = \sum_{\boldsymbol{a}} \prod_i \psi^i [R + \gamma \sum T \sum O \sum_{\boldsymbol{x}'} \prod_i \eta^i\, U(\boldsymbol{x}', s')]\)</span></td>
+<td><a href="./part5/ch26-state-uncertainty.html#eq-controller-eval">eq.</a></td>
+</tr>
+<tr class="odd">
+<td>Game over plans</td>
+<td>actions <span class="math inline">\(\Pi^i_h\)</span>, rewards <span class="math inline">\(U^{\boldsymbol{\pi}, i}(b)\)</span></td>
+<td>§26.3</td>
+</tr>
+<tr class="even">
+<td>Pruning LP</td>
+<td><span class="math inline">\(\max \delta\)</span>: some <span class="math inline">\(b(\boldsymbol{\pi}^{-i}, s)\)</span> makes <span class="math inline">\(\pi^i\)</span> beat every alternative by <span class="math inline">\(\delta\)</span></td>
+<td><a href="./part5/ch26-state-uncertainty.html#eq-dominance-lp">eq.</a></td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="collaborative-agents" class="level3">
+<h3 class="anchored" data-anchor-id="collaborative-agents"><a href="./part5/ch27-collaborative-agents.html">27 · Collaborative Agents</a></h3>
+<table class="caption-top table">
+<thead>
+<tr class="header">
+<th>Name</th>
+<th>Formula</th>
+<th>Ref</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Dec-POMDP objective</td>
+<td><span class="math inline">\(\max_{\boldsymbol{\pi}} U^{\boldsymbol{\pi}}(b)\)</span>, plans branching on own observations</td>
+<td><a href="./part5/ch27-collaborative-agents.html#eq-dec-value">eq.</a></td>
+</tr>
+<tr class="even">
+<td>Communication bound</td>
+<td><span class="math inline">\(\max_{\boldsymbol{\pi}} U^{\boldsymbol{\pi}}(b) \le U^*_{\text{MPOMDP}}(b)\)</span></td>
+<td><a href="./part5/ch27-collaborative-agents.html#eq-mpomdp">eq.</a></td>
+</tr>
+<tr class="odd">
+<td>JESP step</td>
+<td><span class="math inline">\(\pi^i \leftarrow \arg\max_{\pi^{i\prime}} U^{\pi^{i\prime}, \boldsymbol{\pi}^{-i}}(b)\)</span></td>
+<td><a href="./part5/ch27-collaborative-agents.html#eq-best-response-team">eq.</a></td>
+</tr>
+<tr class="even">
+<td>MBDP</td>
+<td>keep <span class="math inline">\(m\)</span> plans per agent, chosen at sampled beliefs</td>
+<td>§27.5</td>
+</tr>
+<tr class="odd">
+<td>Controllers</td>
+<td>maximize <span class="math inline">\(\sum_s b(s) U(\boldsymbol{x}_1, s)\)</span> over all <span class="math inline">\(\psi^i, \eta^i\)</span> (eq. 26.3 constraints)</td>
+<td>§27.6</td>
+</tr>
+</tbody>
+</table>
+
+
+</section>
+</section>
+
+</main> <!-- /main -->
+<script id="quarto-html-after-body" type="application/javascript">
+  window.document.addEventListener("DOMContentLoaded", function (event) {
+    // Ensure there is a toggle, if there isn't float one in the top right
+    if (window.document.querySelector('.quarto-color-scheme-toggle') === null) {
+      const a = window.document.createElement('a');
+      a.classList.add('top-right');
+      a.classList.add('quarto-color-scheme-toggle');
+      a.href = "";
+      a.onclick = function() { try { window.quartoToggleColorScheme(); } catch {} return false; };
+      const i = window.document.createElement("i");
+      i.classList.add('bi');
+      a.appendChild(i);
+      window.document.body.appendChild(a);
+    }
+    setColorSchemeToggle(hasAlternateSentinel())
+    const icon = "";
+    const anchorJS = new window.AnchorJS();
+    anchorJS.options = {
+      placement: 'right',
+      icon: icon
+    };
+    anchorJS.add('.anchored');
+    const isCodeAnnotation = (el) => {
+      for (const clz of el.classList) {
+        if (clz.startsWith('code-annotation-')) {                     
+          return true;
+        }
+      }
+      return false;
+    }
+    const onCopySuccess = function(e) {
+      // button target
+      const button = e.trigger;
+      // don't keep focus
+      button.blur();
+      // flash "checked"
+      button.classList.add('code-copy-button-checked');
+      var currentTitle = button.getAttribute("title");
+      button.setAttribute("title", "Copied!");
+      let tooltip;
+      if (window.bootstrap) {
+        button.setAttribute("data-bs-toggle", "tooltip");
+        button.setAttribute("data-bs-placement", "left");
+        button.setAttribute("data-bs-title", "Copied!");
+        tooltip = new bootstrap.Tooltip(button, 
+          { trigger: "manual", 
+            customClass: "code-copy-button-tooltip",
+            offset: [0, -8]});
+        tooltip.show();    
+      }
+      setTimeout(function() {
+        if (tooltip) {
+          tooltip.hide();
+          button.removeAttribute("data-bs-title");
+          button.removeAttribute("data-bs-toggle");
+          button.removeAttribute("data-bs-placement");
+        }
+        button.setAttribute("title", currentTitle);
+        button.classList.remove('code-copy-button-checked');
+      }, 1000);
+      // clear code selection
+      e.clearSelection();
+    }
+    const getTextToCopy = function(trigger) {
+      const outerScaffold = trigger.parentElement.cloneNode(true);
+      const codeEl = outerScaffold.querySelector('code');
+      for (const childEl of codeEl.children) {
+        if (isCodeAnnotation(childEl)) {
+          childEl.remove();
+        }
+      }
+      return codeEl.innerText;
+    }
+    const clipboard = new window.ClipboardJS('.code-copy-button:not([data-in-quarto-modal])', {
+      text: getTextToCopy
+    });
+    clipboard.on('success', onCopySuccess);
+    if (window.document.getElementById('quarto-embedded-source-code-modal')) {
+      const clipboardModal = new window.ClipboardJS('.code-copy-button[data-in-quarto-modal]', {
+        text: getTextToCopy,
+        container: window.document.getElementById('quarto-embedded-source-code-modal')
+      });
+      clipboardModal.on('success', onCopySuccess);
+    }
+      var localhostRegex = new RegExp(/^(?:http|https):\/\/localhost\:?[0-9]*\//);
+      var mailtoRegex = new RegExp(/^mailto:/);
+        var filterRegex = new RegExp("https:\/\/laventura\.github\.io\/adm-companion\/");
+      var isInternal = (href) => {
+          return filterRegex.test(href) || localhostRegex.test(href) || mailtoRegex.test(href);
+      }
+      // Inspect non-navigation links and adorn them if external
+     var links = window.document.querySelectorAll('a[href]:not(.nav-link):not(.navbar-brand):not(.toc-action):not(.sidebar-link):not(.sidebar-item-toggle):not(.pagination-link):not(.no-external):not([aria-hidden]):not(.dropdown-item):not(.quarto-navigation-tool):not(.about-link)');
+      for (var i=0; i<links.length; i++) {
+        const link = links[i];
+        if (!isInternal(link.href)) {
+          // undo the damage that might have been done by quarto-nav.js in the case of
+          // links that we want to consider external
+          if (link.dataset.originalHref !== undefined) {
+            link.href = link.dataset.originalHref;
+          }
+        }
+      }
+    function tippyHover(el, contentFn, onTriggerFn, onUntriggerFn) {
+      const config = {
+        allowHTML: true,
+        maxWidth: 500,
+        delay: 100,
+        arrow: false,
+        appendTo: function(el) {
+            return el.parentElement;
+        },
+        interactive: true,
+        interactiveBorder: 10,
+        theme: 'quarto',
+        placement: 'bottom-start',
+      };
+      if (contentFn) {
+        config.content = contentFn;
+      }
+      if (onTriggerFn) {
+        config.onTrigger = onTriggerFn;
+      }
+      if (onUntriggerFn) {
+        config.onUntrigger = onUntriggerFn;
+      }
+      window.tippy(el, config); 
+    }
+    const noterefs = window.document.querySelectorAll('a[role="doc-noteref"]');
+    for (var i=0; i<noterefs.length; i++) {
+      const ref = noterefs[i];
+      tippyHover(ref, function() {
+        // use id or data attribute instead here
+        let href = ref.getAttribute('data-footnote-href') || ref.getAttribute('href');
+        try { href = new URL(href).hash; } catch {}
+        const id = href.replace(/^#\/?/, "");
+        const note = window.document.getElementById(id);
+        if (note) {
+          return note.innerHTML;
+        } else {
+          return "";
+        }
+      });
+    }
+    const xrefs = window.document.querySelectorAll('a.quarto-xref');
+    const processXRef = (id, note) => {
+      // Strip column container classes
+      const stripColumnClz = (el) => {
+        el.classList.remove("page-full", "page-columns");
+        if (el.children) {
+          for (const child of el.children) {
+            stripColumnClz(child);
+          }
+        }
+      }
+      stripColumnClz(note)
+      if (id === null || id.startsWith('sec-')) {
+        // Special case sections, only their first couple elements
+        const container = document.createElement("div");
+        if (note.children && note.children.length > 2) {
+          container.appendChild(note.children[0].cloneNode(true));
+          for (let i = 1; i < note.children.length; i++) {
+            const child = note.children[i];
+            if (child.tagName === "P" && child.innerText === "") {
+              continue;
+            } else {
+              container.appendChild(child.cloneNode(true));
+              break;
+            }
+          }
+          if (window.Quarto?.typesetMath) {
+            window.Quarto.typesetMath(container);
+          }
+          return container.innerHTML
+        } else {
+          if (window.Quarto?.typesetMath) {
+            window.Quarto.typesetMath(note);
+          }
+          return note.innerHTML;
+        }
+      } else {
+        // Remove any anchor links if they are present
+        const anchorLink = note.querySelector('a.anchorjs-link');
+        if (anchorLink) {
+          anchorLink.remove();
+        }
+        if (window.Quarto?.typesetMath) {
+          window.Quarto.typesetMath(note);
+        }
+        if (note.classList.contains("callout")) {
+          return note.outerHTML;
+        } else {
+          return note.innerHTML;
+        }
+      }
+    }
+    for (var i=0; i<xrefs.length; i++) {
+      const xref = xrefs[i];
+      tippyHover(xref, undefined, function(instance) {
+        instance.disable();
+        let url = xref.getAttribute('href');
+        let hash = undefined; 
+        if (url.startsWith('#')) {
+          hash = url;
+        } else {
+          try { hash = new URL(url).hash; } catch {}
+        }
+        if (hash) {
+          const id = hash.replace(/^#\/?/, "");
+          const note = window.document.getElementById(id);
+          if (note !== null) {
+            try {
+              const html = processXRef(id, note.cloneNode(true));
+              instance.setContent(html);
+            } finally {
+              instance.enable();
+              instance.show();
+            }
+          } else {
+            // See if we can fetch this
+            fetch(url.split('#')[0])
+            .then(res => res.text())
+            .then(html => {
+              const parser = new DOMParser();
+              const htmlDoc = parser.parseFromString(html, "text/html");
+              const note = htmlDoc.getElementById(id);
+              if (note !== null) {
+                const html = processXRef(id, note);
+                instance.setContent(html);
+              } 
+            }).finally(() => {
+              instance.enable();
+              instance.show();
+            });
+          }
+        } else {
+          // See if we can fetch a full url (with no hash to target)
+          // This is a special case and we should probably do some content thinning / targeting
+          fetch(url)
+          .then(res => res.text())
+          .then(html => {
+            const parser = new DOMParser();
+            const htmlDoc = parser.parseFromString(html, "text/html");
+            const note = htmlDoc.querySelector('main.content');
+            if (note !== null) {
+              // This should only happen for chapter cross references
+              // (since there is no id in the URL)
+              // remove the first header
+              if (note.children.length > 0 && note.children[0].tagName === "HEADER") {
+                note.children[0].remove();
+              }
+              const html = processXRef(null, note);
+              instance.setContent(html);
+            } 
+          }).finally(() => {
+            instance.enable();
+            instance.show();
+          });
+        }
+      }, function(instance) {
+      });
+    }
+        let selectedAnnoteEl;
+        const selectorForAnnotation = ( cell, annotation) => {
+          let cellAttr = 'data-code-cell="' + cell + '"';
+          let lineAttr = 'data-code-annotation="' +  annotation + '"';
+          const selector = 'span[' + cellAttr + '][' + lineAttr + ']';
+          return selector;
+        }
+        const selectCodeLines = (annoteEl) => {
+          const doc = window.document;
+          const targetCell = annoteEl.getAttribute("data-target-cell");
+          const targetAnnotation = annoteEl.getAttribute("data-target-annotation");
+          const annoteSpan = window.document.querySelector(selectorForAnnotation(targetCell, targetAnnotation));
+          const lines = annoteSpan.getAttribute("data-code-lines").split(",");
+          const lineIds = lines.map((line) => {
+            return targetCell + "-" + line;
+          })
+          let top = null;
+          let height = null;
+          let parent = null;
+          if (lineIds.length > 0) {
+              //compute the position of the single el (top and bottom and make a div)
+              const el = window.document.getElementById(lineIds[0]);
+              top = el.offsetTop;
+              height = el.offsetHeight;
+              parent = el.parentElement.parentElement;
+            if (lineIds.length > 1) {
+              const lastEl = window.document.getElementById(lineIds[lineIds.length - 1]);
+              const bottom = lastEl.offsetTop + lastEl.offsetHeight;
+              height = bottom - top;
+            }
+            if (top !== null && height !== null && parent !== null) {
+              // cook up a div (if necessary) and position it 
+              let div = window.document.getElementById("code-annotation-line-highlight");
+              if (div === null) {
+                div = window.document.createElement("div");
+                div.setAttribute("id", "code-annotation-line-highlight");
+                div.style.position = 'absolute';
+                parent.appendChild(div);
+              }
+              div.style.top = top - 2 + "px";
+              div.style.height = height + 4 + "px";
+              div.style.left = 0;
+              let gutterDiv = window.document.getElementById("code-annotation-line-highlight-gutter");
+              if (gutterDiv === null) {
+                gutterDiv = window.document.createElement("div");
+                gutterDiv.setAttribute("id", "code-annotation-line-highlight-gutter");
+                gutterDiv.style.position = 'absolute';
+                const codeCell = window.document.getElementById(targetCell);
+                const gutter = codeCell.querySelector('.code-annotation-gutter');
+                gutter.appendChild(gutterDiv);
+              }
+              gutterDiv.style.top = top - 2 + "px";
+              gutterDiv.style.height = height + 4 + "px";
+            }
+            selectedAnnoteEl = annoteEl;
+          }
+        };
+        const unselectCodeLines = () => {
+          const elementsIds = ["code-annotation-line-highlight", "code-annotation-line-highlight-gutter"];
+          elementsIds.forEach((elId) => {
+            const div = window.document.getElementById(elId);
+            if (div) {
+              div.remove();
+            }
+          });
+          selectedAnnoteEl = undefined;
+        };
+          // Handle positioning of the toggle
+      window.addEventListener(
+        "resize",
+        throttle(() => {
+          elRect = undefined;
+          if (selectedAnnoteEl) {
+            selectCodeLines(selectedAnnoteEl);
+          }
+        }, 10)
+      );
+      function throttle(fn, ms) {
+      let throttle = false;
+      let timer;
+        return (...args) => {
+          if(!throttle) { // first call gets through
+              fn.apply(this, args);
+              throttle = true;
+          } else { // all the others get throttled
+              if(timer) clearTimeout(timer); // cancel #2
+              timer = setTimeout(() => {
+                fn.apply(this, args);
+                timer = throttle = false;
+              }, ms);
+          }
+        };
+      }
+        // Attach click handler to the DT
+        const annoteDls = window.document.querySelectorAll('dt[data-target-cell]');
+        for (const annoteDlNode of annoteDls) {
+          annoteDlNode.addEventListener('click', (event) => {
+            const clickedEl = event.target;
+            if (clickedEl !== selectedAnnoteEl) {
+              unselectCodeLines();
+              const activeEl = window.document.querySelector('dt[data-target-cell].code-annotation-active');
+              if (activeEl) {
+                activeEl.classList.remove('code-annotation-active');
+              }
+              selectCodeLines(clickedEl);
+              clickedEl.classList.add('code-annotation-active');
+            } else {
+              // Unselect the line
+              unselectCodeLines();
+              clickedEl.classList.remove('code-annotation-active');
+            }
+          });
+        }
+    const findCites = (el) => {
+      const parentEl = el.parentElement;
+      if (parentEl) {
+        const cites = parentEl.dataset.cites;
+        if (cites) {
+          return {
+            el,
+            cites: cites.split(' ')
+          };
+        } else {
+          return findCites(el.parentElement)
+        }
+      } else {
+        return undefined;
+      }
+    };
+    var bibliorefs = window.document.querySelectorAll('a[role="doc-biblioref"]');
+    for (var i=0; i<bibliorefs.length; i++) {
+      const ref = bibliorefs[i];
+      const citeInfo = findCites(ref);
+      if (citeInfo) {
+        tippyHover(citeInfo.el, function() {
+          var popup = window.document.createElement('div');
+          citeInfo.cites.forEach(function(cite) {
+            var citeDiv = window.document.createElement('div');
+            citeDiv.classList.add('hanging-indent');
+            citeDiv.classList.add('csl-entry');
+            var biblioDiv = window.document.getElementById('ref-' + cite);
+            if (biblioDiv) {
+              citeDiv.innerHTML = biblioDiv.innerHTML;
+            }
+            popup.appendChild(citeDiv);
+          });
+          return popup.innerHTML;
+        });
+      }
+    }
+  });
+  </script>
+<nav class="page-navigation">
+  <div class="nav-page nav-page-previous">
+      <a href="./notation.html" class="pagination-link" aria-label="Notation">
+        <i class="bi bi-arrow-left-short"></i> <span class="nav-page-text">Notation</span>
+      </a>          
+  </div>
+  <div class="nav-page nav-page-next">
+      <a href="./intro/ch01-introduction.html" class="pagination-link" aria-label="1 · Introduction">
+        <span class="nav-page-text">1 · Introduction</span> <i class="bi bi-arrow-right-short"></i>
+      </a>
+  </div>
+</nav>
+</div> <!-- /content -->
+<footer class="footer">
+  <div class="nav-footer">
+    <div class="nav-footer-left">
+      &nbsp;
+    </div>   
+    <div class="nav-footer-center">
+<p>An independent, unofficial companion to <em>Algorithms for Decision Making</em> (MIT Press, 2022). The book is freely available at <a href="https://algorithmsbook.com">algorithmsbook.com</a>. Site text and figures © Atul Acharya, <a href="https://creativecommons.org/licenses/by-nc/4.0/">CC BY-NC 4.0</a>; code <a href="https://opensource.org/license/mit">MIT</a>.</p>
+</div>
+    <div class="nav-footer-right">
+      &nbsp;
+    </div>
+  </div>
+</footer>
+
+
+
+
+</body></html>

@@ -1,0 +1,2342 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en"><head>
+
+<meta charset="utf-8">
+<meta name="generator" content="quarto-1.9.38">
+
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+
+
+<title>Notation – ADM Companion</title>
+<style>
+/* Default styles provided by pandoc.
+** See https://pandoc.org/MANUAL.html#variables-for-html for config info.
+*/
+code{white-space: pre-wrap;}
+span.smallcaps{font-variant: small-caps;}
+div.columns{display: flex; gap: min(4vw, 1.5em);}
+div.column{flex: auto; overflow-x: auto;}
+div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+ul.task-list{list-style: none;}
+ul.task-list li input[type="checkbox"] {
+  width: 0.8em;
+  margin: 0 0.8em 0.2em -1em; /* quarto-specific, see https://github.com/quarto-dev/quarto-cli/issues/4556 */ 
+  vertical-align: middle;
+}
+</style>
+
+
+<script src="site_libs/quarto-nav/quarto-nav.js"></script>
+<script src="site_libs/quarto-nav/headroom.min.js"></script>
+<script src="site_libs/clipboard/clipboard.min.js"></script>
+<script src="site_libs/quarto-search/autocomplete.umd.js"></script>
+<script src="site_libs/quarto-search/fuse.min.js"></script>
+<script src="site_libs/quarto-search/quarto-search.js"></script>
+<meta name="quarto:offset" content="./">
+<link href="./cheatsheets.html" rel="next">
+<link href="./index.html" rel="prev">
+<script src="site_libs/quarto-html/quarto.js" type="module"></script>
+<script src="site_libs/quarto-html/tabsets/tabsets.js" type="module"></script>
+<script src="site_libs/quarto-html/popper.min.js"></script>
+<script src="site_libs/quarto-html/tippy.umd.min.js"></script>
+<script src="site_libs/quarto-html/anchor.min.js"></script>
+<link href="site_libs/quarto-html/tippy.css" rel="stylesheet">
+<link href="site_libs/quarto-html/quarto-syntax-highlighting-de63f62b328812d8e578a4d74e282472.css" rel="stylesheet" class="quarto-color-scheme" id="quarto-text-highlighting-styles">
+<link href="site_libs/quarto-html/quarto-syntax-highlighting-dark-6b6957c917596b414ec0b78690761e87.css" rel="stylesheet" class="quarto-color-scheme quarto-color-alternate" id="quarto-text-highlighting-styles">
+<link href="site_libs/quarto-html/quarto-syntax-highlighting-de63f62b328812d8e578a4d74e282472.css" rel="stylesheet" class="quarto-color-scheme-extra" id="quarto-text-highlighting-styles">
+<script src="site_libs/bootstrap/bootstrap.min.js"></script>
+<link href="site_libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
+<link href="site_libs/bootstrap/bootstrap-d1de39f35053749ff84d2df96798693d.min.css" rel="stylesheet" append-hash="true" class="quarto-color-scheme" id="quarto-bootstrap" data-mode="light">
+<link href="site_libs/bootstrap/bootstrap-dark-a6f4e11c7ca7fab1bededaf21cc7b528.min.css" rel="stylesheet" append-hash="true" class="quarto-color-scheme quarto-color-alternate" id="quarto-bootstrap" data-mode="dark">
+<link href="site_libs/bootstrap/bootstrap-d1de39f35053749ff84d2df96798693d.min.css" rel="stylesheet" append-hash="true" class="quarto-color-scheme-extra" id="quarto-bootstrap" data-mode="light">
+<script id="quarto-search-options" type="application/json">{
+  "location": "sidebar",
+  "copy-button": false,
+  "collapse-after": 3,
+  "panel-placement": "start",
+  "type": "textbox",
+  "limit": 50,
+  "keyboard-shortcut": [
+    "f",
+    "/",
+    "s"
+  ],
+  "show-item-context": false,
+  "language": {
+    "search-no-results-text": "No results",
+    "search-matching-documents-text": "matching documents",
+    "search-copy-link-title": "Copy link to search",
+    "search-hide-matches-text": "Hide additional matches",
+    "search-more-match-text": "more match in this document",
+    "search-more-matches-text": "more matches in this document",
+    "search-clear-button-title": "Clear",
+    "search-text-placeholder": "",
+    "search-detached-cancel-button-title": "Cancel",
+    "search-submit-button-title": "Submit",
+    "search-label": "Search"
+  }
+}</script>
+
+  <script src="https://cdnjs.cloudflare.com/polyfill/v3/polyfill.min.js?features=es6"></script>
+  <script defer="" src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml-full.js" type="text/javascript"></script>
+
+<script type="text/javascript">
+const typesetMath = (el) => {
+  if (window.MathJax) {
+    // MathJax Typeset
+    window.MathJax.typeset([el]);
+  } else if (window.katex) {
+    // KaTeX Render
+    var mathElements = el.getElementsByClassName("math");
+    var macros = [];
+    for (var i = 0; i < mathElements.length; i++) {
+      var texText = mathElements[i].firstChild;
+      if (mathElements[i].tagName == "SPAN" && texText && texText.data) {
+        window.katex.render(texText.data, mathElements[i], {
+          displayMode: mathElements[i].classList.contains('display'),
+          throwOnError: false,
+          macros: macros,
+          fleqn: false
+        });
+      }
+    }
+  }
+}
+window.Quarto = {
+  typesetMath
+};
+</script>
+
+</head>
+
+<body class="nav-sidebar docked quarto-light"><script id="quarto-html-before-body" type="application/javascript">
+    const toggleBodyColorMode = (bsSheetEl) => {
+      const mode = bsSheetEl.getAttribute("data-mode");
+      const bodyEl = window.document.querySelector("body");
+      if (mode === "dark") {
+        bodyEl.classList.add("quarto-dark");
+        bodyEl.classList.remove("quarto-light");
+      } else {
+        bodyEl.classList.add("quarto-light");
+        bodyEl.classList.remove("quarto-dark");
+      }
+    }
+    const toggleBodyColorPrimary = () => {
+      const bsSheetEl = window.document.querySelector("link#quarto-bootstrap:not([rel=disabled-stylesheet])");
+      if (bsSheetEl) {
+        toggleBodyColorMode(bsSheetEl);
+      }
+    }
+    const setColorSchemeToggle = (alternate) => {
+      const toggles = window.document.querySelectorAll('.quarto-color-scheme-toggle');
+      for (let i=0; i < toggles.length; i++) {
+        const toggle = toggles[i];
+        if (toggle) {
+          if (alternate) {
+            toggle.classList.add("alternate");
+          } else {
+            toggle.classList.remove("alternate");
+          }
+        }
+      }
+    };
+    const toggleColorMode = (alternate) => {
+      // Switch the stylesheets
+      const primaryStylesheets = window.document.querySelectorAll('link.quarto-color-scheme:not(.quarto-color-alternate)');
+      const alternateStylesheets = window.document.querySelectorAll('link.quarto-color-scheme.quarto-color-alternate');
+      manageTransitions('#quarto-margin-sidebar .nav-link', false);
+      if (alternate) {
+        // note: dark is layered on light, we don't disable primary!
+        enableStylesheet(alternateStylesheets);
+        for (const sheetNode of alternateStylesheets) {
+          if (sheetNode.id === "quarto-bootstrap") {
+            toggleBodyColorMode(sheetNode);
+          }
+        }
+      } else {
+        disableStylesheet(alternateStylesheets);
+        enableStylesheet(primaryStylesheets)
+        toggleBodyColorPrimary();
+      }
+      manageTransitions('#quarto-margin-sidebar .nav-link', true);
+      // Switch the toggles
+      setColorSchemeToggle(alternate)
+      // Hack to workaround the fact that safari doesn't
+      // properly recolor the scrollbar when toggling (#1455)
+      if (navigator.userAgent.indexOf('Safari') > 0 && navigator.userAgent.indexOf('Chrome') == -1) {
+        manageTransitions("body", false);
+        window.scrollTo(0, 1);
+        setTimeout(() => {
+          window.scrollTo(0, 0);
+          manageTransitions("body", true);
+        }, 40);
+      }
+    }
+    const disableStylesheet = (stylesheets) => {
+      for (let i=0; i < stylesheets.length; i++) {
+        const stylesheet = stylesheets[i];
+        stylesheet.rel = 'disabled-stylesheet';
+      }
+    }
+    const enableStylesheet = (stylesheets) => {
+      for (let i=0; i < stylesheets.length; i++) {
+        const stylesheet = stylesheets[i];
+        if(stylesheet.rel !== 'stylesheet') { // for Chrome, which will still FOUC without this check
+          stylesheet.rel = 'stylesheet';
+        }
+      }
+    }
+    const manageTransitions = (selector, allowTransitions) => {
+      const els = window.document.querySelectorAll(selector);
+      for (let i=0; i < els.length; i++) {
+        const el = els[i];
+        if (allowTransitions) {
+          el.classList.remove('notransition');
+        } else {
+          el.classList.add('notransition');
+        }
+      }
+    }
+    const isFileUrl = () => {
+      return window.location.protocol === 'file:';
+    }
+    const hasAlternateSentinel = () => {
+      let styleSentinel = getColorSchemeSentinel();
+      if (styleSentinel !== null) {
+        return styleSentinel === "alternate";
+      } else {
+        return false;
+      }
+    }
+    const setStyleSentinel = (alternate) => {
+      const value = alternate ? "alternate" : "default";
+      if (!isFileUrl()) {
+        window.localStorage.setItem("quarto-color-scheme", value);
+      } else {
+        localAlternateSentinel = value;
+      }
+    }
+    const getColorSchemeSentinel = () => {
+      if (!isFileUrl()) {
+        const storageValue = window.localStorage.getItem("quarto-color-scheme");
+        return storageValue != null ? storageValue : localAlternateSentinel;
+      } else {
+        return localAlternateSentinel;
+      }
+    }
+    const toggleGiscusIfUsed = (isAlternate, darkModeDefault) => {
+      const baseTheme = document.querySelector('#giscus-base-theme')?.value ?? 'light';
+      const alternateTheme = document.querySelector('#giscus-alt-theme')?.value ?? 'dark';
+      let newTheme = '';
+      if(authorPrefersDark) {
+        newTheme = isAlternate ? baseTheme : alternateTheme;
+      } else {
+        newTheme = isAlternate ? alternateTheme : baseTheme;
+      }
+      const changeGiscusTheme = () => {
+        // From: https://github.com/giscus/giscus/issues/336
+        const sendMessage = (message) => {
+          const iframe = document.querySelector('iframe.giscus-frame');
+          if (!iframe) return;
+          iframe.contentWindow.postMessage({ giscus: message }, 'https://giscus.app');
+        }
+        sendMessage({
+          setConfig: {
+            theme: newTheme
+          }
+        });
+      }
+      const isGiscussLoaded = window.document.querySelector('iframe.giscus-frame') !== null;
+      if (isGiscussLoaded) {
+        changeGiscusTheme();
+      }
+    };
+    const authorPrefersDark = false;
+    const darkModeDefault = authorPrefersDark;
+      document.querySelector('link#quarto-text-highlighting-styles.quarto-color-scheme-extra').rel = 'disabled-stylesheet';
+      document.querySelector('link#quarto-bootstrap.quarto-color-scheme-extra').rel = 'disabled-stylesheet';
+    let localAlternateSentinel = darkModeDefault ? 'alternate' : 'default';
+    // Dark / light mode switch
+    window.quartoToggleColorScheme = () => {
+      // Read the current dark / light value
+      let toAlternate = !hasAlternateSentinel();
+      toggleColorMode(toAlternate);
+      setStyleSentinel(toAlternate);
+      toggleGiscusIfUsed(toAlternate, darkModeDefault);
+      window.dispatchEvent(new Event('resize'));
+    };
+    // Switch to dark mode if need be
+    if (hasAlternateSentinel()) {
+      toggleColorMode(true);
+    } else {
+      toggleColorMode(false);
+    }
+  </script>
+
+<div id="quarto-search-results"></div>
+  <header id="quarto-header" class="headroom fixed-top">
+  <nav class="quarto-secondary-nav">
+    <div class="container-fluid d-flex">
+      <button type="button" class="quarto-btn-toggle btn" data-bs-toggle="collapse" role="button" data-bs-target=".quarto-sidebar-collapse-item" aria-controls="quarto-sidebar" aria-expanded="false" aria-label="Toggle sidebar navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">
+        <i class="bi bi-layout-text-sidebar-reverse"></i>
+      </button>
+        <nav class="quarto-page-breadcrumbs" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="./notation.html">Notation</a></li></ol></nav>
+        <a class="flex-grow-1" role="navigation" data-bs-toggle="collapse" data-bs-target=".quarto-sidebar-collapse-item" aria-controls="quarto-sidebar" aria-expanded="false" aria-label="Toggle sidebar navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">      
+        </a>
+      <button type="button" class="btn quarto-search-button" aria-label="Search" onclick="window.quartoOpenSearch();">
+        <i class="bi bi-search"></i>
+      </button>
+    </div>
+  </nav>
+</header>
+<!-- content -->
+<div id="quarto-content" class="quarto-container page-columns page-rows-contents page-layout-article">
+<!-- sidebar -->
+  <nav id="quarto-sidebar" class="sidebar collapse collapse-horizontal quarto-sidebar-collapse-item sidebar-navigation docked overflow-auto">
+    <div class="pt-lg-2 mt-2 text-left sidebar-header">
+    <div class="sidebar-title mb-0 py-0">
+      <a href="./">ADM Companion</a> 
+        <div class="sidebar-tools-main">
+  <a href="" class="quarto-color-scheme-toggle quarto-navigation-tool  px-1" onclick="window.quartoToggleColorScheme(); return false;" title="Toggle dark mode"><i class="bi"></i></a>
+</div>
+    </div>
+      </div>
+        <div class="mt-2 flex-shrink-0 align-items-center">
+        <div class="sidebar-search">
+        <div id="quarto-search" class="" title="Search"></div>
+        </div>
+        </div>
+    <div class="sidebar-menu-container"> 
+    <ul class="list-unstyled mt-1">
+        <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./index.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Algorithms for Decision Making - Companion</span></a>
+  </div>
+</li>
+        <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./notation.html" class="sidebar-item-text sidebar-link active">
+ <span class="menu-text">Notation</span></a>
+  </div>
+</li>
+        <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./cheatsheets.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Cheat sheets</span></a>
+  </div>
+</li>
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-1" role="navigation" aria-expanded="false">
+ <span class="menu-text">Introduction</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-1" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-1" class="collapse list-unstyled sidebar-section depth1 ">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./intro/ch01-introduction.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">1 · Introduction</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-2" role="navigation" aria-expanded="false">
+ <span class="menu-text">Part I — Probabilistic Reasoning</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-2" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-2" class="collapse list-unstyled sidebar-section depth1 ">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./part1/ch02-representation.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">2 · Representation</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./part1/ch03-inference.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">3 · Inference</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./part1/ch04-parameter-learning.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">4 · Parameter Learning</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./part1/ch05-structure-learning.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">5 · Structure Learning</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./part1/ch06-simple-decisions.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">6 · Simple Decisions</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-3" role="navigation" aria-expanded="false">
+ <span class="menu-text">Part II — Sequential Problems</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-3" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-3" class="collapse list-unstyled sidebar-section depth1 ">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./part2/ch07-exact-solution-methods.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">7 · Exact Solution Methods</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./part2/ch08-approximate-value-functions.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">8 · Approximate Value Functions</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./part2/ch09-online-planning.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">9 · Online Planning</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./part2/ch10-policy-search.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">10 · Policy Search</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./part2/ch11-policy-gradient-estimation.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">11 · Policy Gradient Estimation</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./part2/ch12-policy-gradient-optimization.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">12 · Policy Gradient Optimization</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./part2/ch13-actor-critic-methods.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">13 · Actor-Critic Methods</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./part2/ch14-policy-validation.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">14 · Policy Validation</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-4" role="navigation" aria-expanded="false">
+ <span class="menu-text">Part III — Model Uncertainty</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-4" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-4" class="collapse list-unstyled sidebar-section depth1 ">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./part3/ch15-exploration-and-exploitation.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">15 · Exploration and Exploitation</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./part3/ch16-model-based-methods.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">16 · Model-Based Methods</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./part3/ch17-model-free-methods.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">17 · Model-Free Methods</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./part3/ch18-imitation-learning.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">18 · Imitation Learning</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-5" role="navigation" aria-expanded="false">
+ <span class="menu-text">Part IV — State Uncertainty</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-5" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-5" class="collapse list-unstyled sidebar-section depth1 ">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./part4/ch19-beliefs.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">19 · Beliefs</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./part4/ch20-exact-belief-state-planning.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">20 · Exact Belief State Planning</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./part4/ch21-offline-belief-state-planning.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">21 · Offline Belief State Planning</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./part4/ch22-online-belief-state-planning.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">22 · Online Belief State Planning</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./part4/ch23-controller-abstractions.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">23 · Controller Abstractions</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-6" role="navigation" aria-expanded="false">
+ <span class="menu-text">Part V — Multiagent Systems</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-6" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-6" class="collapse list-unstyled sidebar-section depth1 ">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./part5/ch24-multiagent-reasoning.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">24 · Multiagent Reasoning</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./part5/ch25-sequential-problems.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">25 · Sequential Problems</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./part5/ch26-state-uncertainty.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">26 · State Uncertainty</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./part5/ch27-collaborative-agents.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">27 · Collaborative Agents</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-7" role="navigation" aria-expanded="false">
+ <span class="menu-text">Appendices</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-7" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-7" class="collapse list-unstyled sidebar-section depth1 ">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./appendices/a-mathematical-concepts.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">A · Mathematical Concepts</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./appendices/b-probability-distributions.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">B · Probability Distributions</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./appendices/c-computational-complexity.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">C · Computational Complexity</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./appendices/d-neural-representations.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">D · Neural Representations</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./appendices/e-search-algorithms.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">E · Search Algorithms</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./appendices/f-problems.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">F · Problems</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+    </ul>
+    </div>
+</nav>
+<div id="quarto-sidebar-glass" class="quarto-sidebar-collapse-item" data-bs-toggle="collapse" data-bs-target=".quarto-sidebar-collapse-item"></div>
+<!-- margin-sidebar -->
+    <div id="quarto-margin-sidebar" class="sidebar margin-sidebar">
+        <nav id="TOC" role="doc-toc" class="toc-active">
+    <h2 id="toc-title">On this page</h2>
+   
+  <ul>
+  <li><a href="#part1" id="toc-part1" class="nav-link active" data-scroll-target="#part1">Introduction and Part I: probabilistic reasoning</a></li>
+  <li><a href="#part2" id="toc-part2" class="nav-link" data-scroll-target="#part2">Part II: sequential problems</a></li>
+  <li><a href="#part3" id="toc-part3" class="nav-link" data-scroll-target="#part3">Part III: model uncertainty</a></li>
+  <li><a href="#part4" id="toc-part4" class="nav-link" data-scroll-target="#part4">Part IV: state uncertainty</a></li>
+  <li><a href="#part5" id="toc-part5" class="nav-link" data-scroll-target="#part5">Part V: multiagent systems</a></li>
+  <li><a href="#appendices" id="toc-appendices" class="nav-link" data-scroll-target="#appendices">Appendices</a></li>
+  <li><a href="#overloaded" id="toc-overloaded" class="nav-link" data-scroll-target="#overloaded">Symbols with several meanings</a></li>
+  </ul>
+</nav>
+    </div>
+<!-- main -->
+<main class="content" id="quarto-document-content">
+
+
+<header id="title-block-header" class="quarto-title-block default">
+<div class="quarto-title">
+<h1 class="title">Notation</h1>
+</div>
+
+
+
+<div class="quarto-title-meta">
+
+    
+  
+    
+  </div>
+  
+
+
+</header>
+
+
+<p>This site uses the book’s notation, so you can move between the two. Symbols are grouped by the Part where they first appear, in chapter order; each is listed once, where it is introduced, unless a later chapter gives it a new meaning. The book reuses some letters for different things in different chapters; <a href="#overloaded">the last section</a> lists them.</p>
+<p>For the key equations themselves, see the <a href="./cheatsheets.html">cheat sheets</a>.</p>
+<section id="part1" class="level2">
+<h2 class="anchored" data-anchor-id="part1">Introduction and Part I: probabilistic reasoning</h2>
+<div id="tbl-notation-1" class="quarto-float quarto-figure quarto-figure-center anchored">
+<figure class="quarto-float quarto-float-tbl figure">
+<figcaption class="quarto-float-caption-top quarto-float-caption quarto-float-tbl" id="tbl-notation-1-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Table&nbsp;1: Symbols from Chapters 1–6.
+</figcaption>
+<div aria-describedby="tbl-notation-1-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<table class="caption-top table">
+<colgroup>
+<col style="width: 33%">
+<col style="width: 33%">
+<col style="width: 33%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Symbol</th>
+<th>Meaning</th>
+<th>First used</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><span class="math inline">\(r_t\)</span></td>
+<td>Reward received at step <span class="math inline">\(t\)</span></td>
+<td>Ch 1</td>
+</tr>
+<tr class="even">
+<td><span class="math inline">\(a^*\)</span></td>
+<td>The action with the highest expected utility</td>
+<td>Ch 1</td>
+</tr>
+<tr class="odd">
+<td><span class="math inline">\(P(x)\)</span></td>
+<td>Probability mass function (discrete): the probability that <span class="math inline">\(X = x\)</span></td>
+<td>Ch 2</td>
+</tr>
+<tr class="even">
+<td><span class="math inline">\(p(x)\)</span></td>
+<td>Probability density function (continuous); probabilities are areas under it</td>
+<td>Ch 2</td>
+</tr>
+<tr class="odd">
+<td><span class="math inline">\(\operatorname{cdf}(x)\)</span></td>
+<td>Cumulative distribution function, <span class="math inline">\(P(X \le x)\)</span></td>
+<td>Ch 2</td>
+</tr>
+<tr class="even">
+<td><span class="math inline">\(\mathcal{N}(x \mid \mu, \sigma^2)\)</span></td>
+<td>Gaussian with mean <span class="math inline">\(\mu\)</span> and variance <span class="math inline">\(\sigma^2\)</span>; <span class="math inline">\(\mathcal{N}(\mathbf{x} \mid \boldsymbol\mu, \boldsymbol\Sigma)\)</span> is the multivariate version</td>
+<td>Ch 2</td>
+</tr>
+<tr class="odd">
+<td><span class="math inline">\(\mathcal{U}(x \mid a, b)\)</span></td>
+<td>Uniform distribution on <span class="math inline">\([a, b]\)</span></td>
+<td>Ch 2</td>
+</tr>
+<tr class="even">
+<td><span class="math inline">\(\rho_i\)</span></td>
+<td>Weight of component <span class="math inline">\(i\)</span> in a mixture</td>
+<td>Ch 2</td>
+</tr>
+<tr class="odd">
+<td><span class="math inline">\(x^0\)</span>, <span class="math inline">\(x^1\)</span></td>
+<td>The two values of a binary variable: no, yes</td>
+<td>Ch 2</td>
+</tr>
+<tr class="even">
+<td><span class="math inline">\(P(x \mid y)\)</span></td>
+<td>Conditional probability of <span class="math inline">\(x\)</span> given <span class="math inline">\(y\)</span></td>
+<td>Ch 2</td>
+</tr>
+<tr class="odd">
+<td><span class="math inline">\(\theta_1\)</span>, <span class="math inline">\(\theta_2\)</span></td>
+<td>Threshold and softness of a sigmoid conditional</td>
+<td>Ch 2</td>
+</tr>
+<tr class="even">
+<td><span class="math inline">\(x_{1:n}\)</span></td>
+<td>The values <span class="math inline">\(x_1, \ldots, x_n\)</span></td>
+<td>Ch 2</td>
+</tr>
+<tr class="odd">
+<td><span class="math inline">\(\mathrm{pa}(x_i)\)</span></td>
+<td>Values of the parents of <span class="math inline">\(X_i\)</span> in a Bayesian network</td>
+<td>Ch 2</td>
+</tr>
+<tr class="even">
+<td><span class="math inline">\((X \perp Y \mid Z)\)</span></td>
+<td><span class="math inline">\(X\)</span> and <span class="math inline">\(Y\)</span> are conditionally independent given <span class="math inline">\(Z\)</span></td>
+<td>Ch 2</td>
+</tr>
+<tr class="odd">
+<td><span class="math inline">\(q\)</span>, <span class="math inline">\(e\)</span>, <span class="math inline">\(h\)</span></td>
+<td>Query, evidence, and hidden variables in an inference problem</td>
+<td>Ch 3</td>
+</tr>
+<tr class="even">
+<td><span class="math inline">\(\phi\)</span></td>
+<td>A factor: a table over some variables (a CPT, or any partial product)</td>
+<td>Ch 3</td>
+</tr>
+<tr class="odd">
+<td><span class="math inline">\(P(c \mid o_{1:n})\)</span></td>
+<td>Naive Bayes posterior of class <span class="math inline">\(c\)</span> given observations <span class="math inline">\(o_1, \ldots, o_n\)</span></td>
+<td>Ch 3</td>
+</tr>
+<tr class="even">
+<td><span class="math inline">\(w\)</span></td>
+<td>Likelihood weight of a sample</td>
+<td>Ch 3</td>
+</tr>
+<tr class="odd">
+<td><span class="math inline">\(x_{-i}\)</span></td>
+<td>All variables except <span class="math inline">\(x_i\)</span></td>
+<td>Ch 3</td>
+</tr>
+<tr class="even">
+<td><span class="math inline">\(\boldsymbol{\mu}_{a \mid b}\)</span>, <span class="math inline">\(\boldsymbol{\Sigma}_{a \mid b}\)</span></td>
+<td>Mean and covariance of Gaussian block <span class="math inline">\(\mathbf{a}\)</span> given block <span class="math inline">\(\mathbf{b}\)</span></td>
+<td>Ch 3</td>
+</tr>
+<tr class="odd">
+<td><span class="math inline">\(\theta\)</span></td>
+<td>Model parameters, such as CPT entries</td>
+<td>Ch 4</td>
+</tr>
+<tr class="even">
+<td><span class="math inline">\(\ell(\theta)\)</span></td>
+<td>Log-likelihood of the data under parameters <span class="math inline">\(\theta\)</span></td>
+<td>Ch 4</td>
+</tr>
+<tr class="odd">
+<td><span class="math inline">\(m_{ijk}\)</span></td>
+<td>Count of records with variable <span class="math inline">\(i\)</span> at value <span class="math inline">\(k\)</span> and its parents at combination <span class="math inline">\(j\)</span></td>
+<td>Ch 4</td>
+</tr>
+<tr class="even">
+<td><span class="math inline">\(\hat\theta\)</span></td>
+<td>An estimate of <span class="math inline">\(\theta\)</span></td>
+<td>Ch 4</td>
+</tr>
+<tr class="odd">
+<td><span class="math inline">\(\mathrm{Beta}(\theta \mid \alpha, \beta)\)</span></td>
+<td>Beta distribution over a probability <span class="math inline">\(\theta\)</span>; <span class="math inline">\(\alpha\)</span>, <span class="math inline">\(\beta\)</span> act as pseudocounts</td>
+<td>Ch 4</td>
+</tr>
+<tr class="even">
+<td><span class="math inline">\(\mathrm{Dir}(\theta_{1:n} \mid \alpha_{1:n})\)</span></td>
+<td>Dirichlet distribution over <span class="math inline">\(n\)</span> probabilities that sum to 1</td>
+<td>Ch 4</td>
+</tr>
+<tr class="odd">
+<td><span class="math inline">\(\phi\)</span>, <span class="math inline">\(h\)</span></td>
+<td>Kernel and bandwidth in kernel density estimation</td>
+<td>Ch 4</td>
+</tr>
+<tr class="even">
+<td><span class="math inline">\(G\)</span>, <span class="math inline">\(D\)</span></td>
+<td>A graph (network structure) and a dataset</td>
+<td>Ch 5</td>
+</tr>
+<tr class="odd">
+<td><span class="math inline">\(\ln P(G \mid D)\)</span></td>
+<td>Bayesian score of graph <span class="math inline">\(G\)</span> on data <span class="math inline">\(D\)</span></td>
+<td>Ch 5</td>
+</tr>
+<tr class="even">
+<td><span class="math inline">\(\Gamma(x)\)</span></td>
+<td>Gamma function; <span class="math inline">\(\Gamma(n) = (n-1)!\)</span> for whole numbers</td>
+<td>Ch 5</td>
+</tr>
+<tr class="odd">
+<td><span class="math inline">\(\alpha_{ijk}\)</span>, <span class="math inline">\(\alpha_{ij0}\)</span>, <span class="math inline">\(m_{ij0}\)</span></td>
+<td>Pseudocount for a cell, and the row totals of pseudocounts and counts</td>
+<td>Ch 5</td>
+</tr>
+<tr class="even">
+<td><span class="math inline">\(q_i\)</span>, <span class="math inline">\(r_i\)</span></td>
+<td>Number of parent combinations and number of values of variable <span class="math inline">\(i\)</span></td>
+<td>Ch 5</td>
+</tr>
+<tr class="odd">
+<td><span class="math inline">\(\kappa\)</span></td>
+<td>Equivalent sample size of a BDeu prior</td>
+<td>Ch 5</td>
+</tr>
+<tr class="even">
+<td><span class="math inline">\(\mathrm{pa}_G(x_i)\)</span></td>
+<td>Parents of <span class="math inline">\(x_i\)</span> in graph <span class="math inline">\(G\)</span></td>
+<td>Ch 5</td>
+</tr>
+<tr class="odd">
+<td><span class="math inline">\(A \succ B\)</span>, <span class="math inline">\(A \sim B\)</span>, <span class="math inline">\(A \succeq B\)</span></td>
+<td><span class="math inline">\(A\)</span> preferred to <span class="math inline">\(B\)</span>; indifferent; at least as good</td>
+<td>Ch 6</td>
+</tr>
+<tr class="even">
+<td><span class="math inline">\([S_1 : p_1; \ldots; S_n : p_n]\)</span></td>
+<td>Lottery: outcome <span class="math inline">\(S_i\)</span> with probability <span class="math inline">\(p_i\)</span></td>
+<td>Ch 6</td>
+</tr>
+<tr class="odd">
+<td><span class="math inline">\(U(S)\)</span></td>
+<td>Utility of outcome <span class="math inline">\(S\)</span></td>
+<td>Ch 6</td>
+</tr>
+<tr class="even">
+<td><span class="math inline">\(S_\top\)</span>, <span class="math inline">\(S_\bot\)</span></td>
+<td>Best and worst outcomes, used to scale utility to <span class="math inline">\([0, 1]\)</span></td>
+<td>Ch 6</td>
+</tr>
+<tr class="odd">
+<td><span class="math inline">\(x_{\text{ce}}\)</span></td>
+<td>Certainty equivalent: the sure amount worth the same as a gamble</td>
+<td>Ch 6</td>
+</tr>
+<tr class="even">
+<td><span class="math inline">\(\lambda\)</span></td>
+<td>Risk-aversion parameter of exponential utility <span class="math inline">\(1 - e^{-\lambda x}\)</span></td>
+<td>Ch 6</td>
+</tr>
+<tr class="odd">
+<td><span class="math inline">\(EU(a \mid o)\)</span>, <span class="math inline">\(EU^*(o)\)</span></td>
+<td>Expected utility of action <span class="math inline">\(a\)</span> given observation <span class="math inline">\(o\)</span>; its maximum over actions</td>
+<td>Ch 6</td>
+</tr>
+<tr class="even">
+<td><span class="math inline">\(\mathrm{VOI}(O' \mid o)\)</span></td>
+<td>Value of information of observing <span class="math inline">\(O'\)</span>, given <span class="math inline">\(o\)</span></td>
+<td>Ch 6</td>
+</tr>
+</tbody>
+</table>
+</div>
+</figure>
+</div>
+</section>
+<section id="part2" class="level2">
+<h2 class="anchored" data-anchor-id="part2">Part II: sequential problems</h2>
+<div id="tbl-notation-2" class="quarto-float quarto-figure quarto-figure-center anchored">
+<figure class="quarto-float quarto-float-tbl figure">
+<figcaption class="quarto-float-caption-top quarto-float-caption quarto-float-tbl" id="tbl-notation-2-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Table&nbsp;2: Symbols from Chapters 7–14.
+</figcaption>
+<div aria-describedby="tbl-notation-2-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<table class="caption-top table">
+<colgroup>
+<col style="width: 33%">
+<col style="width: 33%">
+<col style="width: 33%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Symbol</th>
+<th>Meaning</th>
+<th>First used</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><span class="math inline">\(\mathcal{S}\)</span></td>
+<td>State space</td>
+<td>Ch 7</td>
+</tr>
+<tr class="even">
+<td><span class="math inline">\(\mathcal{A}\)</span></td>
+<td>Action space</td>
+<td>Ch 7</td>
+</tr>
+<tr class="odd">
+<td><span class="math inline">\(T(s' \mid s, a)\)</span></td>
+<td>Transition model: probability of reaching <span class="math inline">\(s'\)</span> from <span class="math inline">\(s\)</span> after action <span class="math inline">\(a\)</span></td>
+<td>Ch 7</td>
+</tr>
+<tr class="even">
+<td><span class="math inline">\(R(s, a)\)</span></td>
+<td>Expected reward for taking action <span class="math inline">\(a\)</span> in state <span class="math inline">\(s\)</span></td>
+<td>Ch 7</td>
+</tr>
+<tr class="odd">
+<td><span class="math inline">\(\gamma\)</span></td>
+<td>Discount factor, <span class="math inline">\(0 \le \gamma \le 1\)</span></td>
+<td>Ch 7</td>
+</tr>
+<tr class="even">
+<td><span class="math inline">\(\pi\)</span></td>
+<td>Policy: maps states to actions</td>
+<td>Ch 7</td>
+</tr>
+<tr class="odd">
+<td><span class="math inline">\(U^\pi(s)\)</span></td>
+<td>Value (utility) of state <span class="math inline">\(s\)</span> under policy <span class="math inline">\(\pi\)</span></td>
+<td>Ch 7</td>
+</tr>
+<tr class="even">
+<td><span class="math inline">\(U^*(s)\)</span></td>
+<td>Optimal value of state <span class="math inline">\(s\)</span></td>
+<td>Ch 7</td>
+</tr>
+<tr class="odd">
+<td><span class="math inline">\(U_k\)</span></td>
+<td>Value estimate after <span class="math inline">\(k\)</span> sweeps of value iteration</td>
+<td>Ch 7</td>
+</tr>
+<tr class="even">
+<td><span class="math inline">\(Q(s, a)\)</span></td>
+<td>Action value: reward for <span class="math inline">\(a\)</span> in <span class="math inline">\(s\)</span> plus the discounted value <span class="math inline">\(U\)</span> of where you land</td>
+<td>Ch 7</td>
+</tr>
+<tr class="odd">
+<td><span class="math inline">\(A(s, a)\)</span></td>
+<td>Advantage: <span class="math inline">\(Q(s, a) - U(s)\)</span></td>
+<td>Ch 7</td>
+</tr>
+<tr class="even">
+<td><span class="math inline">\(\mathbf{T}^\pi\)</span>, <span class="math inline">\(\mathbf{R}^\pi\)</span></td>
+<td>Transition matrix and reward vector with the policy’s action fixed in each state</td>
+<td>Ch 7</td>
+</tr>
+<tr class="odd">
+<td><span class="math inline">\(\lVert U \rVert_\infty\)</span></td>
+<td>Largest absolute entry, <span class="math inline">\(\max_s \lvert U(s) \rvert\)</span></td>
+<td>Ch 7</td>
+</tr>
+<tr class="even">
+<td><span class="math inline">\(\delta\)</span>, <span class="math inline">\(\epsilon\)</span></td>
+<td>Bellman-residual threshold and target accuracy in value iteration</td>
+<td>Ch 7</td>
+</tr>
+<tr class="odd">
+<td><span class="math inline">\(U_\theta(s)\)</span>, <span class="math inline">\(Q_\theta(s, a)\)</span></td>
+<td>Parametric (approximate) value and action value functions with parameters <span class="math inline">\(\theta\)</span></td>
+<td>Ch 8</td>
+</tr>
+<tr class="even">
+<td><span class="math inline">\(S = s_{1:m}\)</span></td>
+<td>Sample states where approximate value iteration does backups</td>
+<td>Ch 8</td>
+</tr>
+<tr class="odd">
+<td><span class="math inline">\(\beta(s)\)</span></td>
+<td>Basis functions (features), or local weights, so that <span class="math inline">\(U_\theta(s) = \theta^\top \beta(s)\)</span></td>
+<td>Ch 8</td>
+</tr>
+<tr class="even">
+<td><span class="math inline">\(d(s, s')\)</span>, <span class="math inline">\(k(s, s')\)</span></td>
+<td>Distance between states, and a kernel (larger for closer states)</td>
+<td>Ch 8</td>
+</tr>
+<tr class="odd">
+<td><span class="math inline">\(\sigma\)</span></td>
+<td>Width of a Gaussian kernel</td>
+<td>Ch 8</td>
+</tr>
+<tr class="even">
+<td><span class="math inline">\(X\)</span>, <span class="math inline">\(X^+\)</span></td>
+<td>Feature matrix (row <span class="math inline">\(i\)</span> is <span class="math inline">\(\beta(s_i)^\top\)</span>) and its pseudoinverse</td>
+<td>Ch 8</td>
+</tr>
+<tr class="odd">
+<td><span class="math inline">\(d\)</span></td>
+<td>Search depth (planning horizon) of an online planner</td>
+<td>Ch 9</td>
+</tr>
+<tr class="even">
+<td><span class="math inline">\(U_d(s)\)</span></td>
+<td>Value of <span class="math inline">\(s\)</span> from a depth-<span class="math inline">\(d\)</span> search</td>
+<td>Ch 9</td>
+</tr>
+<tr class="odd">
+<td><span class="math inline">\(\underline{U}(s)\)</span>, <span class="math inline">\(\overline{Q}(s, a)\)</span>, <span class="math inline">\(\overline{U}(s)\)</span></td>
+<td>Lower bound on values; upper bounds on action values and values (admissible heuristic)</td>
+<td>Ch 9</td>
+</tr>
+<tr class="even">
+<td><span class="math inline">\(m\)</span></td>
+<td>Number of samples (sparse sampling) or simulations (MCTS, heuristic search)</td>
+<td>Ch 9</td>
+</tr>
+<tr class="odd">
+<td><span class="math inline">\(N(s, a)\)</span>, <span class="math inline">\(N(s)\)</span></td>
+<td>Visit counts in Monte Carlo tree search</td>
+<td>Ch 9</td>
+</tr>
+<tr class="even">
+<td><span class="math inline">\(c\)</span></td>
+<td>Exploration constant in UCB1</td>
+<td>Ch 9</td>
+</tr>
+<tr class="odd">
+<td><span class="math inline">\(\delta\)</span></td>
+<td>Residual threshold for a state to count as solved</td>
+<td>Ch 9</td>
+</tr>
+<tr class="even">
+<td><span class="math inline">\(a_{1:d}\)</span></td>
+<td>An open-loop sequence of actions</td>
+<td>Ch 9</td>
+</tr>
+<tr class="odd">
+<td><span class="math inline">\(\pi_\theta\)</span>, <span class="math inline">\(U(\theta)\)</span></td>
+<td>A policy with parameters <span class="math inline">\(\theta\)</span>, and its expected return</td>
+<td>Ch 10</td>
+</tr>
+<tr class="even">
+<td><span class="math inline">\(\tau\)</span>, <span class="math inline">\(R(\tau)\)</span>, <span class="math inline">\(p_\pi(\tau)\)</span></td>
+<td>A trajectory, its discounted return, and its probability under <span class="math inline">\(\pi\)</span></td>
+<td>Ch 10</td>
+</tr>
+<tr class="odd">
+<td><span class="math inline">\(b(s)\)</span></td>
+<td>Initial state distribution (for policy search)</td>
+<td>Ch 10</td>
+</tr>
+<tr class="even">
+<td><span class="math inline">\(\alpha\)</span>, <span class="math inline">\(c\)</span>, <span class="math inline">\(\epsilon\)</span></td>
+<td>Step size, its reduction factor, and the stopping step size (Hooke–Jeeves)</td>
+<td>Ch 10</td>
+</tr>
+<tr class="odd">
+<td><span class="math inline">\(m_{\text{elite}}\)</span></td>
+<td>Number of elite samples kept each iteration</td>
+<td>Ch 10</td>
+</tr>
+<tr class="even">
+<td><span class="math inline">\(p(\theta \mid \psi)\)</span></td>
+<td>Search distribution over policy parameters, with parameters <span class="math inline">\(\psi\)</span></td>
+<td>Ch 10</td>
+</tr>
+<tr class="odd">
+<td><span class="math inline">\(w^{(i)}\)</span></td>
+<td>Rank-shaped weight of the <span class="math inline">\(i\)</span>-th best sample</td>
+<td>Ch 10</td>
+</tr>
+<tr class="even">
+<td><span class="math inline">\(\nabla U(\theta)\)</span></td>
+<td>Policy gradient: how the expected return changes with each parameter</td>
+<td>Ch 11</td>
+</tr>
+<tr class="odd">
+<td><span class="math inline">\(\delta\)</span>, <span class="math inline">\(e_i\)</span></td>
+<td>Finite-difference step, and the unit vector along parameter <span class="math inline">\(i\)</span></td>
+<td>Ch 11</td>
+</tr>
+<tr class="even">
+<td><span class="math inline">\(\Delta\Theta\)</span>, <span class="math inline">\(\Delta U\)</span></td>
+<td>Matrix of parameter perturbations (one per row) and the resulting changes in <span class="math inline">\(U\)</span></td>
+<td>Ch 11</td>
+</tr>
+<tr class="odd">
+<td><span class="math inline">\(\pi_\theta(a \mid s)\)</span></td>
+<td>Probability (or density) that the policy takes action <span class="math inline">\(a\)</span> in state <span class="math inline">\(s\)</span></td>
+<td>Ch 11</td>
+</tr>
+<tr class="even">
+<td><span class="math inline">\(\nabla_\theta \log \pi_\theta(a \mid s)\)</span></td>
+<td>Score of an action: the direction that makes it more likely</td>
+<td>Ch 11</td>
+</tr>
+<tr class="odd">
+<td><span class="math inline">\(r_{\text{to-go}}^{(k)}\)</span></td>
+<td>Reward-to-go: discounted reward from step <span class="math inline">\(k\)</span> on</td>
+<td>Ch 11</td>
+</tr>
+<tr class="even">
+<td><span class="math inline">\(r_{\text{base}}(s)\)</span></td>
+<td>Baseline subtracted from the reward-to-go</td>
+<td>Ch 11</td>
+</tr>
+<tr class="odd">
+<td><span class="math inline">\(F_\theta\)</span></td>
+<td>Fisher information matrix of the policy’s trajectory distribution</td>
+<td>Ch 12</td>
+</tr>
+<tr class="even">
+<td><span class="math inline">\(D_{\text{KL}}(p \,\Vert\, q)\)</span></td>
+<td>Kullback–Leibler divergence from <span class="math inline">\(p\)</span> to <span class="math inline">\(q\)</span></td>
+<td>Ch 12</td>
+</tr>
+<tr class="odd">
+<td><span class="math inline">\(\epsilon\)</span></td>
+<td>Trust-region size (KL or step budget); PPO’s clipping range</td>
+<td>Ch 12</td>
+</tr>
+<tr class="even">
+<td><span class="math inline">\(f(\theta, \theta')\)</span>, <span class="math inline">\(g(\theta, \theta')\)</span></td>
+<td>TRPO’s surrogate objective and surrogate KL constraint</td>
+<td>Ch 12</td>
+</tr>
+<tr class="odd">
+<td><span class="math inline">\(b_{\gamma,\theta}(s)\)</span></td>
+<td>Discounted state-visitation distribution of <span class="math inline">\(\pi_\theta\)</span></td>
+<td>Ch 12</td>
+</tr>
+<tr class="even">
+<td><span class="math inline">\(w = \pi_{\theta'}(a \mid s) / \pi_\theta(a \mid s)\)</span></td>
+<td>Probability ratio (importance weight)</td>
+<td>Ch 12</td>
+</tr>
+<tr class="odd">
+<td><span class="math inline">\(U_\phi(s)\)</span>, <span class="math inline">\(Q_\phi(s, a)\)</span></td>
+<td>The critic: a value function with parameters <span class="math inline">\(\phi\)</span></td>
+<td>Ch 13</td>
+</tr>
+<tr class="even">
+<td><span class="math inline">\(\delta_k\)</span></td>
+<td>Temporal difference residual <span class="math inline">\(r_k + \gamma U(s_{k+1}) - U(s_k)\)</span></td>
+<td>Ch 13</td>
+</tr>
+<tr class="odd">
+<td><span class="math inline">\(\hat A^{(k)}\)</span>, <span class="math inline">\(\hat A^{\text{GAE}}\)</span></td>
+<td><span class="math inline">\(k\)</span>-step and generalized advantage estimates</td>
+<td>Ch 13</td>
+</tr>
+<tr class="even">
+<td><span class="math inline">\(\lambda\)</span></td>
+<td>GAE weight between TD residuals (<span class="math inline">\(\lambda = 0\)</span>) and full returns (<span class="math inline">\(\lambda = 1\)</span>)</td>
+<td>Ch 13</td>
+</tr>
+<tr class="odd">
+<td><span class="math inline">\(\nabla_\theta \pi_\theta(s)\)</span></td>
+<td>Jacobian of a deterministic policy (one column per action component)</td>
+<td>Ch 13</td>
+</tr>
+<tr class="even">
+<td><span class="math inline">\(\pi_{\text{MCTS}}\)</span>, <span class="math inline">\(U_{\text{MCTS}}\)</span>, <span class="math inline">\(\eta\)</span></td>
+<td>Tree search’s visit-count policy (sharpened by <span class="math inline">\(\eta\)</span>) and value</td>
+<td>Ch 13</td>
+</tr>
+<tr class="odd">
+<td><span class="math inline">\(f(\pi)\)</span></td>
+<td>A performance metric of policy <span class="math inline">\(\pi\)</span>: the expected trajectory metric</td>
+<td>Ch 14</td>
+</tr>
+<tr class="even">
+<td><span class="math inline">\(f_{\text{traj}}\)</span>, <span class="math inline">\(f_{\text{step}}\)</span>, <span class="math inline">\(f_{\text{state}}\)</span></td>
+<td>Metric of a trajectory, of one step, and its expected total from a state</td>
+<td>Ch 14</td>
+</tr>
+<tr class="odd">
+<td><span class="math inline">\(b(s_1)\)</span></td>
+<td>Start (initial state) distribution; in Ch 19 on, <span class="math inline">\(b\)</span> is a belief</td>
+<td>Ch 14</td>
+</tr>
+<tr class="even">
+<td><span class="math inline">\(\text{SE} = \hat\sigma/\sqrt n\)</span></td>
+<td>Standard error of a sample mean; divided by <span class="math inline">\(\hat\mu\)</span>, the relative standard error</td>
+<td>Ch 14</td>
+</tr>
+<tr class="odd">
+<td><span class="math inline">\(P'(\tau)\)</span>, <span class="math inline">\(P^*(\tau)\)</span></td>
+<td>Proposal distribution for importance sampling; the optimal (zero-variance) proposal</td>
+<td>Ch 14</td>
+</tr>
+<tr class="even">
+<td><span class="math inline">\(w = P(\tau)/P'(\tau)\)</span></td>
+<td>Importance weight of a trajectory sampled from the proposal</td>
+<td>Ch 14</td>
+</tr>
+<tr class="odd">
+<td><span class="math inline">\(T_i\)</span>, <span class="math inline">\(R_i\)</span></td>
+<td>The <span class="math inline">\(i\)</span>-th of several candidate models in robust dynamic programming</td>
+<td>Ch 14</td>
+</tr>
+<tr class="even">
+<td><span class="math inline">\(R'\)</span>, <span class="math inline">\(\lambda\)</span></td>
+<td>Adversarial reward, and its weight on the log-likelihood of the adversary’s choices</td>
+<td>Ch 14</td>
+</tr>
+</tbody>
+</table>
+</div>
+</figure>
+</div>
+</section>
+<section id="part3" class="level2">
+<h2 class="anchored" data-anchor-id="part3">Part III: model uncertainty</h2>
+<div id="tbl-notation-3" class="quarto-float quarto-figure quarto-figure-center anchored">
+<figure class="quarto-float quarto-float-tbl figure">
+<figcaption class="quarto-float-caption-top quarto-float-caption quarto-float-tbl" id="tbl-notation-3-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Table&nbsp;3: Symbols from Chapters 15–18.
+</figcaption>
+<div aria-describedby="tbl-notation-3-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<table class="caption-top table">
+<colgroup>
+<col style="width: 33%">
+<col style="width: 33%">
+<col style="width: 33%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Symbol</th>
+<th>Meaning</th>
+<th>First used</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><span class="math inline">\(\theta_a\)</span>, <span class="math inline">\(\theta^*\)</span></td>
+<td>Payoff probability of bandit arm <span class="math inline">\(a\)</span>; the best arm’s</td>
+<td>Ch 15</td>
+</tr>
+<tr class="even">
+<td><span class="math inline">\(w_a\)</span>, <span class="math inline">\(\ell_a\)</span></td>
+<td>Wins and losses observed on arm <span class="math inline">\(a\)</span></td>
+<td>Ch 15</td>
+</tr>
+<tr class="odd">
+<td><span class="math inline">\(\rho_a\)</span></td>
+<td>Posterior probability that the next pull of arm <span class="math inline">\(a\)</span> wins, <span class="math inline">\((w_a + 1)/(w_a + \ell_a + 2)\)</span></td>
+<td>Ch 15</td>
+</tr>
+<tr class="even">
+<td><span class="math inline">\(\varepsilon\)</span>, <span class="math inline">\(\lambda\)</span>, <span class="math inline">\(\alpha\)</span>, <span class="math inline">\(c\)</span></td>
+<td>Exploration parameters: ε-greedy rate, softmax precision, quantile level, UCB1 constant</td>
+<td>Ch 15</td>
+</tr>
+<tr class="odd">
+<td><span class="math inline">\(N(a)\)</span>, <span class="math inline">\(N\)</span></td>
+<td>Pulls of arm <span class="math inline">\(a\)</span> (here Beta pseudocounts), and their total</td>
+<td>Ch 15</td>
+</tr>
+<tr class="even">
+<td><span class="math inline">\(U^*_r\)</span>, <span class="math inline">\(Q^*_r\)</span></td>
+<td>Bayes-optimal bandit values with <span class="math inline">\(r\)</span> pulls remaining</td>
+<td>Ch 15</td>
+</tr>
+<tr class="odd">
+<td><span class="math inline">\(N(s, a, s')\)</span>, <span class="math inline">\(N(s, a)\)</span></td>
+<td>Transition counts, and how often <span class="math inline">\(a\)</span> was tried in <span class="math inline">\(s\)</span></td>
+<td>Ch 16</td>
+</tr>
+<tr class="even">
+<td><span class="math inline">\(\rho(s, a)\)</span></td>
+<td>Sum of rewards received for <span class="math inline">\(a\)</span> in <span class="math inline">\(s\)</span></td>
+<td>Ch 16</td>
+</tr>
+<tr class="odd">
+<td><span class="math inline">\(\hat T\)</span>, <span class="math inline">\(\hat R\)</span></td>
+<td>Estimated (maximum likelihood) transition and reward functions</td>
+<td>Ch 16</td>
+</tr>
+<tr class="even">
+<td><span class="math inline">\(m\)</span>, <span class="math inline">\(r_{\max}\)</span></td>
+<td>R-MAX’s visit threshold and the largest possible reward</td>
+<td>Ch 16</td>
+</tr>
+<tr class="odd">
+<td><span class="math inline">\(\mathrm{Dir}(\theta \mid \boldsymbol\alpha)\)</span></td>
+<td>Dirichlet distribution over probability vectors, with pseudocounts <span class="math inline">\(\boldsymbol\alpha\)</span></td>
+<td>Ch 16</td>
+</tr>
+<tr class="even">
+<td><span class="math inline">\(b\)</span>, <span class="math inline">\(\tau(s, b, a, s')\)</span></td>
+<td>Belief over models, and its Bayes update in a Bayes-adaptive MDP</td>
+<td>Ch 16</td>
+</tr>
+<tr class="odd">
+<td><span class="math inline">\(\alpha(m)\)</span>, <span class="math inline">\(\alpha\)</span></td>
+<td>Learning rate: how far an estimate moves toward each new sample</td>
+<td>Ch 17</td>
+</tr>
+<tr class="even">
+<td><span class="math inline">\(\hat x_m\)</span></td>
+<td>Incremental estimate of a mean after <span class="math inline">\(m\)</span> samples</td>
+<td>Ch 17</td>
+</tr>
+<tr class="odd">
+<td><span class="math inline">\(\delta\)</span></td>
+<td>Temporal difference error, e.g.&nbsp;<span class="math inline">\(r + \gamma Q(s', a') - Q(s, a)\)</span></td>
+<td>Ch 17</td>
+</tr>
+<tr class="even">
+<td><span class="math inline">\(N(s, a)\)</span> (traces)</td>
+<td>Eligibility trace: a decaying count of recent visits (not the Ch 16 transition count)</td>
+<td>Ch 17</td>
+</tr>
+<tr class="odd">
+<td><span class="math inline">\(\lambda\)</span> (traces)</td>
+<td>Trace decay parameter in Sarsa(λ)</td>
+<td>Ch 17</td>
+</tr>
+<tr class="even">
+<td><span class="math inline">\(F(s, a, s')\)</span>, <span class="math inline">\(\beta(s)\)</span></td>
+<td>Shaping reward, and the potential function that makes it safe</td>
+<td>Ch 17</td>
+</tr>
+<tr class="odd">
+<td><span class="math inline">\(Q_\theta(s, a)\)</span></td>
+<td>Parameterized action value function</td>
+<td>Ch 17</td>
+</tr>
+<tr class="even">
+<td><span class="math inline">\(m_{\text{grad}}\)</span></td>
+<td>Batch size for experience replay</td>
+<td>Ch 17</td>
+</tr>
+<tr class="odd">
+<td><span class="math inline">\(\mathcal{D}\)</span></td>
+<td>Expert demonstrations (state-action pairs or trajectories)</td>
+<td>Ch 18</td>
+</tr>
+<tr class="even">
+<td><span class="math inline">\(\pi_E\)</span></td>
+<td>The expert’s policy</td>
+<td>Ch 18</td>
+</tr>
+<tr class="odd">
+<td><span class="math inline">\(\beta(s, a)\)</span>, <span class="math inline">\(\phi\)</span></td>
+<td>Reward features and weights: <span class="math inline">\(R_\phi(s, a) = \phi^\top\beta(s, a)\)</span></td>
+<td>Ch 18</td>
+</tr>
+<tr class="even">
+<td><span class="math inline">\(\mu_\pi\)</span>, <span class="math inline">\(\mu_E\)</span></td>
+<td>Feature expectations of a policy, and of the expert</td>
+<td>Ch 18</td>
+</tr>
+<tr class="odd">
+<td><span class="math inline">\(t\)</span></td>
+<td>Margin in maximum margin IRL</td>
+<td>Ch 18</td>
+</tr>
+<tr class="even">
+<td><span class="math inline">\(\lambda_i\)</span></td>
+<td>Mixture weights over the policies found by maximum margin IRL</td>
+<td>Ch 18</td>
+</tr>
+<tr class="odd">
+<td><span class="math inline">\(\beta\)</span> (SMILe)</td>
+<td>Mixing rate in SMILe (not the features)</td>
+<td>Ch 18</td>
+</tr>
+<tr class="even">
+<td><span class="math inline">\(P_\phi(\tau)\)</span>, <span class="math inline">\(Z(\phi)\)</span></td>
+<td>Maximum entropy trajectory distribution and its normalizer</td>
+<td>Ch 18</td>
+</tr>
+<tr class="odd">
+<td><span class="math inline">\(C_\phi(s, a)\)</span></td>
+<td>GAIL discriminator: probability a pair came from the learner</td>
+<td>Ch 18</td>
+</tr>
+</tbody>
+</table>
+</div>
+</figure>
+</div>
+</section>
+<section id="part4" class="level2">
+<h2 class="anchored" data-anchor-id="part4">Part IV: state uncertainty</h2>
+<div id="tbl-notation-4" class="quarto-float quarto-figure quarto-figure-center anchored">
+<figure class="quarto-float quarto-float-tbl figure">
+<figcaption class="quarto-float-caption-top quarto-float-caption quarto-float-tbl" id="tbl-notation-4-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Table&nbsp;4: Symbols from Chapters 19–23.
+</figcaption>
+<div aria-describedby="tbl-notation-4-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<table class="caption-top table">
+<colgroup>
+<col style="width: 33%">
+<col style="width: 33%">
+<col style="width: 33%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Symbol</th>
+<th>Meaning</th>
+<th>First used</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><span class="math inline">\(o\)</span></td>
+<td>An observation</td>
+<td>Ch 19</td>
+</tr>
+<tr class="even">
+<td><span class="math inline">\(O(o \mid a, s')\)</span></td>
+<td>Observation model: probability of observing <span class="math inline">\(o\)</span> after taking <span class="math inline">\(a\)</span> and landing in <span class="math inline">\(s'\)</span></td>
+<td>Ch 19</td>
+</tr>
+<tr class="odd">
+<td><span class="math inline">\(b(s)\)</span></td>
+<td>Belief: probability that the current state is <span class="math inline">\(s\)</span>, given the history</td>
+<td>Ch 19</td>
+</tr>
+<tr class="even">
+<td><span class="math inline">\(\mathcal{N}(x \mid \mu, \Sigma)\)</span></td>
+<td>Gaussian density at <span class="math inline">\(x\)</span> with mean <span class="math inline">\(\mu\)</span> and covariance <span class="math inline">\(\Sigma\)</span></td>
+<td>Ch 19</td>
+</tr>
+<tr class="odd">
+<td><span class="math inline">\(\mathbf{T}_s\)</span>, <span class="math inline">\(\mathbf{T}_a\)</span>, <span class="math inline">\(\boldsymbol{\Sigma}_s\)</span></td>
+<td>Linear-Gaussian dynamics: state matrix, action matrix, process-noise covariance</td>
+<td>Ch 19</td>
+</tr>
+<tr class="even">
+<td><span class="math inline">\(\mathbf{O}_s\)</span>, <span class="math inline">\(\boldsymbol{\Sigma}_o\)</span></td>
+<td>Linear-Gaussian sensor: observation matrix, sensor-noise covariance</td>
+<td>Ch 19</td>
+</tr>
+<tr class="odd">
+<td><span class="math inline">\(\boldsymbol{\mu}_b\)</span>, <span class="math inline">\(\boldsymbol{\Sigma}_b\)</span></td>
+<td>Mean and covariance of a Gaussian belief</td>
+<td>Ch 19</td>
+</tr>
+<tr class="even">
+<td><span class="math inline">\(\boldsymbol{\mu}_p\)</span>, <span class="math inline">\(\boldsymbol{\Sigma}_p\)</span></td>
+<td>Mean and covariance after the predict step</td>
+<td>Ch 19</td>
+</tr>
+<tr class="odd">
+<td><span class="math inline">\(\mathbf{K}\)</span></td>
+<td>Kalman gain</td>
+<td>Ch 19</td>
+</tr>
+<tr class="even">
+<td><span class="math inline">\(s^{(i)}\)</span>, <span class="math inline">\(w^{(i)}\)</span></td>
+<td>The <span class="math inline">\(i\)</span>-th particle and its weight</td>
+<td>Ch 19</td>
+</tr>
+<tr class="odd">
+<td><span class="math inline">\(\text{Update}(b, a, o)\)</span></td>
+<td>The belief after acting and observing (the Ch 19 filter)</td>
+<td>Ch 20</td>
+</tr>
+<tr class="even">
+<td><span class="math inline">\(R(b, a)\)</span>, <span class="math inline">\(T(b' \mid b, a)\)</span></td>
+<td>Reward and transition of the belief-state MDP</td>
+<td>Ch 20</td>
+</tr>
+<tr class="odd">
+<td><span class="math inline">\(P(o \mid b, a)\)</span></td>
+<td>Probability of observing <span class="math inline">\(o\)</span> after taking <span class="math inline">\(a\)</span> from belief <span class="math inline">\(b\)</span></td>
+<td>Ch 20</td>
+</tr>
+<tr class="even">
+<td><span class="math inline">\(\pi()\)</span>, <span class="math inline">\(\pi(o)\)</span></td>
+<td>A conditional plan’s root action, and its subplan after observation <span class="math inline">\(o\)</span></td>
+<td>Ch 20</td>
+</tr>
+<tr class="odd">
+<td><span class="math inline">\(\alpha_\pi\)</span>, <span class="math inline">\(\Gamma\)</span></td>
+<td>Alpha vector of a plan (utility per state), and a set of them</td>
+<td>Ch 20</td>
+</tr>
+<tr class="even">
+<td><span class="math inline">\(U^\Gamma(b)\)</span></td>
+<td><span class="math inline">\(\max_{\alpha \in \Gamma} \alpha^\top b\)</span>, the value represented by <span class="math inline">\(\Gamma\)</span></td>
+<td>Ch 20</td>
+</tr>
+<tr class="odd">
+<td><span class="math inline">\(\delta\)</span> (pruning)</td>
+<td>Largest lead of an alpha vector over a set, over all beliefs</td>
+<td>Ch 20</td>
+</tr>
+<tr class="even">
+<td><span class="math inline">\(\mu_b\)</span>, <span class="math inline">\(K\)</span></td>
+<td>Belief mean and linear feedback gain in LQG control</td>
+<td>Ch 20</td>
+</tr>
+<tr class="odd">
+<td><span class="math inline">\(U_{\text{hi}}\)</span>, <span class="math inline">\(U_{\text{lo}}\)</span></td>
+<td>Upper and lower bounds on the optimal value over beliefs</td>
+<td>Ch 21</td>
+</tr>
+<tr class="even">
+<td><span class="math inline">\(r_{\text{baws}}\)</span></td>
+<td>Best-action worst-state lower bound</td>
+<td>Ch 21</td>
+</tr>
+<tr class="odd">
+<td><span class="math inline">\(B\)</span></td>
+<td>A finite set of beliefs used by point-based methods</td>
+<td>Ch 21</td>
+</tr>
+<tr class="even">
+<td><span class="math inline">\(\alpha_{a,o}\)</span></td>
+<td>The best existing alpha vector after action <span class="math inline">\(a\)</span> and observation <span class="math inline">\(o\)</span></td>
+<td>Ch 21</td>
+</tr>
+<tr class="odd">
+<td><span class="math inline">\(V\)</span>, <span class="math inline">\(u_E\)</span></td>
+<td>Stored belief-utility pairs (sawtooth), and the corner beliefs’ utilities</td>
+<td>Ch 21</td>
+</tr>
+<tr class="even">
+<td><span class="math inline">\(\rho(b, b')\)</span></td>
+<td>Minimum ratio <span class="math inline">\(\min_i b_i/b'_i\)</span> in the sawtooth bound</td>
+<td>Ch 21</td>
+</tr>
+<tr class="odd">
+<td><span class="math inline">\(m\)</span>, <span class="math inline">\(\lambda_i\)</span></td>
+<td>Grid granularity and interpolation weights of a triangulation</td>
+<td>Ch 21</td>
+</tr>
+<tr class="even">
+<td><span class="math inline">\(\delta\)</span> (gap)</td>
+<td>Gap below which heuristic search stops refining a belief</td>
+<td>Ch 21</td>
+</tr>
+<tr class="odd">
+<td><span class="math inline">\(Q_d(b, a)\)</span>, <span class="math inline">\(U_d(b)\)</span></td>
+<td>Forward-search action value and value with <span class="math inline">\(d\)</span> steps left</td>
+<td>Ch 22</td>
+</tr>
+<tr class="even">
+<td><span class="math inline">\(m\)</span> (online)</td>
+<td>Samples per action (sparse sampling), simulations (MCTS) or scenarios (determinized search)</td>
+<td>Ch 22</td>
+</tr>
+<tr class="odd">
+<td><span class="math inline">\(h\)</span></td>
+<td>A history: the actions and observations since the current belief</td>
+<td>Ch 22</td>
+</tr>
+<tr class="even">
+<td><span class="math inline">\(N(h, a)\)</span>, <span class="math inline">\(Q(h, a)\)</span></td>
+<td>Visit count and value estimate of action <span class="math inline">\(a\)</span> after history <span class="math inline">\(h\)</span> (MCTS)</td>
+<td>Ch 22</td>
+</tr>
+<tr class="odd">
+<td><span class="math inline">\(\Phi\)</span>, <span class="math inline">\(\phi = (s, i, j)\)</span></td>
+<td>Determinizing matrix of uniform numbers; a particle’s state, scenario and depth</td>
+<td>Ch 22</td>
+</tr>
+<tr class="even">
+<td><span class="math inline">\(X\)</span>, <span class="math inline">\(x\)</span></td>
+<td>A controller’s nodes, and one node (its memory state, not the environment’s state)</td>
+<td>Ch 23</td>
+</tr>
+<tr class="odd">
+<td><span class="math inline">\(\psi(a \mid x)\)</span></td>
+<td>A controller’s action distribution at node <span class="math inline">\(x\)</span></td>
+<td>Ch 23</td>
+</tr>
+<tr class="even">
+<td><span class="math inline">\(\eta(x' \mid x, a, o)\)</span></td>
+<td>A controller’s successor distribution after action <span class="math inline">\(a\)</span> and observation <span class="math inline">\(o\)</span></td>
+<td>Ch 23</td>
+</tr>
+<tr class="odd">
+<td><span class="math inline">\(U(x, s)\)</span>, <span class="math inline">\(\alpha_x\)</span></td>
+<td>Value of node <span class="math inline">\(x\)</span> in state <span class="math inline">\(s\)</span>; node <span class="math inline">\(x\)</span>’s alpha vector</td>
+<td>Ch 23</td>
+</tr>
+<tr class="even">
+<td><span class="math inline">\(T_\theta\)</span>, <span class="math inline">\(r_\theta\)</span>, <span class="math inline">\(u_\theta\)</span></td>
+<td>Transition matrix, rewards and values on (node, state) pairs for controller parameters <span class="math inline">\(\theta = (\psi, \eta)\)</span></td>
+<td>Ch 23</td>
+</tr>
+<tr class="odd">
+<td><span class="math inline">\(\beta\)</span>, <span class="math inline">\(v\)</span></td>
+<td>Start distribution on (node, state) pairs; expected discounted time spent in each pair</td>
+<td>Ch 23</td>
+</tr>
+<tr class="even">
+<td><span class="math inline">\(\tau\)</span></td>
+<td>Shift in the projection onto the probability simplex</td>
+<td>Ch 23</td>
+</tr>
+</tbody>
+</table>
+</div>
+</figure>
+</div>
+</section>
+<section id="part5" class="level2">
+<h2 class="anchored" data-anchor-id="part5">Part V: multiagent systems</h2>
+<div id="tbl-notation-5" class="quarto-float quarto-figure quarto-figure-center anchored">
+<figure class="quarto-float quarto-float-tbl figure">
+<figcaption class="quarto-float-caption-top quarto-float-caption quarto-float-tbl" id="tbl-notation-5-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Table&nbsp;5: Symbols from Chapters 24–27.
+</figcaption>
+<div aria-describedby="tbl-notation-5-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<table class="caption-top table">
+<colgroup>
+<col style="width: 33%">
+<col style="width: 33%">
+<col style="width: 33%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Symbol</th>
+<th>Meaning</th>
+<th>First used</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><span class="math inline">\(\mathcal{I}\)</span>, <span class="math inline">\(i\)</span>, <span class="math inline">\(k\)</span></td>
+<td>The agents, one agent, and their number</td>
+<td>Ch 24</td>
+</tr>
+<tr class="even">
+<td><span class="math inline">\(\mathcal{A}^i\)</span>, <span class="math inline">\(\boldsymbol{a} = (a^1, \dots, a^k)\)</span></td>
+<td>Agent <span class="math inline">\(i\)</span>’s actions; a joint action</td>
+<td>Ch 24</td>
+</tr>
+<tr class="odd">
+<td><span class="math inline">\(-i\)</span></td>
+<td>Every agent except <span class="math inline">\(i\)</span>, as in <span class="math inline">\(\boldsymbol{a}^{-i}\)</span> or <span class="math inline">\(\boldsymbol{\pi}^{-i}\)</span></td>
+<td>Ch 24</td>
+</tr>
+<tr class="even">
+<td><span class="math inline">\(R^i(\boldsymbol{a})\)</span></td>
+<td>Agent <span class="math inline">\(i\)</span>’s reward for the joint action <span class="math inline">\(\boldsymbol{a}\)</span></td>
+<td>Ch 24</td>
+</tr>
+<tr class="odd">
+<td><span class="math inline">\(\pi^i(a^i)\)</span>, <span class="math inline">\(\boldsymbol{\pi}\)</span></td>
+<td>Agent <span class="math inline">\(i\)</span>’s policy (a pure or mixed strategy); the joint policy</td>
+<td>Ch 24</td>
+</tr>
+<tr class="even">
+<td><span class="math inline">\(U^i(\boldsymbol{\pi})\)</span></td>
+<td>Agent <span class="math inline">\(i\)</span>’s expected reward under the joint policy</td>
+<td>Ch 24</td>
+</tr>
+<tr class="odd">
+<td><span class="math inline">\(\pi(\boldsymbol{a})\)</span> (correlated)</td>
+<td>A single distribution over joint actions</td>
+<td>Ch 24</td>
+</tr>
+<tr class="even">
+<td><span class="math inline">\(\lambda\)</span>, <span class="math inline">\(k\)</span> (hierarchical softmax)</td>
+<td>Precision of the softmax response; level of reasoning</td>
+<td>Ch 24</td>
+</tr>
+<tr class="odd">
+<td><span class="math inline">\(N^i(j, a^j)\)</span></td>
+<td>Agent <span class="math inline">\(i\)</span>’s count of how often agent <span class="math inline">\(j\)</span> played <span class="math inline">\(a^j\)</span> (fictitious play)</td>
+<td>Ch 24</td>
+</tr>
+<tr class="even">
+<td><span class="math inline">\(\pi^i(a^i \mid s)\)</span></td>
+<td>Agent <span class="math inline">\(i\)</span>’s state-dependent policy in a Markov game</td>
+<td>Ch 25</td>
+</tr>
+<tr class="odd">
+<td><span class="math inline">\(R^i(s, \boldsymbol{a})\)</span>, <span class="math inline">\(T(s' \mid s, \boldsymbol{a})\)</span></td>
+<td>Agent <span class="math inline">\(i\)</span>’s reward and the shared transition model, given the joint action</td>
+<td>Ch 25</td>
+</tr>
+<tr class="even">
+<td><span class="math inline">\(U^{\boldsymbol{\pi}, i}(s)\)</span></td>
+<td>Agent <span class="math inline">\(i\)</span>’s value of state <span class="math inline">\(s\)</span> under the joint policy</td>
+<td>Ch 25</td>
+</tr>
+<tr class="odd">
+<td><span class="math inline">\(Q^i(s, \boldsymbol{a})\)</span></td>
+<td>Agent <span class="math inline">\(i\)</span>’s value of a joint action in state <span class="math inline">\(s\)</span></td>
+<td>Ch 25</td>
+</tr>
+<tr class="even">
+<td><span class="math inline">\(N(j, a^j, s)\)</span></td>
+<td>Count of agent <span class="math inline">\(j\)</span> playing <span class="math inline">\(a^j\)</span> in state <span class="math inline">\(s\)</span> (fictitious play)</td>
+<td>Ch 25</td>
+</tr>
+<tr class="odd">
+<td><span class="math inline">\(\boldsymbol{o} = (o^1, \dots, o^k)\)</span>, <span class="math inline">\(O(\boldsymbol{o} \mid \boldsymbol{a}, s')\)</span></td>
+<td>A joint observation, and its probability after joint action <span class="math inline">\(\boldsymbol{a}\)</span></td>
+<td>Ch 26</td>
+</tr>
+<tr class="even">
+<td><span class="math inline">\(\boldsymbol{\pi}()\)</span>, <span class="math inline">\(\boldsymbol{\pi}(\boldsymbol{o})\)</span></td>
+<td>Joint conditional plan’s root actions; each agent’s subplan after its own observation</td>
+<td>Ch 26</td>
+</tr>
+<tr class="odd">
+<td><span class="math inline">\(\Pi^i_h\)</span></td>
+<td>Agent <span class="math inline">\(i\)</span>’s set of <span class="math inline">\(h\)</span>-step conditional plans</td>
+<td>Ch 26</td>
+</tr>
+<tr class="even">
+<td><span class="math inline">\(b(\boldsymbol{\pi}^{-i}, s)\)</span></td>
+<td>Distribution over the other agents’ plans and the state (pruning LP)</td>
+<td>Ch 26</td>
+</tr>
+<tr class="odd">
+<td><span class="math inline">\(\boldsymbol{x} = (x^1, \dots, x^k)\)</span></td>
+<td>Joint controller node</td>
+<td>Ch 26</td>
+</tr>
+<tr class="even">
+<td><span class="math inline">\(R(s, \boldsymbol{a})\)</span> (shared)</td>
+<td>The team’s single reward in a Dec-POMDP</td>
+<td>Ch 27</td>
+</tr>
+<tr class="odd">
+<td><span class="math inline">\(U^*_{\text{MPOMDP}}(b)\)</span></td>
+<td>Optimal team value if observations were shared (an upper bound)</td>
+<td>Ch 27</td>
+</tr>
+</tbody>
+</table>
+</div>
+</figure>
+</div>
+</section>
+<section id="appendices" class="level2">
+<h2 class="anchored" data-anchor-id="appendices">Appendices</h2>
+<div id="tbl-notation-app" class="quarto-float quarto-figure quarto-figure-center anchored">
+<figure class="quarto-float quarto-float-tbl figure">
+<figcaption class="quarto-float-caption-top quarto-float-caption quarto-float-tbl" id="tbl-notation-app-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Table&nbsp;6: Symbols introduced in the appendices.
+</figcaption>
+<div aria-describedby="tbl-notation-app-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<table class="caption-top table">
+<colgroup>
+<col style="width: 33%">
+<col style="width: 33%">
+<col style="width: 33%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Symbol</th>
+<th>Meaning</th>
+<th>First used</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><span class="math inline">\(\lVert \mathbf{x} \rVert_p\)</span></td>
+<td>The <span class="math inline">\(p\)</span>-norm of a vector; <span class="math inline">\(\lVert \mathbf{x} \rVert_\infty\)</span> is its largest absolute entry</td>
+<td>App A</td>
+</tr>
+<tr class="even">
+<td><span class="math inline">\(\mathbf{A} \succ 0\)</span></td>
+<td><span class="math inline">\(\mathbf{A}\)</span> is positive definite: <span class="math inline">\(\mathbf{x}^\top \mathbf{A} \mathbf{x} &gt; 0\)</span> for every <span class="math inline">\(\mathbf{x} \ne \mathbf{0}\)</span></td>
+<td>App A</td>
+</tr>
+<tr class="odd">
+<td><span class="math inline">\(H(P)\)</span>, <span class="math inline">\(H(P, Q)\)</span></td>
+<td>Entropy of <span class="math inline">\(P\)</span>; cross entropy of <span class="math inline">\(Q\)</span> relative to <span class="math inline">\(P\)</span></td>
+<td>App A</td>
+</tr>
+<tr class="even">
+<td><span class="math inline">\(\nabla f(\mathbf{x})\)</span></td>
+<td>Gradient: the vector of partial derivatives, pointing uphill</td>
+<td>App A</td>
+</tr>
+<tr class="odd">
+<td><span class="math inline">\(B\)</span></td>
+<td>The Bellman backup as an operator on value functions</td>
+<td>App A</td>
+</tr>
+<tr class="even">
+<td><span class="math inline">\(O(g(n))\)</span>, <span class="math inline">\(\Omega(g(n))\)</span>, <span class="math inline">\(\Theta(g(n))\)</span></td>
+<td>Grows no faster than, no slower than, and as fast as <span class="math inline">\(g\)</span>, up to constant factors</td>
+<td>App C</td>
+</tr>
+<tr class="odd">
+<td><span class="math inline">\(\mathbf{W}\)</span>, <span class="math inline">\(\mathbf{b}\)</span>, <span class="math inline">\(\phi\)</span></td>
+<td>A network layer’s weights, biases and activation function</td>
+<td>App D</td>
+</tr>
+<tr class="even">
+<td><span class="math inline">\(\operatorname{softmax}(\mathbf{z})\)</span></td>
+<td>Turns scores into probabilities: <span class="math inline">\(e^{z_i}/\sum_j e^{z_j}\)</span></td>
+<td>App D</td>
+</tr>
+<tr class="odd">
+<td><span class="math inline">\(\beta\)</span> (regularization)</td>
+<td>Weight of the penalty on squared network weights</td>
+<td>App D</td>
+</tr>
+<tr class="even">
+<td><span class="math inline">\(\mathcal{A}(s)\)</span></td>
+<td>Valid actions in state <span class="math inline">\(s\)</span> (none in an absorbing state)</td>
+<td>App E</td>
+</tr>
+<tr class="odd">
+<td><span class="math inline">\(T(s, a)\)</span> (deterministic)</td>
+<td>The one next state after taking <span class="math inline">\(a\)</span> in <span class="math inline">\(s\)</span></td>
+<td>App E</td>
+</tr>
+</tbody>
+</table>
+</div>
+</figure>
+</div>
+</section>
+<section id="overloaded" class="level2">
+<h2 class="anchored" data-anchor-id="overloaded">Symbols with several meanings</h2>
+<p>The book, and so this site, reuses a few letters. The chapter always makes the meaning clear, but when reading across chapters, check this list.</p>
+<div id="tbl-overloaded" class="quarto-float quarto-figure quarto-figure-center anchored">
+<figure class="quarto-float quarto-float-tbl figure">
+<figcaption class="quarto-float-caption-top quarto-float-caption quarto-float-tbl" id="tbl-overloaded-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Table&nbsp;7: Letters that mean different things in different chapters.
+</figcaption>
+<div aria-describedby="tbl-overloaded-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<table class="caption-top table">
+<colgroup>
+<col style="width: 50%">
+<col style="width: 50%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Symbol</th>
+<th>Meanings, by chapter</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><span class="math inline">\(\alpha\)</span></td>
+<td>Pseudocounts (Ch 4–5, 16); step size (Ch 10, App A); quantile level (Ch 15); learning rate (Ch 17); alpha vector (Ch 20–23)</td>
+</tr>
+<tr class="even">
+<td><span class="math inline">\(\beta\)</span></td>
+<td>Beta parameter (Ch 4); basis functions (Ch 8); shaping potential (Ch 17); reward features and SMILe rate (Ch 18); start distribution (Ch 23); regularization weight (App D)</td>
+</tr>
+<tr class="odd">
+<td><span class="math inline">\(\delta\)</span></td>
+<td>Residual thresholds (Ch 7, 9); finite-difference step (Ch 11); temporal difference residual (Ch 13, 17); pruning lead (Ch 20); belief gap (Ch 21)</td>
+</tr>
+<tr class="even">
+<td><span class="math inline">\(\lambda\)</span></td>
+<td>Risk aversion (Ch 6); GAE weight (Ch 13); adversary weight (Ch 14); softmax precision (Ch 15, 24); trace decay (Ch 17); interpolation and mixture weights (Ch 18, 21)</td>
+</tr>
+<tr class="odd">
+<td><span class="math inline">\(\phi\)</span></td>
+<td>Factor (Ch 3); kernel (Ch 4); critic parameters (Ch 13); reward weights (Ch 18); particle (Ch 22); activation function (App D)</td>
+</tr>
+<tr class="even">
+<td><span class="math inline">\(b\)</span></td>
+<td>Initial state distribution (Ch 10, 14); belief over models (Ch 16); belief over states (Ch 19 on)</td>
+</tr>
+<tr class="odd">
+<td><span class="math inline">\(m\)</span></td>
+<td>Counts (Ch 4–5); number of samples or simulations (Ch 9, 22); R-MAX threshold (Ch 16); grid granularity (Ch 21)</td>
+</tr>
+<tr class="even">
+<td><span class="math inline">\(h\)</span></td>
+<td>Hidden variables (Ch 3); kernel bandwidth (Ch 4); history (Ch 22); plan horizon (Ch 26)</td>
+</tr>
+<tr class="odd">
+<td><span class="math inline">\(N\)</span></td>
+<td>Visit counts (Ch 9, 15, 16, 22); eligibility traces (Ch 17); opponent action counts (Ch 24, 25)</td>
+</tr>
+</tbody>
+</table>
+</div>
+</figure>
+</div>
+
+
+</section>
+
+</main> <!-- /main -->
+<script id="quarto-html-after-body" type="application/javascript">
+  window.document.addEventListener("DOMContentLoaded", function (event) {
+    // Ensure there is a toggle, if there isn't float one in the top right
+    if (window.document.querySelector('.quarto-color-scheme-toggle') === null) {
+      const a = window.document.createElement('a');
+      a.classList.add('top-right');
+      a.classList.add('quarto-color-scheme-toggle');
+      a.href = "";
+      a.onclick = function() { try { window.quartoToggleColorScheme(); } catch {} return false; };
+      const i = window.document.createElement("i");
+      i.classList.add('bi');
+      a.appendChild(i);
+      window.document.body.appendChild(a);
+    }
+    setColorSchemeToggle(hasAlternateSentinel())
+    const icon = "";
+    const anchorJS = new window.AnchorJS();
+    anchorJS.options = {
+      placement: 'right',
+      icon: icon
+    };
+    anchorJS.add('.anchored');
+    const isCodeAnnotation = (el) => {
+      for (const clz of el.classList) {
+        if (clz.startsWith('code-annotation-')) {                     
+          return true;
+        }
+      }
+      return false;
+    }
+    const onCopySuccess = function(e) {
+      // button target
+      const button = e.trigger;
+      // don't keep focus
+      button.blur();
+      // flash "checked"
+      button.classList.add('code-copy-button-checked');
+      var currentTitle = button.getAttribute("title");
+      button.setAttribute("title", "Copied!");
+      let tooltip;
+      if (window.bootstrap) {
+        button.setAttribute("data-bs-toggle", "tooltip");
+        button.setAttribute("data-bs-placement", "left");
+        button.setAttribute("data-bs-title", "Copied!");
+        tooltip = new bootstrap.Tooltip(button, 
+          { trigger: "manual", 
+            customClass: "code-copy-button-tooltip",
+            offset: [0, -8]});
+        tooltip.show();    
+      }
+      setTimeout(function() {
+        if (tooltip) {
+          tooltip.hide();
+          button.removeAttribute("data-bs-title");
+          button.removeAttribute("data-bs-toggle");
+          button.removeAttribute("data-bs-placement");
+        }
+        button.setAttribute("title", currentTitle);
+        button.classList.remove('code-copy-button-checked');
+      }, 1000);
+      // clear code selection
+      e.clearSelection();
+    }
+    const getTextToCopy = function(trigger) {
+      const outerScaffold = trigger.parentElement.cloneNode(true);
+      const codeEl = outerScaffold.querySelector('code');
+      for (const childEl of codeEl.children) {
+        if (isCodeAnnotation(childEl)) {
+          childEl.remove();
+        }
+      }
+      return codeEl.innerText;
+    }
+    const clipboard = new window.ClipboardJS('.code-copy-button:not([data-in-quarto-modal])', {
+      text: getTextToCopy
+    });
+    clipboard.on('success', onCopySuccess);
+    if (window.document.getElementById('quarto-embedded-source-code-modal')) {
+      const clipboardModal = new window.ClipboardJS('.code-copy-button[data-in-quarto-modal]', {
+        text: getTextToCopy,
+        container: window.document.getElementById('quarto-embedded-source-code-modal')
+      });
+      clipboardModal.on('success', onCopySuccess);
+    }
+      var localhostRegex = new RegExp(/^(?:http|https):\/\/localhost\:?[0-9]*\//);
+      var mailtoRegex = new RegExp(/^mailto:/);
+        var filterRegex = new RegExp("https:\/\/laventura\.github\.io\/adm-companion\/");
+      var isInternal = (href) => {
+          return filterRegex.test(href) || localhostRegex.test(href) || mailtoRegex.test(href);
+      }
+      // Inspect non-navigation links and adorn them if external
+     var links = window.document.querySelectorAll('a[href]:not(.nav-link):not(.navbar-brand):not(.toc-action):not(.sidebar-link):not(.sidebar-item-toggle):not(.pagination-link):not(.no-external):not([aria-hidden]):not(.dropdown-item):not(.quarto-navigation-tool):not(.about-link)');
+      for (var i=0; i<links.length; i++) {
+        const link = links[i];
+        if (!isInternal(link.href)) {
+          // undo the damage that might have been done by quarto-nav.js in the case of
+          // links that we want to consider external
+          if (link.dataset.originalHref !== undefined) {
+            link.href = link.dataset.originalHref;
+          }
+        }
+      }
+    function tippyHover(el, contentFn, onTriggerFn, onUntriggerFn) {
+      const config = {
+        allowHTML: true,
+        maxWidth: 500,
+        delay: 100,
+        arrow: false,
+        appendTo: function(el) {
+            return el.parentElement;
+        },
+        interactive: true,
+        interactiveBorder: 10,
+        theme: 'quarto',
+        placement: 'bottom-start',
+      };
+      if (contentFn) {
+        config.content = contentFn;
+      }
+      if (onTriggerFn) {
+        config.onTrigger = onTriggerFn;
+      }
+      if (onUntriggerFn) {
+        config.onUntrigger = onUntriggerFn;
+      }
+      window.tippy(el, config); 
+    }
+    const noterefs = window.document.querySelectorAll('a[role="doc-noteref"]');
+    for (var i=0; i<noterefs.length; i++) {
+      const ref = noterefs[i];
+      tippyHover(ref, function() {
+        // use id or data attribute instead here
+        let href = ref.getAttribute('data-footnote-href') || ref.getAttribute('href');
+        try { href = new URL(href).hash; } catch {}
+        const id = href.replace(/^#\/?/, "");
+        const note = window.document.getElementById(id);
+        if (note) {
+          return note.innerHTML;
+        } else {
+          return "";
+        }
+      });
+    }
+    const xrefs = window.document.querySelectorAll('a.quarto-xref');
+    const processXRef = (id, note) => {
+      // Strip column container classes
+      const stripColumnClz = (el) => {
+        el.classList.remove("page-full", "page-columns");
+        if (el.children) {
+          for (const child of el.children) {
+            stripColumnClz(child);
+          }
+        }
+      }
+      stripColumnClz(note)
+      if (id === null || id.startsWith('sec-')) {
+        // Special case sections, only their first couple elements
+        const container = document.createElement("div");
+        if (note.children && note.children.length > 2) {
+          container.appendChild(note.children[0].cloneNode(true));
+          for (let i = 1; i < note.children.length; i++) {
+            const child = note.children[i];
+            if (child.tagName === "P" && child.innerText === "") {
+              continue;
+            } else {
+              container.appendChild(child.cloneNode(true));
+              break;
+            }
+          }
+          if (window.Quarto?.typesetMath) {
+            window.Quarto.typesetMath(container);
+          }
+          return container.innerHTML
+        } else {
+          if (window.Quarto?.typesetMath) {
+            window.Quarto.typesetMath(note);
+          }
+          return note.innerHTML;
+        }
+      } else {
+        // Remove any anchor links if they are present
+        const anchorLink = note.querySelector('a.anchorjs-link');
+        if (anchorLink) {
+          anchorLink.remove();
+        }
+        if (window.Quarto?.typesetMath) {
+          window.Quarto.typesetMath(note);
+        }
+        if (note.classList.contains("callout")) {
+          return note.outerHTML;
+        } else {
+          return note.innerHTML;
+        }
+      }
+    }
+    for (var i=0; i<xrefs.length; i++) {
+      const xref = xrefs[i];
+      tippyHover(xref, undefined, function(instance) {
+        instance.disable();
+        let url = xref.getAttribute('href');
+        let hash = undefined; 
+        if (url.startsWith('#')) {
+          hash = url;
+        } else {
+          try { hash = new URL(url).hash; } catch {}
+        }
+        if (hash) {
+          const id = hash.replace(/^#\/?/, "");
+          const note = window.document.getElementById(id);
+          if (note !== null) {
+            try {
+              const html = processXRef(id, note.cloneNode(true));
+              instance.setContent(html);
+            } finally {
+              instance.enable();
+              instance.show();
+            }
+          } else {
+            // See if we can fetch this
+            fetch(url.split('#')[0])
+            .then(res => res.text())
+            .then(html => {
+              const parser = new DOMParser();
+              const htmlDoc = parser.parseFromString(html, "text/html");
+              const note = htmlDoc.getElementById(id);
+              if (note !== null) {
+                const html = processXRef(id, note);
+                instance.setContent(html);
+              } 
+            }).finally(() => {
+              instance.enable();
+              instance.show();
+            });
+          }
+        } else {
+          // See if we can fetch a full url (with no hash to target)
+          // This is a special case and we should probably do some content thinning / targeting
+          fetch(url)
+          .then(res => res.text())
+          .then(html => {
+            const parser = new DOMParser();
+            const htmlDoc = parser.parseFromString(html, "text/html");
+            const note = htmlDoc.querySelector('main.content');
+            if (note !== null) {
+              // This should only happen for chapter cross references
+              // (since there is no id in the URL)
+              // remove the first header
+              if (note.children.length > 0 && note.children[0].tagName === "HEADER") {
+                note.children[0].remove();
+              }
+              const html = processXRef(null, note);
+              instance.setContent(html);
+            } 
+          }).finally(() => {
+            instance.enable();
+            instance.show();
+          });
+        }
+      }, function(instance) {
+      });
+    }
+        let selectedAnnoteEl;
+        const selectorForAnnotation = ( cell, annotation) => {
+          let cellAttr = 'data-code-cell="' + cell + '"';
+          let lineAttr = 'data-code-annotation="' +  annotation + '"';
+          const selector = 'span[' + cellAttr + '][' + lineAttr + ']';
+          return selector;
+        }
+        const selectCodeLines = (annoteEl) => {
+          const doc = window.document;
+          const targetCell = annoteEl.getAttribute("data-target-cell");
+          const targetAnnotation = annoteEl.getAttribute("data-target-annotation");
+          const annoteSpan = window.document.querySelector(selectorForAnnotation(targetCell, targetAnnotation));
+          const lines = annoteSpan.getAttribute("data-code-lines").split(",");
+          const lineIds = lines.map((line) => {
+            return targetCell + "-" + line;
+          })
+          let top = null;
+          let height = null;
+          let parent = null;
+          if (lineIds.length > 0) {
+              //compute the position of the single el (top and bottom and make a div)
+              const el = window.document.getElementById(lineIds[0]);
+              top = el.offsetTop;
+              height = el.offsetHeight;
+              parent = el.parentElement.parentElement;
+            if (lineIds.length > 1) {
+              const lastEl = window.document.getElementById(lineIds[lineIds.length - 1]);
+              const bottom = lastEl.offsetTop + lastEl.offsetHeight;
+              height = bottom - top;
+            }
+            if (top !== null && height !== null && parent !== null) {
+              // cook up a div (if necessary) and position it 
+              let div = window.document.getElementById("code-annotation-line-highlight");
+              if (div === null) {
+                div = window.document.createElement("div");
+                div.setAttribute("id", "code-annotation-line-highlight");
+                div.style.position = 'absolute';
+                parent.appendChild(div);
+              }
+              div.style.top = top - 2 + "px";
+              div.style.height = height + 4 + "px";
+              div.style.left = 0;
+              let gutterDiv = window.document.getElementById("code-annotation-line-highlight-gutter");
+              if (gutterDiv === null) {
+                gutterDiv = window.document.createElement("div");
+                gutterDiv.setAttribute("id", "code-annotation-line-highlight-gutter");
+                gutterDiv.style.position = 'absolute';
+                const codeCell = window.document.getElementById(targetCell);
+                const gutter = codeCell.querySelector('.code-annotation-gutter');
+                gutter.appendChild(gutterDiv);
+              }
+              gutterDiv.style.top = top - 2 + "px";
+              gutterDiv.style.height = height + 4 + "px";
+            }
+            selectedAnnoteEl = annoteEl;
+          }
+        };
+        const unselectCodeLines = () => {
+          const elementsIds = ["code-annotation-line-highlight", "code-annotation-line-highlight-gutter"];
+          elementsIds.forEach((elId) => {
+            const div = window.document.getElementById(elId);
+            if (div) {
+              div.remove();
+            }
+          });
+          selectedAnnoteEl = undefined;
+        };
+          // Handle positioning of the toggle
+      window.addEventListener(
+        "resize",
+        throttle(() => {
+          elRect = undefined;
+          if (selectedAnnoteEl) {
+            selectCodeLines(selectedAnnoteEl);
+          }
+        }, 10)
+      );
+      function throttle(fn, ms) {
+      let throttle = false;
+      let timer;
+        return (...args) => {
+          if(!throttle) { // first call gets through
+              fn.apply(this, args);
+              throttle = true;
+          } else { // all the others get throttled
+              if(timer) clearTimeout(timer); // cancel #2
+              timer = setTimeout(() => {
+                fn.apply(this, args);
+                timer = throttle = false;
+              }, ms);
+          }
+        };
+      }
+        // Attach click handler to the DT
+        const annoteDls = window.document.querySelectorAll('dt[data-target-cell]');
+        for (const annoteDlNode of annoteDls) {
+          annoteDlNode.addEventListener('click', (event) => {
+            const clickedEl = event.target;
+            if (clickedEl !== selectedAnnoteEl) {
+              unselectCodeLines();
+              const activeEl = window.document.querySelector('dt[data-target-cell].code-annotation-active');
+              if (activeEl) {
+                activeEl.classList.remove('code-annotation-active');
+              }
+              selectCodeLines(clickedEl);
+              clickedEl.classList.add('code-annotation-active');
+            } else {
+              // Unselect the line
+              unselectCodeLines();
+              clickedEl.classList.remove('code-annotation-active');
+            }
+          });
+        }
+    const findCites = (el) => {
+      const parentEl = el.parentElement;
+      if (parentEl) {
+        const cites = parentEl.dataset.cites;
+        if (cites) {
+          return {
+            el,
+            cites: cites.split(' ')
+          };
+        } else {
+          return findCites(el.parentElement)
+        }
+      } else {
+        return undefined;
+      }
+    };
+    var bibliorefs = window.document.querySelectorAll('a[role="doc-biblioref"]');
+    for (var i=0; i<bibliorefs.length; i++) {
+      const ref = bibliorefs[i];
+      const citeInfo = findCites(ref);
+      if (citeInfo) {
+        tippyHover(citeInfo.el, function() {
+          var popup = window.document.createElement('div');
+          citeInfo.cites.forEach(function(cite) {
+            var citeDiv = window.document.createElement('div');
+            citeDiv.classList.add('hanging-indent');
+            citeDiv.classList.add('csl-entry');
+            var biblioDiv = window.document.getElementById('ref-' + cite);
+            if (biblioDiv) {
+              citeDiv.innerHTML = biblioDiv.innerHTML;
+            }
+            popup.appendChild(citeDiv);
+          });
+          return popup.innerHTML;
+        });
+      }
+    }
+  });
+  </script>
+<nav class="page-navigation">
+  <div class="nav-page nav-page-previous">
+      <a href="./index.html" class="pagination-link" aria-label="Algorithms for Decision Making - Companion">
+        <i class="bi bi-arrow-left-short"></i> <span class="nav-page-text">Algorithms for Decision Making - Companion</span>
+      </a>          
+  </div>
+  <div class="nav-page nav-page-next">
+      <a href="./cheatsheets.html" class="pagination-link" aria-label="Cheat sheets">
+        <span class="nav-page-text">Cheat sheets</span> <i class="bi bi-arrow-right-short"></i>
+      </a>
+  </div>
+</nav>
+</div> <!-- /content -->
+<footer class="footer">
+  <div class="nav-footer">
+    <div class="nav-footer-left">
+      &nbsp;
+    </div>   
+    <div class="nav-footer-center">
+<p>An independent, unofficial companion to <em>Algorithms for Decision Making</em> (MIT Press, 2022). The book is freely available at <a href="https://algorithmsbook.com">algorithmsbook.com</a>. Site text and figures © Atul Acharya, <a href="https://creativecommons.org/licenses/by-nc/4.0/">CC BY-NC 4.0</a>; code <a href="https://opensource.org/license/mit">MIT</a>.</p>
+</div>
+    <div class="nav-footer-right">
+      &nbsp;
+    </div>
+  </div>
+</footer>
+
+
+
+
+</body></html>

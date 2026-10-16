@@ -1,0 +1,2299 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en"><head>
+
+<meta charset="utf-8">
+<meta name="generator" content="quarto-1.9.38">
+
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+
+
+<title>24 · Multiagent Reasoning – ADM Companion</title>
+<style>
+/* Default styles provided by pandoc.
+** See https://pandoc.org/MANUAL.html#variables-for-html for config info.
+*/
+code{white-space: pre-wrap;}
+span.smallcaps{font-variant: small-caps;}
+div.columns{display: flex; gap: min(4vw, 1.5em);}
+div.column{flex: auto; overflow-x: auto;}
+div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+ul.task-list{list-style: none;}
+ul.task-list li input[type="checkbox"] {
+  width: 0.8em;
+  margin: 0 0.8em 0.2em -1em; /* quarto-specific, see https://github.com/quarto-dev/quarto-cli/issues/4556 */ 
+  vertical-align: middle;
+}
+/* CSS for syntax highlighting */
+html { -webkit-text-size-adjust: 100%; }
+pre > code.sourceCode { white-space: pre; position: relative; }
+pre > code.sourceCode > span { display: inline-block; line-height: 1.25; }
+pre > code.sourceCode > span:empty { height: 1.2em; }
+.sourceCode { overflow: visible; }
+code.sourceCode > span { color: inherit; text-decoration: inherit; }
+div.sourceCode { margin: 1em 0; }
+pre.sourceCode { margin: 0; }
+@media screen {
+div.sourceCode { overflow: auto; }
+}
+@media print {
+pre > code.sourceCode { white-space: pre-wrap; }
+pre > code.sourceCode > span { text-indent: -5em; padding-left: 5em; }
+}
+pre.numberSource code
+  { counter-reset: source-line 0; }
+pre.numberSource code > span
+  { position: relative; left: -4em; counter-increment: source-line; }
+pre.numberSource code > span > a:first-child::before
+  { content: counter(source-line);
+    position: relative; left: -1em; text-align: right; vertical-align: baseline;
+    border: none; display: inline-block;
+    -webkit-touch-callout: none; -webkit-user-select: none;
+    -khtml-user-select: none; -moz-user-select: none;
+    -ms-user-select: none; user-select: none;
+    padding: 0 4px; width: 4em;
+  }
+pre.numberSource { margin-left: 3em;  padding-left: 4px; }
+div.sourceCode
+  {   }
+@media screen {
+pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+}
+</style>
+
+
+<script src="../site_libs/quarto-nav/quarto-nav.js"></script>
+<script src="../site_libs/quarto-nav/headroom.min.js"></script>
+<script src="../site_libs/clipboard/clipboard.min.js"></script>
+<script src="../site_libs/quarto-search/autocomplete.umd.js"></script>
+<script src="../site_libs/quarto-search/fuse.min.js"></script>
+<script src="../site_libs/quarto-search/quarto-search.js"></script>
+<meta name="quarto:offset" content="../">
+<link href="../part5/ch25-sequential-problems.html" rel="next">
+<link href="../part4/ch23-controller-abstractions.html" rel="prev">
+<script src="../site_libs/quarto-html/quarto.js" type="module"></script>
+<script src="../site_libs/quarto-html/tabsets/tabsets.js" type="module"></script>
+<script src="../site_libs/quarto-html/popper.min.js"></script>
+<script src="../site_libs/quarto-html/tippy.umd.min.js"></script>
+<script src="../site_libs/quarto-html/anchor.min.js"></script>
+<link href="../site_libs/quarto-html/tippy.css" rel="stylesheet">
+<link href="../site_libs/quarto-html/quarto-syntax-highlighting-de63f62b328812d8e578a4d74e282472.css" rel="stylesheet" class="quarto-color-scheme" id="quarto-text-highlighting-styles">
+<link href="../site_libs/quarto-html/quarto-syntax-highlighting-dark-6b6957c917596b414ec0b78690761e87.css" rel="stylesheet" class="quarto-color-scheme quarto-color-alternate" id="quarto-text-highlighting-styles">
+<link href="../site_libs/quarto-html/quarto-syntax-highlighting-de63f62b328812d8e578a4d74e282472.css" rel="stylesheet" class="quarto-color-scheme-extra" id="quarto-text-highlighting-styles">
+<script src="../site_libs/bootstrap/bootstrap.min.js"></script>
+<link href="../site_libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
+<link href="../site_libs/bootstrap/bootstrap-d1de39f35053749ff84d2df96798693d.min.css" rel="stylesheet" append-hash="true" class="quarto-color-scheme" id="quarto-bootstrap" data-mode="light">
+<link href="../site_libs/bootstrap/bootstrap-dark-a6f4e11c7ca7fab1bededaf21cc7b528.min.css" rel="stylesheet" append-hash="true" class="quarto-color-scheme quarto-color-alternate" id="quarto-bootstrap" data-mode="dark">
+<link href="../site_libs/bootstrap/bootstrap-d1de39f35053749ff84d2df96798693d.min.css" rel="stylesheet" append-hash="true" class="quarto-color-scheme-extra" id="quarto-bootstrap" data-mode="light">
+<script id="quarto-search-options" type="application/json">{
+  "location": "sidebar",
+  "copy-button": false,
+  "collapse-after": 3,
+  "panel-placement": "start",
+  "type": "textbox",
+  "limit": 50,
+  "keyboard-shortcut": [
+    "f",
+    "/",
+    "s"
+  ],
+  "show-item-context": false,
+  "language": {
+    "search-no-results-text": "No results",
+    "search-matching-documents-text": "matching documents",
+    "search-copy-link-title": "Copy link to search",
+    "search-hide-matches-text": "Hide additional matches",
+    "search-more-match-text": "more match in this document",
+    "search-more-matches-text": "more matches in this document",
+    "search-clear-button-title": "Clear",
+    "search-text-placeholder": "",
+    "search-detached-cancel-button-title": "Cancel",
+    "search-submit-button-title": "Submit",
+    "search-label": "Search"
+  }
+}</script>
+<script type="module" src="../site_libs/quarto-ojs/quarto-ojs-runtime.js"></script>
+<link href="../site_libs/quarto-ojs/quarto-ojs.css" rel="stylesheet">
+
+  <script src="https://cdnjs.cloudflare.com/polyfill/v3/polyfill.min.js?features=es6"></script>
+  <script defer="" src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml-full.js" type="text/javascript"></script>
+
+<script type="text/javascript">
+const typesetMath = (el) => {
+  if (window.MathJax) {
+    // MathJax Typeset
+    window.MathJax.typeset([el]);
+  } else if (window.katex) {
+    // KaTeX Render
+    var mathElements = el.getElementsByClassName("math");
+    var macros = [];
+    for (var i = 0; i < mathElements.length; i++) {
+      var texText = mathElements[i].firstChild;
+      if (mathElements[i].tagName == "SPAN" && texText && texText.data) {
+        window.katex.render(texText.data, mathElements[i], {
+          displayMode: mathElements[i].classList.contains('display'),
+          throwOnError: false,
+          macros: macros,
+          fleqn: false
+        });
+      }
+    }
+  }
+}
+window.Quarto = {
+  typesetMath
+};
+</script>
+
+</head>
+
+<body class="nav-sidebar docked quarto-light"><script id="quarto-html-before-body" type="application/javascript">
+    const toggleBodyColorMode = (bsSheetEl) => {
+      const mode = bsSheetEl.getAttribute("data-mode");
+      const bodyEl = window.document.querySelector("body");
+      if (mode === "dark") {
+        bodyEl.classList.add("quarto-dark");
+        bodyEl.classList.remove("quarto-light");
+      } else {
+        bodyEl.classList.add("quarto-light");
+        bodyEl.classList.remove("quarto-dark");
+      }
+    }
+    const toggleBodyColorPrimary = () => {
+      const bsSheetEl = window.document.querySelector("link#quarto-bootstrap:not([rel=disabled-stylesheet])");
+      if (bsSheetEl) {
+        toggleBodyColorMode(bsSheetEl);
+      }
+    }
+    const setColorSchemeToggle = (alternate) => {
+      const toggles = window.document.querySelectorAll('.quarto-color-scheme-toggle');
+      for (let i=0; i < toggles.length; i++) {
+        const toggle = toggles[i];
+        if (toggle) {
+          if (alternate) {
+            toggle.classList.add("alternate");
+          } else {
+            toggle.classList.remove("alternate");
+          }
+        }
+      }
+    };
+    const toggleColorMode = (alternate) => {
+      // Switch the stylesheets
+      const primaryStylesheets = window.document.querySelectorAll('link.quarto-color-scheme:not(.quarto-color-alternate)');
+      const alternateStylesheets = window.document.querySelectorAll('link.quarto-color-scheme.quarto-color-alternate');
+      manageTransitions('#quarto-margin-sidebar .nav-link', false);
+      if (alternate) {
+        // note: dark is layered on light, we don't disable primary!
+        enableStylesheet(alternateStylesheets);
+        for (const sheetNode of alternateStylesheets) {
+          if (sheetNode.id === "quarto-bootstrap") {
+            toggleBodyColorMode(sheetNode);
+          }
+        }
+      } else {
+        disableStylesheet(alternateStylesheets);
+        enableStylesheet(primaryStylesheets)
+        toggleBodyColorPrimary();
+      }
+      manageTransitions('#quarto-margin-sidebar .nav-link', true);
+      // Switch the toggles
+      setColorSchemeToggle(alternate)
+      // Hack to workaround the fact that safari doesn't
+      // properly recolor the scrollbar when toggling (#1455)
+      if (navigator.userAgent.indexOf('Safari') > 0 && navigator.userAgent.indexOf('Chrome') == -1) {
+        manageTransitions("body", false);
+        window.scrollTo(0, 1);
+        setTimeout(() => {
+          window.scrollTo(0, 0);
+          manageTransitions("body", true);
+        }, 40);
+      }
+    }
+    const disableStylesheet = (stylesheets) => {
+      for (let i=0; i < stylesheets.length; i++) {
+        const stylesheet = stylesheets[i];
+        stylesheet.rel = 'disabled-stylesheet';
+      }
+    }
+    const enableStylesheet = (stylesheets) => {
+      for (let i=0; i < stylesheets.length; i++) {
+        const stylesheet = stylesheets[i];
+        if(stylesheet.rel !== 'stylesheet') { // for Chrome, which will still FOUC without this check
+          stylesheet.rel = 'stylesheet';
+        }
+      }
+    }
+    const manageTransitions = (selector, allowTransitions) => {
+      const els = window.document.querySelectorAll(selector);
+      for (let i=0; i < els.length; i++) {
+        const el = els[i];
+        if (allowTransitions) {
+          el.classList.remove('notransition');
+        } else {
+          el.classList.add('notransition');
+        }
+      }
+    }
+    const isFileUrl = () => {
+      return window.location.protocol === 'file:';
+    }
+    const hasAlternateSentinel = () => {
+      let styleSentinel = getColorSchemeSentinel();
+      if (styleSentinel !== null) {
+        return styleSentinel === "alternate";
+      } else {
+        return false;
+      }
+    }
+    const setStyleSentinel = (alternate) => {
+      const value = alternate ? "alternate" : "default";
+      if (!isFileUrl()) {
+        window.localStorage.setItem("quarto-color-scheme", value);
+      } else {
+        localAlternateSentinel = value;
+      }
+    }
+    const getColorSchemeSentinel = () => {
+      if (!isFileUrl()) {
+        const storageValue = window.localStorage.getItem("quarto-color-scheme");
+        return storageValue != null ? storageValue : localAlternateSentinel;
+      } else {
+        return localAlternateSentinel;
+      }
+    }
+    const toggleGiscusIfUsed = (isAlternate, darkModeDefault) => {
+      const baseTheme = document.querySelector('#giscus-base-theme')?.value ?? 'light';
+      const alternateTheme = document.querySelector('#giscus-alt-theme')?.value ?? 'dark';
+      let newTheme = '';
+      if(authorPrefersDark) {
+        newTheme = isAlternate ? baseTheme : alternateTheme;
+      } else {
+        newTheme = isAlternate ? alternateTheme : baseTheme;
+      }
+      const changeGiscusTheme = () => {
+        // From: https://github.com/giscus/giscus/issues/336
+        const sendMessage = (message) => {
+          const iframe = document.querySelector('iframe.giscus-frame');
+          if (!iframe) return;
+          iframe.contentWindow.postMessage({ giscus: message }, 'https://giscus.app');
+        }
+        sendMessage({
+          setConfig: {
+            theme: newTheme
+          }
+        });
+      }
+      const isGiscussLoaded = window.document.querySelector('iframe.giscus-frame') !== null;
+      if (isGiscussLoaded) {
+        changeGiscusTheme();
+      }
+    };
+    const authorPrefersDark = false;
+    const darkModeDefault = authorPrefersDark;
+      document.querySelector('link#quarto-text-highlighting-styles.quarto-color-scheme-extra').rel = 'disabled-stylesheet';
+      document.querySelector('link#quarto-bootstrap.quarto-color-scheme-extra').rel = 'disabled-stylesheet';
+    let localAlternateSentinel = darkModeDefault ? 'alternate' : 'default';
+    // Dark / light mode switch
+    window.quartoToggleColorScheme = () => {
+      // Read the current dark / light value
+      let toAlternate = !hasAlternateSentinel();
+      toggleColorMode(toAlternate);
+      setStyleSentinel(toAlternate);
+      toggleGiscusIfUsed(toAlternate, darkModeDefault);
+      window.dispatchEvent(new Event('resize'));
+    };
+    // Switch to dark mode if need be
+    if (hasAlternateSentinel()) {
+      toggleColorMode(true);
+    } else {
+      toggleColorMode(false);
+    }
+  </script>
+
+<div id="quarto-search-results"></div>
+  <header id="quarto-header" class="headroom fixed-top">
+  <nav class="quarto-secondary-nav">
+    <div class="container-fluid d-flex">
+      <button type="button" class="quarto-btn-toggle btn" data-bs-toggle="collapse" role="button" data-bs-target=".quarto-sidebar-collapse-item" aria-controls="quarto-sidebar" aria-expanded="false" aria-label="Toggle sidebar navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">
+        <i class="bi bi-layout-text-sidebar-reverse"></i>
+      </button>
+        <nav class="quarto-page-breadcrumbs" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="../part5/ch24-multiagent-reasoning.html">Part V — Multiagent Systems</a></li><li class="breadcrumb-item"><a href="../part5/ch24-multiagent-reasoning.html">24 · Multiagent Reasoning</a></li></ol></nav>
+        <a class="flex-grow-1" role="navigation" data-bs-toggle="collapse" data-bs-target=".quarto-sidebar-collapse-item" aria-controls="quarto-sidebar" aria-expanded="false" aria-label="Toggle sidebar navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">      
+        </a>
+      <button type="button" class="btn quarto-search-button" aria-label="Search" onclick="window.quartoOpenSearch();">
+        <i class="bi bi-search"></i>
+      </button>
+    </div>
+  </nav>
+</header>
+<!-- content -->
+<div id="quarto-content" class="quarto-container page-columns page-rows-contents page-layout-article">
+<!-- sidebar -->
+  <nav id="quarto-sidebar" class="sidebar collapse collapse-horizontal quarto-sidebar-collapse-item sidebar-navigation docked overflow-auto">
+    <div class="pt-lg-2 mt-2 text-left sidebar-header">
+    <div class="sidebar-title mb-0 py-0">
+      <a href="../">ADM Companion</a> 
+        <div class="sidebar-tools-main">
+  <a href="" class="quarto-color-scheme-toggle quarto-navigation-tool  px-1" onclick="window.quartoToggleColorScheme(); return false;" title="Toggle dark mode"><i class="bi"></i></a>
+</div>
+    </div>
+      </div>
+        <div class="mt-2 flex-shrink-0 align-items-center">
+        <div class="sidebar-search">
+        <div id="quarto-search" class="" title="Search"></div>
+        </div>
+        </div>
+    <div class="sidebar-menu-container"> 
+    <ul class="list-unstyled mt-1">
+        <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../index.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Algorithms for Decision Making - Companion</span></a>
+  </div>
+</li>
+        <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../notation.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Notation</span></a>
+  </div>
+</li>
+        <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../cheatsheets.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Cheat sheets</span></a>
+  </div>
+</li>
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-1" role="navigation" aria-expanded="false">
+ <span class="menu-text">Introduction</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-1" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-1" class="collapse list-unstyled sidebar-section depth1 ">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../intro/ch01-introduction.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">1 · Introduction</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-2" role="navigation" aria-expanded="false">
+ <span class="menu-text">Part I — Probabilistic Reasoning</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-2" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-2" class="collapse list-unstyled sidebar-section depth1 ">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../part1/ch02-representation.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">2 · Representation</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../part1/ch03-inference.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">3 · Inference</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../part1/ch04-parameter-learning.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">4 · Parameter Learning</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../part1/ch05-structure-learning.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">5 · Structure Learning</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../part1/ch06-simple-decisions.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">6 · Simple Decisions</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-3" role="navigation" aria-expanded="false">
+ <span class="menu-text">Part II — Sequential Problems</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-3" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-3" class="collapse list-unstyled sidebar-section depth1 ">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../part2/ch07-exact-solution-methods.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">7 · Exact Solution Methods</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../part2/ch08-approximate-value-functions.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">8 · Approximate Value Functions</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../part2/ch09-online-planning.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">9 · Online Planning</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../part2/ch10-policy-search.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">10 · Policy Search</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../part2/ch11-policy-gradient-estimation.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">11 · Policy Gradient Estimation</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../part2/ch12-policy-gradient-optimization.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">12 · Policy Gradient Optimization</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../part2/ch13-actor-critic-methods.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">13 · Actor-Critic Methods</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../part2/ch14-policy-validation.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">14 · Policy Validation</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-4" role="navigation" aria-expanded="false">
+ <span class="menu-text">Part III — Model Uncertainty</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-4" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-4" class="collapse list-unstyled sidebar-section depth1 ">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../part3/ch15-exploration-and-exploitation.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">15 · Exploration and Exploitation</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../part3/ch16-model-based-methods.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">16 · Model-Based Methods</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../part3/ch17-model-free-methods.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">17 · Model-Free Methods</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../part3/ch18-imitation-learning.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">18 · Imitation Learning</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-5" role="navigation" aria-expanded="false">
+ <span class="menu-text">Part IV — State Uncertainty</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-5" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-5" class="collapse list-unstyled sidebar-section depth1 ">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../part4/ch19-beliefs.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">19 · Beliefs</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../part4/ch20-exact-belief-state-planning.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">20 · Exact Belief State Planning</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../part4/ch21-offline-belief-state-planning.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">21 · Offline Belief State Planning</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../part4/ch22-online-belief-state-planning.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">22 · Online Belief State Planning</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../part4/ch23-controller-abstractions.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">23 · Controller Abstractions</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-6" role="navigation" aria-expanded="true">
+ <span class="menu-text">Part V — Multiagent Systems</span></a>
+          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-6" role="navigation" aria-expanded="true" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-6" class="collapse list-unstyled sidebar-section depth1 show">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../part5/ch24-multiagent-reasoning.html" class="sidebar-item-text sidebar-link active">
+ <span class="menu-text">24 · Multiagent Reasoning</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../part5/ch25-sequential-problems.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">25 · Sequential Problems</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../part5/ch26-state-uncertainty.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">26 · State Uncertainty</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../part5/ch27-collaborative-agents.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">27 · Collaborative Agents</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-7" role="navigation" aria-expanded="false">
+ <span class="menu-text">Appendices</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-7" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-7" class="collapse list-unstyled sidebar-section depth1 ">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../appendices/a-mathematical-concepts.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">A · Mathematical Concepts</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../appendices/b-probability-distributions.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">B · Probability Distributions</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../appendices/c-computational-complexity.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">C · Computational Complexity</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../appendices/d-neural-representations.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">D · Neural Representations</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../appendices/e-search-algorithms.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">E · Search Algorithms</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../appendices/f-problems.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">F · Problems</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+    </ul>
+    </div>
+</nav>
+<div id="quarto-sidebar-glass" class="quarto-sidebar-collapse-item" data-bs-toggle="collapse" data-bs-target=".quarto-sidebar-collapse-item"></div>
+<!-- margin-sidebar -->
+    <div id="quarto-margin-sidebar" class="sidebar margin-sidebar">
+        <nav id="TOC" role="doc-toc" class="toc-active">
+    <h2 id="toc-title">On this page</h2>
+   
+  <ul>
+  <li><a href="#big-picture" id="toc-big-picture" class="nav-link active" data-scroll-target="#big-picture">Big picture</a>
+  <ul class="collapse">
+  <li><a href="#where-this-chapter-fits" id="toc-where-this-chapter-fits" class="nav-link" data-scroll-target="#where-this-chapter-fits">Where this chapter fits</a></li>
+  <li><a href="#the-key-ideas-at-a-glance" id="toc-the-key-ideas-at-a-glance" class="nav-link" data-scroll-target="#the-key-ideas-at-a-glance">The key ideas at a glance</a></li>
+  <li><a href="#vocabulary" id="toc-vocabulary" class="nav-link" data-scroll-target="#vocabulary">Vocabulary</a></li>
+  <li><a href="#after-this-chapter-you-can" id="toc-after-this-chapter-you-can" class="nav-link" data-scroll-target="#after-this-chapter-you-can">After this chapter you can</a></li>
+  </ul></li>
+  <li><a href="#intuition" id="toc-intuition" class="nav-link" data-scroll-target="#intuition">Intuition</a>
+  <ul class="collapse">
+  <li><a href="#best-response-and-when-its-enough" id="toc-best-response-and-when-its-enough" class="nav-link" data-scroll-target="#best-response-and-when-its-enough">Best response, and when it’s enough</a></li>
+  <li><a href="#nobody-wants-to-switch-nash-equilibria" id="toc-nobody-wants-to-switch-nash-equilibria" class="nav-link" data-scroll-target="#nobody-wants-to-switch-nash-equilibria">Nobody wants to switch: Nash equilibria</a></li>
+  <li><a href="#a-traffic-light-correlated-equilibrium" id="toc-a-traffic-light-correlated-equilibrium" class="nav-link" data-scroll-target="#a-traffic-light-correlated-equilibrium">A traffic light: correlated equilibrium</a></li>
+  <li><a href="#learning-by-playing" id="toc-learning-by-playing" class="nav-link" data-scroll-target="#learning-by-playing">Learning by playing</a></li>
+  <li><a href="#how-people-actually-play" id="toc-how-people-actually-play" class="nav-link" data-scroll-target="#how-people-actually-play">How people actually play</a></li>
+  </ul></li>
+  <li><a href="#formalism" id="toc-formalism" class="nav-link" data-scroll-target="#formalism">Formalism</a>
+  <ul class="collapse">
+  <li><a href="#simple-games-and-utilities" id="toc-simple-games-and-utilities" class="nav-link" data-scroll-target="#simple-games-and-utilities">Simple games and utilities</a></li>
+  <li><a href="#best-and-softmax-responses" id="toc-best-and-softmax-responses" class="nav-link" data-scroll-target="#best-and-softmax-responses">Best and softmax responses</a></li>
+  <li><a href="#dominant-strategy-and-nash-equilibria" id="toc-dominant-strategy-and-nash-equilibria" class="nav-link" data-scroll-target="#dominant-strategy-and-nash-equilibria">Dominant strategy and Nash equilibria</a></li>
+  <li><a href="#correlated-equilibrium" id="toc-correlated-equilibrium" class="nav-link" data-scroll-target="#correlated-equilibrium">Correlated equilibrium</a></li>
+  <li><a href="#learning-in-repeated-play" id="toc-learning-in-repeated-play" class="nav-link" data-scroll-target="#learning-in-repeated-play">Learning in repeated play</a></li>
+  </ul></li>
+  <li><a href="#worked-example" id="toc-worked-example" class="nav-link" data-scroll-target="#worked-example">Worked example</a>
+  <ul class="collapse">
+  <li><a href="#the-mixed-equilibrium-of-the-intersection" id="toc-the-mixed-equilibrium-of-the-intersection" class="nav-link" data-scroll-target="#the-mixed-equilibrium-of-the-intersection">The mixed equilibrium of the intersection</a></li>
+  <li><a href="#checking-the-traffic-light" id="toc-checking-the-traffic-light" class="nav-link" data-scroll-target="#checking-the-traffic-light">Checking the traffic light</a></li>
+  <li><a href="#a-softmax-response-by-hand" id="toc-a-softmax-response-by-hand" class="nav-link" data-scroll-target="#a-softmax-response-by-hand">A softmax response by hand</a></li>
+  </ul></li>
+  <li><a href="#interactive" id="toc-interactive" class="nav-link" data-scroll-target="#interactive">Interactive</a>
+  <ul class="collapse">
+  <li><a href="#repeated-play" id="toc-repeated-play" class="nav-link" data-scroll-target="#repeated-play">Repeated play</a></li>
+  </ul></li>
+  <li><a href="#algorithms-code" id="toc-algorithms-code" class="nav-link" data-scroll-target="#algorithms-code">Algorithms &amp; code</a>
+  <ul class="collapse">
+  <li><a href="#responses-equilibria-and-learning" id="toc-responses-equilibria-and-learning" class="nav-link" data-scroll-target="#responses-equilibria-and-learning">Responses, equilibria and learning</a></li>
+  <li><a href="#run-them" id="toc-run-them" class="nav-link" data-scroll-target="#run-them">Run them</a></li>
+  <li><a href="#results" id="toc-results" class="nav-link" data-scroll-target="#results">Results</a></li>
+  </ul></li>
+  <li><a href="#solved-problems" id="toc-solved-problems" class="nav-link" data-scroll-target="#solved-problems">Solved problems</a></li>
+  <li><a href="#recap" id="toc-recap" class="nav-link" data-scroll-target="#recap">Recap</a></li>
+  <li><a href="#cheat-sheet-connections" id="toc-cheat-sheet-connections" class="nav-link" data-scroll-target="#cheat-sheet-connections">Cheat sheet &amp; connections</a></li>
+  </ul>
+</nav>
+    </div>
+<!-- main -->
+<main class="content" id="quarto-document-content">
+
+
+<header id="title-block-header" class="quarto-title-block default"><nav class="quarto-page-breadcrumbs quarto-title-breadcrumbs d-none d-lg-block" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="../part5/ch24-multiagent-reasoning.html">Part V — Multiagent Systems</a></li><li class="breadcrumb-item"><a href="../part5/ch24-multiagent-reasoning.html">24 · Multiagent Reasoning</a></li></ol></nav>
+<div class="quarto-title">
+<h1 class="title">24 · Multiagent Reasoning</h1>
+<p class="subtitle lead">Part V — Multiagent Systems</p>
+</div>
+
+
+
+<div class="quarto-title-meta">
+
+    
+  
+    
+  </div>
+  
+
+
+</header>
+
+
+<div class="callout callout-style-simple callout-note no-icon">
+<div class="callout-body d-flex">
+<div class="callout-icon-container">
+<i class="callout-icon no-icon"></i>
+</div>
+<div class="callout-body-container">
+<p><strong>Executed in:</strong> Python · <strong>Book:</strong> ADM Ch. 24 · <strong>Lecture:</strong> to be added</p>
+</div>
+</div>
+</div>
+<!-- TODO(video): link the official Stanford AA228 lecture on multiagent reasoning / game theory. -->
+<section id="big-picture" class="level2">
+<h2 class="anchored" data-anchor-id="big-picture">Big picture</h2>
+<section id="where-this-chapter-fits" class="level3">
+<h3 class="anchored" data-anchor-id="where-this-chapter-fits">Where this chapter fits</h3>
+<p>Parts I–IV had one decision maker facing an uncertain world. Now there are several, each with its own rewards, choosing at the same time. The world’s response to your action depends on what the others do, and they are reasoning about you too. This chapter covers the simplest setting, a <strong>simple game</strong>: one round, no states, every agent acts at once and is paid. <a href="../part5/ch25-sequential-problems.html">Chapter 25</a> adds states, <a href="../part5/ch26-state-uncertainty.html">Chapter 26</a> adds partial observability, and <a href="../part5/ch27-collaborative-agents.html">Chapter 27</a> considers agents with a shared goal.</p>
+<p><strong>The question:</strong> when your reward depends on other agents’ choices, what counts as a good policy, and how do you compute or learn one?</p>
+<p>The short answer: <strong>there’s no single “optimal” policy; instead there are equilibria, joint policies from which no agent wants to deviate.</strong></p>
+<ul>
+<li>A <strong>best response</strong> is the best policy against fixed policies of the others.</li>
+<li>A <strong>Nash equilibrium</strong> is a joint policy where everyone is best-responding. One always exists, but it may be random, there may be several, and they are hard to compute.</li>
+<li>A <strong>correlated equilibrium</strong> lets a shared signal (a traffic light) coordinate the agents, and is found by linear programming.</li>
+<li>Agents can also <strong>learn</strong> by repeated play: best response, fictitious play, gradient ascent. Behavioral models describe how real people play.</li>
+</ul>
+<div class="cell" data-fig-width="7" data-fig-height="2.59" data-layout-align="default">
+<div class="cell-output-display">
+<div id="fig-ch24-map" class="quarto-float quarto-figure quarto-figure-center anchored">
+<figure class="quarto-float quarto-float-fig figure">
+<div aria-describedby="fig-ch24-map-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<div>
+<svg width="672" height="249" viewbox="0.00 0.00 623.84 231.20" xmlns="http://www.w3.org/2000/svg" xlink="http://www.w3.org/1999/xlink" style="; max-width: none; max-height: none">
+<g id="graph0" class="graph" transform="scale(1 1) rotate(0) translate(18 213.2)">
+<title>ch24</title>
+<polygon fill="#fcfcfb" stroke="transparent" points="-18,18 -18,-213.2 605.84,-213.2 605.84,18 -18,18"></polygon>
+<!-- game -->
+<g id="node1" class="node">
+<title>game</title>
+<path fill="#cde2fb" stroke="#2a78d6" stroke-width="1.2" d="M396.08,-195.2C396.08,-195.2 259.16,-195.2 259.16,-195.2 253.16,-195.2 247.16,-189.2 247.16,-183.2 247.16,-183.2 247.16,-171.2 247.16,-171.2 247.16,-165.2 253.16,-159.2 259.16,-159.2 259.16,-159.2 396.08,-159.2 396.08,-159.2 402.08,-159.2 408.08,-165.2 408.08,-171.2 408.08,-171.2 408.08,-183.2 408.08,-183.2 408.08,-189.2 402.08,-195.2 396.08,-195.2"></path>
+<text text-anchor="start" x="287.52" y="-178.5" font-family="Helvetica,sans-Serif" font-weight="bold" font-size="13.00" fill="#0b0b0b">Simple game</text>
+<text text-anchor="start" x="256.39" y="-167.3" font-family="Helvetica,sans-Serif" font-size="11.00" fill="#0b0b0b">agents, joint actions, rewards</text>
+</g>
+<!-- br -->
+<g id="node2" class="node">
+<title>br</title>
+<path fill="white" stroke="#c3c2b7" stroke-width="1.2" d="M369.52,-126.2C369.52,-126.2 285.72,-126.2 285.72,-126.2 279.72,-126.2 273.72,-120.2 273.72,-114.2 273.72,-114.2 273.72,-102.2 273.72,-102.2 273.72,-96.2 279.72,-90.2 285.72,-90.2 285.72,-90.2 369.52,-90.2 369.52,-90.2 375.52,-90.2 381.52,-96.2 381.52,-102.2 381.52,-102.2 381.52,-114.2 381.52,-114.2 381.52,-120.2 375.52,-126.2 369.52,-126.2"></path>
+<text text-anchor="start" x="282.82" y="-109.5" font-family="Helvetica,sans-Serif" font-weight="bold" font-size="13.00" fill="#0b0b0b">Best response</text>
+<text text-anchor="start" x="282.67" y="-98.3" font-family="Helvetica,sans-Serif" font-size="11.00" fill="#0b0b0b">to fixed opponents</text>
+</g>
+<!-- game&#45;&gt;br -->
+<g id="edge1" class="edge">
+<title>game-&gt;br</title>
+<path fill="none" stroke="#52514e" stroke-width="1.2" d="M327.62,-158.95C327.62,-151.27 327.62,-142.09 327.62,-133.72"></path>
+<polygon fill="#52514e" stroke="#52514e" stroke-width="1.2" points="330.07,-133.63 327.62,-126.63 325.17,-133.63 330.07,-133.63"></polygon>
+</g>
+<!-- eq -->
+<g id="node3" class="node">
+<title>eq</title>
+<path fill="#cde2fb" stroke="#2a78d6" stroke-width="1.2" d="M390.69,-40.5C390.69,-40.5 264.55,-40.5 264.55,-40.5 258.55,-40.5 252.55,-34.5 252.55,-28.5 252.55,-28.5 252.55,-16.5 252.55,-16.5 252.55,-10.5 258.55,-4.5 264.55,-4.5 264.55,-4.5 390.69,-4.5 390.69,-4.5 396.69,-4.5 402.69,-10.5 402.69,-16.5 402.69,-16.5 402.69,-28.5 402.69,-28.5 402.69,-34.5 396.69,-40.5 390.69,-40.5"></path>
+<text text-anchor="start" x="298" y="-23.8" font-family="Helvetica,sans-Serif" font-weight="bold" font-size="13.00" fill="#0b0b0b">Equilibria</text>
+<text text-anchor="start" x="261.58" y="-12.6" font-family="Helvetica,sans-Serif" font-size="11.00" fill="#0b0b0b">dominant, Nash, correlated</text>
+</g>
+<!-- br&#45;&gt;eq -->
+<g id="edge2" class="edge">
+<title>br-&gt;eq</title>
+<path fill="none" stroke="#52514e" stroke-width="1.2" d="M327.62,-89.86C327.62,-77.66 327.62,-61.16 327.62,-47.67"></path>
+<polygon fill="#52514e" stroke="#52514e" stroke-width="1.2" points="330.07,-47.53 327.62,-40.53 325.17,-47.53 330.07,-47.53"></polygon>
+<text text-anchor="middle" x="350.24" y="-64.3" font-family="Helvetica,sans-Serif" font-size="11.00" fill="#52514e">everyone</text>
+</g>
+<!-- learn -->
+<g id="node4" class="node">
+<title>learn</title>
+<path fill="white" stroke="#c3c2b7" stroke-width="1.2" d="M147.36,-45C147.36,-45 11.88,-45 11.88,-45 5.88,-45 -0.12,-39 -0.12,-33 -0.12,-33 -0.12,-12 -0.12,-12 -0.12,-6 5.88,0 11.88,0 11.88,0 147.36,0 147.36,0 153.36,0 159.36,-6 159.36,-12 159.36,-12 159.36,-33 159.36,-33 159.36,-39 153.36,-45 147.36,-45"></path>
+<text text-anchor="start" x="29.78" y="-29.3" font-family="Helvetica,sans-Serif" font-weight="bold" font-size="13.00" fill="#0b0b0b">Learning in play</text>
+<text text-anchor="start" x="9" y="-18.1" font-family="Helvetica,sans-Serif" font-size="11.00" fill="#0b0b0b">best response, fictitious play,</text>
+<text text-anchor="start" x="42.01" y="-7.1" font-family="Helvetica,sans-Serif" font-size="11.00" fill="#0b0b0b">gradient ascent</text>
+</g>
+<!-- br&#45;&gt;learn -->
+<g id="edge3" class="edge">
+<title>br-&gt;learn</title>
+<path fill="none" stroke="#52514e" stroke-width="1.2" d="M277.13,-90.16C240.64,-77.85 190.86,-61.04 150.4,-47.39"></path>
+<polygon fill="#52514e" stroke="#52514e" stroke-width="1.2" points="151.15,-45.06 143.74,-45.14 149.59,-49.7 151.15,-45.06"></polygon>
+<text text-anchor="middle" x="242.21" y="-64.3" font-family="Helvetica,sans-Serif" font-size="11.00" fill="#52514e">repeat</text>
+</g>
+<!-- behave -->
+<g id="node5" class="node">
+<title>behave</title>
+<path fill="#f0efec" stroke="#c3c2b7" stroke-width="1.2" d="M576.06,-40.5C576.06,-40.5 439.18,-40.5 439.18,-40.5 433.18,-40.5 427.18,-34.5 427.18,-28.5 427.18,-28.5 427.18,-16.5 427.18,-16.5 427.18,-10.5 433.18,-4.5 439.18,-4.5 439.18,-4.5 576.06,-4.5 576.06,-4.5 582.06,-4.5 588.06,-10.5 588.06,-16.5 588.06,-16.5 588.06,-28.5 588.06,-28.5 588.06,-34.5 582.06,-40.5 576.06,-40.5"></path>
+<text text-anchor="start" x="449.82" y="-23.8" font-family="Helvetica,sans-Serif" font-weight="bold" font-size="13.00" fill="#0b0b0b">Behavioral models</text>
+<text text-anchor="start" x="436.4" y="-12.6" font-family="Helvetica,sans-Serif" font-size="11.00" fill="#0b0b0b">softmax, hierarchical softmax</text>
+</g>
+<!-- br&#45;&gt;behave -->
+<g id="edge4" class="edge">
+<title>br-&gt;behave</title>
+<path fill="none" stroke="#52514e" stroke-width="1.2" d="M364.48,-90.06C393.48,-76.58 433.95,-57.76 464.46,-43.57"></path>
+<polygon fill="#52514e" stroke="#52514e" stroke-width="1.2" points="465.49,-45.79 470.81,-40.62 463.43,-41.35 465.49,-45.79"></polygon>
+<text text-anchor="middle" x="437.6" y="-64.3" font-family="Helvetica,sans-Serif" font-size="11.00" fill="#52514e">soften</text>
+</g>
+<!-- learn&#45;&gt;eq -->
+<g id="edge5" class="edge">
+<title>learn-&gt;eq</title>
+<path fill="none" stroke="#52514e" stroke-width="1.2" d="M159.45,-22.5C186.88,-22.5 217.62,-22.5 245.25,-22.5"></path>
+<polygon fill="#52514e" stroke="#52514e" stroke-width="1.2" points="245.57,-24.95 252.57,-22.5 245.57,-20.05 245.57,-24.95"></polygon>
+<text text-anchor="middle" x="205.91" y="-28.8" font-family="Helvetica,sans-Serif" font-size="11.00" fill="#52514e">may converge</text>
+</g>
+</g>
+</svg>
+</div>
+</div>
+<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-ch24-map-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Figure&nbsp;1: Map of this chapter. From a simple game, a best response answers fixed opponents; equilibria are joint policies where no one wants to deviate; learning dynamics and behavioral models describe how play unfolds when agents adapt or are only partly rational.
+</figcaption>
+</figure>
+</div>
+</div>
+</div>
+</section>
+<section id="the-key-ideas-at-a-glance" class="level3">
+<h3 class="anchored" data-anchor-id="the-key-ideas-at-a-glance">The key ideas at a glance</h3>
+<ol type="1">
+<li><p><strong>A simple game</strong> has agents <span class="math inline">\(i = 1, \dots, k\)</span>, each with actions <span class="math inline">\(\mathcal{A}^i\)</span>, and a reward <span class="math inline">\(R^i(\boldsymbol{a})\)</span> for each agent that depends on the <strong>joint action</strong> <span class="math inline">\(\boldsymbol{a} = (a^1, \dots, a^k)\)</span>. A policy <span class="math inline">\(\pi^i\)</span> is a distribution over agent <span class="math inline">\(i\)</span>’s actions; a random one is called a <em>mixed strategy</em>.</p></li>
+<li><p><strong>Best response and dominance.</strong> Given the others’ policies, a best response maximizes your expected reward. An action that is a best response to <em>everything</em> the others might do is <strong>dominant</strong>. In the prisoner’s dilemma, defecting is dominant for both, so both defect, though both would be better off cooperating.</p></li>
+<li><p><strong>Nash equilibrium.</strong> A joint policy where every agent is best-responding to the others. Every finite game has one (Nash, 1951), possibly random, as in rock-paper-scissors; many games have several. Computing one is hard in general, and numerical solvers can stop at approximate ones.</p></li>
+<li><p><strong>Correlated equilibrium.</strong> A single distribution over joint actions, like a traffic light telling each driver what to do, such that no agent gains by disobeying its recommendation. It can reach payoffs no Nash equilibrium reaches (at the intersection, a fair split), and it is computed by a linear program.</p></li>
+<li><p><strong>Learning and behavior.</strong> Agents can reach equilibria by adapting: best-responding in turn, best-responding to observed frequencies (<strong>fictitious play</strong>), or following the gradient of their own reward. None of these is guaranteed to converge. To predict <em>people</em>, a <strong>softmax</strong> response makes costly mistakes rarer than cheap ones, and a <strong>hierarchical softmax</strong> stacks levels of reasoning about others.</p></li>
+</ol>
+</section>
+<section id="vocabulary" class="level3">
+<h3 class="anchored" data-anchor-id="vocabulary">Vocabulary</h3>
+<div id="tbl-vocab" class="quarto-float quarto-figure quarto-figure-center anchored">
+<figure class="quarto-float quarto-float-tbl figure">
+<figcaption class="quarto-float-caption-top quarto-float-caption quarto-float-tbl" id="tbl-vocab-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Table&nbsp;1: Terms used on this page.
+</figcaption>
+<div aria-describedby="tbl-vocab-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<table class="caption-top table">
+<colgroup>
+<col style="width: 50%">
+<col style="width: 50%">
+</colgroup>
+<thead>
+<tr class="header">
+<th style="text-align: left;">Term</th>
+<th style="text-align: left;">Plain meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td style="text-align: left;">Simple game (normal-form game)</td>
+<td style="text-align: left;">One round of simultaneous choices, with a reward for every agent</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;">Joint action <span class="math inline">\(\boldsymbol{a}\)</span></td>
+<td style="text-align: left;">Everyone’s action together</td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;">Pure / mixed strategy</td>
+<td style="text-align: left;">A deterministic / random policy</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;">Zero-sum game</td>
+<td style="text-align: left;">The rewards always add up to zero: one agent’s gain is another’s loss</td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;">Best response</td>
+<td style="text-align: left;">The best policy against fixed policies of the others</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;">Dominant strategy</td>
+<td style="text-align: left;">A best response whatever the others do</td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;">Nash equilibrium</td>
+<td style="text-align: left;">Everyone best-responds to everyone else</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;">Correlated equilibrium</td>
+<td style="text-align: left;">A joint-action distribution no agent wants to disobey</td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;">Regret (here)</td>
+<td style="text-align: left;">The most an agent could gain by switching alone; 0 at a Nash equilibrium</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;">Fictitious play</td>
+<td style="text-align: left;">Best-respond to the frequencies of what the others have played</td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;">Level-<span class="math inline">\(k\)</span> reasoning</td>
+<td style="text-align: left;">Assume the others reason one level less deeply than you</td>
+</tr>
+</tbody>
+</table>
+</div>
+</figure>
+</div>
+</section>
+<section id="after-this-chapter-you-can" class="level3">
+<h3 class="anchored" data-anchor-id="after-this-chapter-you-can">After this chapter you can</h3>
+<ul>
+<li>Write down a simple game, compute expected rewards, and find best and softmax responses.</li>
+<li>Find dominant strategies and Nash equilibria of small games, including mixed ones, by indifference.</li>
+<li>Set up and solve the linear program for a correlated equilibrium, and choose among several by an objective.</li>
+<li>Run iterated best response, fictitious play and gradient ascent, and recognize cycling and miscoordination.</li>
+<li>Fit a hierarchical softmax model to observed choices, and know which of its parameters data can pin down.</li>
+</ul>
+</section>
+</section>
+<section id="intuition" class="level2">
+<h2 class="anchored" data-anchor-id="intuition">Intuition</h2>
+<div class="callout callout-style-default callout-tip callout-titled" title="Analogy">
+<div class="callout-header d-flex align-content-center">
+<div class="callout-icon-container">
+<i class="callout-icon"></i>
+</div>
+<div class="callout-title-container flex-fill">
+<span class="screen-reader-only">Tip</span>Analogy
+</div>
+</div>
+<div class="callout-body-container callout-body">
+<p>Two drivers reach an empty intersection at the same moment. If one goes and the other waits, the one who goes saves a little time. If both go, they nearly crash. If both wait, they both waste time. There’s no right answer for one driver alone: what’s best depends on what the other does. A traffic light solves the problem, not by being clever, but by telling each driver what to do in a way both are happy to obey.</p>
+</div>
+</div>
+<p>We use four games:</p>
+<ul>
+<li><strong>The prisoner’s dilemma</strong> (Appendix F.10): cooperate or defect.</li>
+<li><strong>Rock-paper-scissors</strong> (F.11): zero-sum.</li>
+<li><strong>The traveler’s dilemma</strong> (F.12): claim an amount from $2 to $100; the lower claim wins a $2 bonus.</li>
+<li><strong>The intersection</strong>, this site’s problem: go or stop.</li>
+</ul>
+<p>All are in the problem gallery: the <a href="../appendices/f-problems.html#simple-games">book’s games</a> and <a href="../appendices/f-problems.html#the-intersection">the intersection</a>.</p>
+<div id="tbl-pd" class="quarto-float quarto-figure quarto-figure-center anchored">
+<figure class="quarto-float quarto-float-tbl figure">
+<figcaption class="quarto-float-caption-top quarto-float-caption quarto-float-tbl" id="tbl-pd-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Table&nbsp;2: Rewards (agent 1, agent 2): rows are agent 1’s action.
+</figcaption>
+<div aria-describedby="tbl-pd-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<table class="caption-top table">
+<thead>
+<tr class="header">
+<th style="text-align: left;">Prisoner’s dilemma</th>
+<th style="text-align: right;">cooperate</th>
+<th style="text-align: right;">defect</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td style="text-align: left;"><strong>cooperate</strong></td>
+<td style="text-align: right;">−1, −1</td>
+<td style="text-align: right;">−4, 0</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;"><strong>defect</strong></td>
+<td style="text-align: right;">0, −4</td>
+<td style="text-align: right;">−3, −3</td>
+</tr>
+</tbody>
+</table>
+</div>
+</figure>
+</div>
+<div id="tbl-ix" class="quarto-float quarto-figure quarto-figure-center anchored">
+<figure class="quarto-float quarto-float-tbl figure">
+<figcaption class="quarto-float-caption-top quarto-float-caption quarto-float-tbl" id="tbl-ix-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Table&nbsp;3: Rewards (driver 1, driver 2).
+</figcaption>
+<div aria-describedby="tbl-ix-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<table class="caption-top table">
+<thead>
+<tr class="header">
+<th style="text-align: left;">Intersection</th>
+<th style="text-align: right;">go</th>
+<th style="text-align: right;">stop</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td style="text-align: left;"><strong>go</strong></td>
+<td style="text-align: right;">−10, −10</td>
+<td style="text-align: right;">3, 0</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;"><strong>stop</strong></td>
+<td style="text-align: right;">0, 3</td>
+<td style="text-align: right;">−1, −1</td>
+</tr>
+</tbody>
+</table>
+</div>
+</figure>
+</div>
+<section id="best-response-and-when-its-enough" class="level3">
+<h3 class="anchored" data-anchor-id="best-response-and-when-its-enough">Best response, and when it’s enough</h3>
+<p>If driver 2 goes with probability <span class="math inline">\(q\)</span>, driver 1’s expected reward is <span class="math inline">\(3 - 13q\)</span> for going and <span class="math inline">\(q - 1\)</span> for stopping, so driver 1 should go when <span class="math inline">\(q\)</span> is below <span class="math inline">\(2/7\)</span> and stop otherwise. That’s a <strong>best response</strong>. In the prisoner’s dilemma, defecting is best whatever the other does (0 &gt; −1 and −3 &gt; −4): a <strong>dominant</strong> strategy. See <a href="#eq-best-response" class="quarto-xref">Equation&nbsp;2</a>.</p>
+</section>
+<section id="nobody-wants-to-switch-nash-equilibria" class="level3">
+<h3 class="anchored" data-anchor-id="nobody-wants-to-switch-nash-equilibria">Nobody wants to switch: Nash equilibria</h3>
+<p>The intersection has three Nash equilibria. Two are pure: one driver goes and the other stops. The third is mixed: each goes with probability 0.286 (that is, 2/7), exactly the value that leaves the other indifferent. The mixed one is worth −0.714 to each: better than both waiting (−1), but far worse than taking turns. Rock-paper-scissors has only a mixed equilibrium: play each action a third of the time. See <a href="#eq-nash" class="quarto-xref">Equation&nbsp;4</a>.</p>
+</section>
+<section id="a-traffic-light-correlated-equilibrium" class="level3">
+<h3 class="anchored" data-anchor-id="a-traffic-light-correlated-equilibrium">A traffic light: correlated equilibrium</h3>
+<p>A light that tells one driver “go” and the other “stop”, each way half the time, is a <strong>correlated equilibrium</strong>: whoever is told to go gains 3 by going and would get −1 by stopping; whoever is told to stop gets 0, and would crash for −10 by going. Each driver earns 1.5 on average, far more than the mixed Nash equilibrium’s −0.714. See <a href="#eq-correlated" class="quarto-xref">Equation&nbsp;5</a>.</p>
+</section>
+<section id="learning-by-playing" class="level3">
+<h3 class="anchored" data-anchor-id="learning-by-playing">Learning by playing</h3>
+<p>Agents that don’t know the equilibrium can learn by playing repeatedly. In the traveler’s dilemma, each round of best responses undercuts the last by $1, and the claims fall all the way to the Nash equilibrium of $2 by round 95. In rock-paper-scissors, best responses chase each other forever: rock, paper, scissors, rock, … . <strong>Fictitious play</strong> best-responds to observed frequencies instead; in the intersection, two drivers who start alike stay alike, going together and stopping together. Their frequencies approach the mixed equilibrium, but they earn −3.57 per round. See <a href="#eq-fictitious" class="quarto-xref">Equation&nbsp;6</a>.</p>
+</section>
+<section id="how-people-actually-play" class="level3">
+<h3 class="anchored" data-anchor-id="how-people-actually-play">How people actually play</h3>
+<p>In experiments, many people playing the traveler’s dilemma claim near the top of the range, not the minimum (K. Basu, <em>American Economic Review</em>, 1994; C. M. Capra, J. K. Goeree, R. Gomez and C. A. Holt, <em>American Economic Review</em>, 1999). A <strong>hierarchical softmax</strong> model explains this: a player who reasons a couple of levels deep, and makes cheap mistakes more often than costly ones, claims about $91 on average (precision 0.3, level 2). See <a href="#eq-softmax" class="quarto-xref">Equation&nbsp;3</a>.</p>
+</section>
+</section>
+<section id="formalism" class="level2">
+<h2 class="anchored" data-anchor-id="formalism">Formalism</h2>
+<section id="simple-games-and-utilities" class="level3">
+<h3 class="anchored" data-anchor-id="simple-games-and-utilities">Simple games and utilities</h3>
+<p>A simple game (ADM §24.1) has agents <span class="math inline">\(\mathcal{I} = \{1, \dots, k\}\)</span>, joint actions <span class="math inline">\(\boldsymbol{a} \in \mathcal{A} = \mathcal{A}^1 \times \dots \times \mathcal{A}^k\)</span> and rewards <span class="math inline">\(R^i(\boldsymbol{a})\)</span>. If agents act independently with policies <span class="math inline">\(\pi^j\)</span>, agent <span class="math inline">\(i\)</span>’s expected reward is</p>
+<div class="key-equation" data-name="Utility of a joint policy">
+<p><span id="eq-utility"><span class="math display">\[
+U^i(\boldsymbol{\pi}) = \sum_{\boldsymbol{a} \in \mathcal{A}} R^i(\boldsymbol{a}) \prod_{j \in \mathcal{I}} \pi^j(a^j)
+\tag{1}\]</span></span></p>
+</div>
+<p><strong>In words.</strong> Average agent <span class="math inline">\(i\)</span>’s reward over all joint actions, weighting each by how likely it is when every agent chooses independently.</p>
+<p><strong>Term by term.</strong></p>
+<ul>
+<li><span class="math inline">\(R^i(\boldsymbol{a})\)</span>: agent <span class="math inline">\(i\)</span>’s reward when the agents play <span class="math inline">\(\boldsymbol{a}\)</span>.</li>
+<li><span class="math inline">\(\prod_j \pi^j(a^j)\)</span>: the probability of <span class="math inline">\(\boldsymbol{a}\)</span>, since the choices are independent.</li>
+<li>We write <span class="math inline">\(\boldsymbol{a} = (a^i, \boldsymbol{a}^{-i})\)</span> and <span class="math inline">\(\boldsymbol{\pi} = (\pi^i, \boldsymbol{\pi}^{-i})\)</span>, where <span class="math inline">\(-i\)</span> means “everyone but <span class="math inline">\(i\)</span>”.</li>
+</ul>
+<p><strong>Why it holds.</strong> It’s the expectation of <span class="math inline">\(R^i\)</span> under the product distribution of independent choices.</p>
+</section>
+<section id="best-and-softmax-responses" class="level3">
+<h3 class="anchored" data-anchor-id="best-and-softmax-responses">Best and softmax responses</h3>
+<div class="key-equation" data-name="Best response">
+<p><span id="eq-best-response"><span class="math display">\[
+\pi^i \text{ is a best response to } \boldsymbol{\pi}^{-i} \iff U^i(\pi^i, \boldsymbol{\pi}^{-i}) \ge U^i(\pi^{i\prime}, \boldsymbol{\pi}^{-i}) \text{ for all } \pi^{i\prime}
+\tag{2}\]</span></span></p>
+</div>
+<p>A pure best response is <span class="math inline">\(\arg\max_{a^i} U^i(a^i, \boldsymbol{\pi}^{-i})\)</span>.</p>
+<p><strong>In words.</strong> Against fixed opponents, the game is just a single-agent decision: pick the action with the highest expected reward.</p>
+<p><strong>Term by term.</strong></p>
+<ul>
+<li><span class="math inline">\(U^i(a^i, \boldsymbol{\pi}^{-i})\)</span> is <a href="#eq-utility" class="quarto-xref">Equation&nbsp;1</a> with <span class="math inline">\(\pi^i\)</span> putting all its weight on <span class="math inline">\(a^i\)</span>.</li>
+<li>A mixed policy is a best response only if every action it uses has the highest expected reward, so some pure action is always a best response.</li>
+<li><strong>Dominant</strong>: a best response to every <span class="math inline">\(\boldsymbol{\pi}^{-i}\)</span>; it’s enough to check every pure <span class="math inline">\(\boldsymbol{a}^{-i}\)</span>.</li>
+</ul>
+<p><strong>Why it holds.</strong> <span class="math inline">\(U^i\)</span> is linear in <span class="math inline">\(\pi^i\)</span>, so its maximum over the simplex is at a vertex: a pure action.</p>
+<p>People aren’t perfect optimizers. The softmax (logit, quantal) response (ADM §24.2.2; R. D. McKelvey and T. R. Palfrey, <em>Games and Economic Behavior</em>, 1995) makes each action more likely the better it is:</p>
+<div class="key-equation" data-name="Softmax response">
+<p><span id="eq-softmax"><span class="math display">\[
+\pi^i(a^i) \propto \exp\big(\lambda\, U^i(a^i, \boldsymbol{\pi}^{-i})\big)
+\tag{3}\]</span></span></p>
+</div>
+<p><strong>In words.</strong> Better actions are exponentially more likely; how much more depends on the precision <span class="math inline">\(\lambda\)</span>.</p>
+<p><strong>Term by term.</strong></p>
+<ul>
+<li><span class="math inline">\(\lambda = 0\)</span>: every action equally likely. <span class="math inline">\(\lambda \to \infty\)</span>: the best response.</li>
+<li>Mistakes that cost little are common; mistakes that cost a lot are rare.</li>
+<li><strong>Hierarchical softmax</strong> (level-<span class="math inline">\(k\)</span>; D. O. Stahl and P. W. Wilson, 1994): level 0 plays uniformly; level <span class="math inline">\(k\)</span> softmax-responds to everyone else playing level <span class="math inline">\(k - 1\)</span>.</li>
+</ul>
+<p><strong>Why it holds.</strong> It’s a model, not a theorem. It is the choice rule of an agent who adds independent, Gumbel-distributed noise to each action’s value and then picks the best, a standard model of noisy choice.</p>
+</section>
+<section id="dominant-strategy-and-nash-equilibria" class="level3">
+<h3 class="anchored" data-anchor-id="dominant-strategy-and-nash-equilibria">Dominant strategy and Nash equilibria</h3>
+<div class="key-equation famous" data-name="Nash equilibrium">
+<p><span id="eq-nash"><span class="math display">\[
+\boldsymbol{\pi} \text{ is a Nash equilibrium} \iff U^i(\boldsymbol{\pi}) \ge U^i(a^i, \boldsymbol{\pi}^{-i}) \text{ for every agent } i \text{ and action } a^i
+\tag{4}\]</span></span></p>
+</div>
+<p><strong>In words.</strong> Nobody can gain by changing their own policy while the others keep theirs.</p>
+<p><strong>Term by term.</strong></p>
+<ul>
+<li>Each agent’s policy is a best response (<a href="#eq-best-response" class="quarto-xref">Equation&nbsp;2</a>) to the others’.</li>
+<li>Checking pure deviations <span class="math inline">\(a^i\)</span> suffices, since <span class="math inline">\(U^i\)</span> is linear in <span class="math inline">\(\pi^i\)</span>.</li>
+<li><strong>Regret</strong> here is <span class="math inline">\(\max_i \big(\max_{a^i} U^i(a^i, \boldsymbol{\pi}^{-i}) - U^i(\boldsymbol{\pi})\big)\)</span>, which is zero exactly at an equilibrium.</li>
+<li>In a <strong>mixed</strong> equilibrium, every action an agent uses must have the same expected reward (otherwise it would drop the worse one). That <strong>indifference</strong> condition is how small games are solved by hand.</li>
+</ul>
+<p><strong>Why it holds.</strong> Every finite game has at least one Nash equilibrium (J. Nash, <em>Annals of Mathematics</em>, 1951), by a fixed-point argument on the best-response map. Finding one is PPAD-complete (C. Daskalakis, P. W. Goldberg and C. H. Papadimitriou, 2009), so no polynomial-time algorithm is known.</p>
+<p>As an optimization problem (ADM eq. 24.5):</p>
+<p><span class="math display">\[
+\min_{\boldsymbol{\pi},\, U}\ \sum_i \big(U_i - U^i(\boldsymbol{\pi})\big) \quad \text{s.t.}\quad U_i \ge U^i(a^i, \boldsymbol{\pi}^{-i})\ \ \forall i, a^i, \qquad \pi^i \text{ distributions}
+\]</span></p>
+<p>The constraints force <span class="math inline">\(U_i\)</span> above every action’s value; the objective pulls it down to the policy’s own value. The minimum, 0, is attained exactly at Nash equilibria. The products of policies make it nonconvex, so the page’s solver (SciPy’s SLSQP, several starts) can stop at local solutions. For two-agent games with few actions, <strong>support enumeration</strong> finds every equilibrium exactly: guess which actions each agent uses, solve the indifference equations, and check the rest.</p>
+</section>
+<section id="correlated-equilibrium" class="level3">
+<h3 class="anchored" data-anchor-id="correlated-equilibrium">Correlated equilibrium</h3>
+<p>A correlated joint policy <span class="math inline">\(\pi(\boldsymbol{a})\)</span> is one distribution over joint actions, as if a mediator draws <span class="math inline">\(\boldsymbol{a}\)</span> and privately tells each agent its part (ADM §24.5; R. J. Aumann, <em>Journal of Mathematical Economics</em>, 1974). It is an equilibrium if no agent gains by disobeying:</p>
+<div class="key-equation famous" data-name="Correlated equilibrium">
+<p><span id="eq-correlated"><span class="math display">\[
+\sum_{\boldsymbol{a}^{-i}} R^i(a^i, \boldsymbol{a}^{-i})\, \pi(a^i, \boldsymbol{a}^{-i}) \;\ge\; \sum_{\boldsymbol{a}^{-i}} R^i(a^{i\prime}, \boldsymbol{a}^{-i})\, \pi(a^i, \boldsymbol{a}^{-i})
+\quad \text{for all } i,\ a^i,\ a^{i\prime}
+\tag{5}\]</span></span></p>
+</div>
+<p><strong>In words.</strong> When told to play <span class="math inline">\(a^i\)</span>, agent <span class="math inline">\(i\)</span> expects to do at least as well by obeying as by switching to any <span class="math inline">\(a^{i\prime}\)</span>.</p>
+<p><strong>Term by term.</strong></p>
+<ul>
+<li><span class="math inline">\(\pi(a^i, \boldsymbol{a}^{-i})\)</span>: how often the mediator recommends this joint action. Summing over <span class="math inline">\(\boldsymbol{a}^{-i}\)</span> with <span class="math inline">\(a^i\)</span> fixed covers every situation in which <span class="math inline">\(i\)</span> is told <span class="math inline">\(a^i\)</span>.</li>
+<li>The left side is what obeying earns in those situations; the right side is what switching to <span class="math inline">\(a^{i\prime}\)</span> would earn.</li>
+<li>Every constraint is <strong>linear</strong> in <span class="math inline">\(\pi\)</span>, so with a linear objective (for example total reward, “utilitarian”, or the worst-off agent’s reward, “egalitarian”) this is a linear program.</li>
+</ul>
+<p><strong>Why it holds.</strong> Dividing both sides by the probability that <span class="math inline">\(i\)</span> is told <span class="math inline">\(a^i\)</span> turns them into conditional expectations given the recommendation. Any Nash equilibrium is a correlated equilibrium with <span class="math inline">\(\pi(\boldsymbol{a}) = \prod_j \pi^j(a^j)\)</span>, so the set of correlated equilibria is never empty, and it is convex: the region of payoffs it reaches can include points no Nash equilibrium reaches.</p>
+</section>
+<section id="learning-in-repeated-play" class="level3">
+<h3 class="anchored" data-anchor-id="learning-in-repeated-play">Learning in repeated play</h3>
+<p><strong>Iterated best response</strong> (ADM §24.6) has every agent best-respond to the others’ previous policies. It converges in some games (for example potential games) and cycles in others.</p>
+<p><strong>Fictitious play</strong> (ADM §24.8; G. W. Brown, 1951; J. Robinson, <em>Annals of Mathematics</em>, 1951) has each agent <span class="math inline">\(i\)</span> count how often each other agent <span class="math inline">\(j\)</span> played each action, and best-respond to the frequencies:</p>
+<div class="key-equation" data-name="Fictitious play">
+<p><span id="eq-fictitious"><span class="math display">\[
+\hat{\pi}^j(a^j) = \frac{N^i(j, a^j)}{\sum_{a'} N^i(j, a')}, \qquad a^i_t = \arg\max_{a^i} U^i(a^i, \hat{\boldsymbol{\pi}}^{-i})
+\tag{6}\]</span></span></p>
+</div>
+<p><strong>In words.</strong> Assume each opponent is a random player who plays actions as often as they have been seen so far, and best-respond to that.</p>
+<p><strong>Term by term.</strong></p>
+<ul>
+<li><span class="math inline">\(N^i(j, a^j)\)</span>: agent <span class="math inline">\(i\)</span>’s count of how often <span class="math inline">\(j\)</span> played <span class="math inline">\(a^j\)</span>, usually started at 1.</li>
+<li><span class="math inline">\(\hat{\pi}^j\)</span> is the maximum likelihood estimate of <span class="math inline">\(j\)</span>’s policy (Chapter 16), treating it as fixed.</li>
+<li>The actions played are always pure; it’s the <strong>frequencies</strong> that may converge to a mixed equilibrium.</li>
+</ul>
+<p><strong>Why it holds.</strong> If the frequencies converge, their limit is a Nash equilibrium: each agent’s frequent actions are best responses to the others’ limiting frequencies. Robinson proved convergence for two-agent zero-sum games; in general it can fail.</p>
+<p><strong>Gradient ascent</strong> (ADM §24.9) nudges each policy along the gradient of its own reward. If the others are assumed to repeat their last actions, the gradient is simply <span class="math inline">\(R^i(\cdot, \boldsymbol{a}^{-i}_t)\)</span> (ADM eq. 24.12; M. Zinkevich, <em>ICML</em>, 2003). The policy then moves by <span class="math inline">\(\alpha_t\)</span> times that gradient, with <span class="math inline">\(\alpha_t \propto 1/\sqrt{t}\)</span>, and is projected back onto the probability simplex (Chapter 23).</p>
+</section>
+</section>
+<section id="worked-example" class="level2">
+<h2 class="anchored" data-anchor-id="worked-example">Worked example</h2>
+<section id="the-mixed-equilibrium-of-the-intersection" class="level3">
+<h3 class="anchored" data-anchor-id="the-mixed-equilibrium-of-the-intersection">The mixed equilibrium of the intersection</h3>
+<p>Let driver 2 go with probability <span class="math inline">\(q\)</span>. For driver 1:</p>
+<ul>
+<li>going earns <span class="math inline">\(-10\,q + 3\,(1 - q) = 3 - 13q\)</span>;</li>
+<li>stopping earns <span class="math inline">\(0 \cdot q + (-1)(1 - q) = q - 1\)</span>.</li>
+</ul>
+<p>Driver 1 is willing to mix only if these are equal: <span class="math inline">\(3 - 13q = q - 1\)</span>, so <span class="math inline">\(q = 4/14 = 2/7\)</span>. By symmetry driver 1 also goes with probability <span class="math inline">\(2/7\)</span>, and each earns <span class="math inline">\(q - 1 = -5/7 \approx -0.714\)</span>.</p>
+<p>Support enumeration finds 3 equilibria; the mixed one has P(go) = 0.2857 for both, worth −0.7143 each.</p>
+<p>That beats both drivers always waiting (−1 each), but it is far worse than taking turns: with probability <span class="math inline">\((2/7)^2 \approx 0.08\)</span> both go and nearly crash, and with probability <span class="math inline">\((5/7)^2 \approx 0.51\)</span> both wait.</p>
+</section>
+<section id="checking-the-traffic-light" class="level3">
+<h3 class="anchored" data-anchor-id="checking-the-traffic-light">Checking the traffic light</h3>
+<p>The light recommends (go, stop) or (stop, go), each with probability <span class="math inline">\(1/2\)</span>. Check driver 1’s constraints (<a href="#eq-correlated" class="quarto-xref">Equation&nbsp;5</a>):</p>
+<ul>
+<li><strong>Told “go”</strong> (so driver 2 was told “stop”): obeying earns 3; stopping instead earns −1. Obey.</li>
+<li><strong>Told “stop”</strong> (driver 2 goes): obeying earns 0; going instead earns −10. Obey.</li>
+</ul>
+<p>The same holds for driver 2, so it is a correlated equilibrium, worth <span class="math inline">\(\tfrac12 \cdot 3 + \tfrac12 \cdot 0 = 1.5\)</span> to each.</p>
+<p>The egalitarian linear program returns π = [0.0, 0.5, 0.5, 0.0] over (go, go), (go, stop), (stop, go), (stop, stop), worth 1.500 and 1.500. The utilitarian objective instead picks (go, stop) outright: total 3.0, but all of it to driver 1.</p>
+</section>
+<section id="a-softmax-response-by-hand" class="level3">
+<h3 class="anchored" data-anchor-id="a-softmax-response-by-hand">A softmax response by hand</h3>
+<p>In rock-paper-scissors, suppose the opponent plays rock, paper, scissors with probabilities 0.5, 0.3, 0.2. Your expected rewards are: rock <span class="math inline">\(0.2 - 0.3 = -0.1\)</span>; paper <span class="math inline">\(0.5 - 0.2 = 0.3\)</span>; scissors <span class="math inline">\(0.3 - 0.5 = -0.2\)</span>. With precision <span class="math inline">\(\lambda = 2\)</span>, the softmax response is proportional to <span class="math inline">\(e^{-0.2}, e^{0.6}, e^{-0.4}\)</span>:</p>
+<p>The code: rock 0.247, paper 0.550, scissors 0.202. Paper, the best response, is most likely, but not certain.</p>
+</section>
+</section>
+<section id="interactive" class="level2">
+<h2 class="anchored" data-anchor-id="interactive">Interactive</h2>
+<section id="repeated-play" class="level3">
+<h3 class="anchored" data-anchor-id="repeated-play">Repeated play</h3>
+<p>Choose a game and a learning rule, then step through 200 rounds. The bars show each agent’s policy after the chosen round (for fictitious play, the frequencies each agent has observed of the <em>other</em>). The readout shows the average reward so far.</p>
+<div class="cell">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code hidden" id="cb1" data-startfrom="451" data-source-offset="-0"><pre class="sourceCode js code-with-copy"><code class="sourceCode javascript" style="counter-reset: source-line 450;"><span id="cb1-451"><a href="#cb1-451" aria-hidden="true" tabindex="-1"></a>playData <span class="op">=</span> <span class="fu">FileAttachment</span>(<span class="st">"data/ch24-play.json"</span>)<span class="op">.</span><span class="fu">json</span>()</span>
+<span id="cb1-452"><a href="#cb1-452" aria-hidden="true" tabindex="-1"></a>viewof playName <span class="op">=</span> Inputs<span class="op">.</span><span class="fu">select</span>(<span class="bu">Object</span><span class="op">.</span><span class="fu">keys</span>(playData)<span class="op">,</span> {<span class="dt">label</span><span class="op">:</span> <span class="st">"Game · rule"</span><span class="op">,</span> <span class="dt">value</span><span class="op">:</span> <span class="st">"intersection · fictitious play"</span>})</span>
+<span id="cb1-453"><a href="#cb1-453" aria-hidden="true" tabindex="-1"></a>viewof playT <span class="op">=</span> Inputs<span class="op">.</span><span class="fu">range</span>([<span class="dv">1</span><span class="op">,</span> <span class="dv">200</span>]<span class="op">,</span> {<span class="dt">step</span><span class="op">:</span> <span class="dv">1</span><span class="op">,</span> <span class="dt">value</span><span class="op">:</span> <span class="dv">20</span><span class="op">,</span> <span class="dt">label</span><span class="op">:</span> <span class="st">"Round"</span>})</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-display">
+<div>
+<div id="ojs-cell-1-1" data-nodetype="declaration">
+
+</div>
+</div>
+</div>
+<div class="cell-output cell-output-display">
+<div>
+<div id="ojs-cell-1-2" data-nodetype="declaration">
+
+</div>
+</div>
+</div>
+<div class="cell-output cell-output-display">
+<div>
+<div id="ojs-cell-1-3" data-nodetype="declaration">
+
+</div>
+</div>
+</div>
+</div>
+<div class="cell">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code hidden" id="cb2" data-startfrom="457" data-source-offset="-0"><pre class="sourceCode js code-with-copy"><code class="sourceCode javascript" style="counter-reset: source-line 456;"><span id="cb2-457"><a href="#cb2-457" aria-hidden="true" tabindex="-1"></a>playNow <span class="op">=</span> {</span>
+<span id="cb2-458"><a href="#cb2-458" aria-hidden="true" tabindex="-1"></a>  <span class="kw">const</span> R <span class="op">=</span> playData[playName]<span class="op">,</span> t <span class="op">=</span> playT <span class="op">-</span> <span class="dv">1</span><span class="op">;</span></span>
+<span id="cb2-459"><a href="#cb2-459" aria-hidden="true" tabindex="-1"></a>  <span class="kw">const</span> rows <span class="op">=</span> [<span class="dv">0</span><span class="op">,</span> <span class="dv">1</span>]<span class="op">.</span><span class="fu">flatMap</span>(i <span class="kw">=&gt;</span> R<span class="op">.</span><span class="at">actions</span><span class="op">.</span><span class="fu">map</span>((a<span class="op">,</span> k) <span class="kw">=&gt;</span> ({<span class="dt">agent</span><span class="op">:</span> <span class="vs">`agent </span><span class="sc">${</span>i <span class="op">+</span> <span class="dv">1</span><span class="sc">}</span><span class="vs">`</span><span class="op">,</span> <span class="dt">action</span><span class="op">:</span> a<span class="op">,</span> <span class="dt">p</span><span class="op">:</span> R<span class="op">.</span><span class="at">policies</span>[t][i][k]})))<span class="op">;</span></span>
+<span id="cb2-460"><a href="#cb2-460" aria-hidden="true" tabindex="-1"></a>  <span class="kw">const</span> avg <span class="op">=</span> [<span class="dv">0</span><span class="op">,</span> <span class="dv">1</span>]<span class="op">.</span><span class="fu">map</span>(i <span class="kw">=&gt;</span> d3<span class="op">.</span><span class="fu">mean</span>(R<span class="op">.</span><span class="at">rewards</span><span class="op">.</span><span class="fu">slice</span>(<span class="dv">0</span><span class="op">,</span> playT)<span class="op">,</span> r <span class="kw">=&gt;</span> r[i]))<span class="op">;</span></span>
+<span id="cb2-461"><a href="#cb2-461" aria-hidden="true" tabindex="-1"></a>  <span class="cf">return</span> {R<span class="op">,</span> rows<span class="op">,</span> avg<span class="op">,</span> <span class="dt">played</span><span class="op">:</span> R<span class="op">.</span><span class="at">played</span>[t]<span class="op">.</span><span class="fu">map</span>(k <span class="kw">=&gt;</span> R<span class="op">.</span><span class="at">actions</span>[k])}<span class="op">;</span></span>
+<span id="cb2-462"><a href="#cb2-462" aria-hidden="true" tabindex="-1"></a>}</span>
+<span id="cb2-463"><a href="#cb2-463" aria-hidden="true" tabindex="-1"></a><span class="fu">md</span><span class="vs">`Round **</span><span class="sc">${</span>playT<span class="sc">}</span><span class="vs">**: played **</span><span class="sc">${</span>playNow<span class="op">.</span><span class="at">played</span><span class="op">.</span><span class="fu">join</span>(<span class="st">"** and **"</span>)<span class="sc">}</span><span class="vs">**. Average reward so far: agent 1 **</span><span class="sc">${</span>playNow<span class="op">.</span><span class="at">avg</span>[<span class="dv">0</span>]<span class="op">.</span><span class="fu">toFixed</span>(<span class="dv">2</span>)<span class="sc">}</span><span class="vs">**, agent 2 **</span><span class="sc">${</span>playNow<span class="op">.</span><span class="at">avg</span>[<span class="dv">1</span>]<span class="op">.</span><span class="fu">toFixed</span>(<span class="dv">2</span>)<span class="sc">}</span><span class="vs">**.`</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-display">
+<div>
+<div id="ojs-cell-2-1" data-nodetype="declaration">
+
+</div>
+</div>
+</div>
+<div class="cell-output cell-output-display">
+<div>
+<div id="ojs-cell-2-2" data-nodetype="expression">
+
+</div>
+</div>
+</div>
+</div>
+<div class="cell">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code hidden" id="cb3" data-startfrom="469" data-source-offset="0"><pre class="sourceCode js code-with-copy"><code class="sourceCode javascript" style="counter-reset: source-line 468;"><span id="cb3-469"><a href="#cb3-469" aria-hidden="true" tabindex="-1"></a>Plot<span class="op">.</span><span class="fu">plot</span>({</span>
+<span id="cb3-470"><a href="#cb3-470" aria-hidden="true" tabindex="-1"></a>  <span class="dt">width</span><span class="op">:</span> <span class="dv">640</span><span class="op">,</span> <span class="dt">height</span><span class="op">:</span> <span class="dv">240</span><span class="op">,</span> <span class="dt">marginLeft</span><span class="op">:</span> <span class="dv">70</span><span class="op">,</span> <span class="dt">style</span><span class="op">:</span> {<span class="dt">background</span><span class="op">:</span> <span class="st">"#fcfcfb"</span>}<span class="op">,</span></span>
+<span id="cb3-471"><a href="#cb3-471" aria-hidden="true" tabindex="-1"></a>  <span class="dt">fx</span><span class="op">:</span> {<span class="dt">label</span><span class="op">:</span> <span class="kw">null</span>}<span class="op">,</span> <span class="dt">x</span><span class="op">:</span> {<span class="dt">axis</span><span class="op">:</span> <span class="kw">null</span><span class="op">,</span> <span class="dt">domain</span><span class="op">:</span> playNow<span class="op">.</span><span class="at">R</span><span class="op">.</span><span class="at">actions</span>}<span class="op">,</span> <span class="dt">y</span><span class="op">:</span> {<span class="dt">domain</span><span class="op">:</span> [<span class="dv">0</span><span class="op">,</span> <span class="dv">1</span>]<span class="op">,</span> <span class="dt">label</span><span class="op">:</span> <span class="st">"probability"</span><span class="op">,</span> <span class="dt">grid</span><span class="op">:</span> <span class="kw">true</span>}<span class="op">,</span></span>
+<span id="cb3-472"><a href="#cb3-472" aria-hidden="true" tabindex="-1"></a>  <span class="dt">color</span><span class="op">:</span> {<span class="dt">domain</span><span class="op">:</span> playNow<span class="op">.</span><span class="at">R</span><span class="op">.</span><span class="at">actions</span><span class="op">,</span> <span class="dt">range</span><span class="op">:</span> [<span class="st">"#2a78d6"</span><span class="op">,</span> <span class="st">"#eb6834"</span><span class="op">,</span> <span class="st">"#1baf7a"</span>]<span class="op">,</span> <span class="dt">legend</span><span class="op">:</span> <span class="kw">true</span>}<span class="op">,</span></span>
+<span id="cb3-473"><a href="#cb3-473" aria-hidden="true" tabindex="-1"></a>  <span class="dt">marks</span><span class="op">:</span> [Plot<span class="op">.</span><span class="fu">barY</span>(playNow<span class="op">.</span><span class="at">rows</span><span class="op">,</span> {<span class="dt">fx</span><span class="op">:</span> <span class="st">"agent"</span><span class="op">,</span> <span class="dt">x</span><span class="op">:</span> <span class="st">"action"</span><span class="op">,</span> <span class="dt">y</span><span class="op">:</span> <span class="st">"p"</span><span class="op">,</span> <span class="dt">fill</span><span class="op">:</span> <span class="st">"action"</span>})<span class="op">,</span> Plot<span class="op">.</span><span class="fu">ruleY</span>([<span class="dv">0</span>])]</span>
+<span id="cb3-474"><a href="#cb3-474" aria-hidden="true" tabindex="-1"></a>})</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div id="fig-play-explorer" class="cell-output cell-output-display quarto-float quarto-figure quarto-figure-center anchored">
+<figure class="quarto-float quarto-float-fig figure">
+<div aria-describedby="fig-play-explorer-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<div id="ojs-cell-3" data-nodetype="expression">
+
+</div>
+</div>
+<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-play-explorer-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Figure&nbsp;2: Repeated play: each agent’s policy after the chosen round (for fictitious play, the observed frequencies of that agent’s actions).
+</figcaption>
+</figure>
+</div>
+</div>
+</section>
+</section>
+<section id="algorithms-code" class="level2">
+<h2 class="anchored" data-anchor-id="algorithms-code">Algorithms &amp; code</h2>
+<section id="responses-equilibria-and-learning" class="level3">
+<h3 class="anchored" data-anchor-id="responses-equilibria-and-learning">Responses, equilibria and learning</h3>
+<div class="tabset-margin-container"></div><div class="panel-tabset" data-group="lang">
+<ul class="nav nav-tabs" role="tablist"><li class="nav-item" role="presentation"><a class="nav-link active" id="tabset-1-1-tab" data-bs-toggle="tab" data-bs-target="#tabset-1-1" role="tab" aria-controls="tabset-1-1" aria-selected="true" href="" aria-current="page">Python</a></li><li class="nav-item" role="presentation"><a class="nav-link" id="tabset-1-2-tab" data-bs-toggle="tab" data-bs-target="#tabset-1-2" role="tab" aria-controls="tabset-1-2" aria-selected="false" href="">Julia</a></li></ul>
+<div class="tab-content" data-group="lang">
+<div id="tabset-1-1" class="tab-pane active" role="tabpanel" aria-labelledby="tabset-1-1-tab">
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb4"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> <span class="fu">action_values</span>(game, policies, i) <span class="op">-&gt;</span> Array:</span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a>    <span class="co">"""U^i(a_i, pi^-i) for every action a_i of agent i.</span></span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a><span class="co">    R[i] has one axis per agent. Contract every other agent's axis with</span></span>
+<span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a><span class="co">    its policy, from the last axis down, so the axis numbers stay valid.</span></span>
+<span id="cb4-6"><a href="#cb4-6" aria-hidden="true" tabindex="-1"></a><span class="co">    """</span></span>
+<span id="cb4-7"><a href="#cb4-7" aria-hidden="true" tabindex="-1"></a>    Ri <span class="op">=</span> game.R[i]</span>
+<span id="cb4-8"><a href="#cb4-8" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> j <span class="kw">in</span> <span class="bu">reversed</span>(<span class="bu">range</span>(<span class="bu">len</span>(policies))):</span>
+<span id="cb4-9"><a href="#cb4-9" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> j <span class="op">!=</span> i:</span>
+<span id="cb4-10"><a href="#cb4-10" aria-hidden="true" tabindex="-1"></a>            Ri <span class="op">=</span> np.<span class="fu">tensordot</span>(Ri, policies[j], axes<span class="op">=</span>([j], [<span class="dv">0</span>]))</span>
+<span id="cb4-11"><a href="#cb4-11" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> Ri</span>
+<span id="cb4-12"><a href="#cb4-12" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-13"><a href="#cb4-13" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> <span class="fu">utility</span>(game, policies, i) <span class="op">-&gt;</span> <span class="bu">float</span>:</span>
+<span id="cb4-14"><a href="#cb4-14" aria-hidden="true" tabindex="-1"></a>    <span class="co">"""eq. 24.1: agent i's expected reward under independent policies."""</span></span>
+<span id="cb4-15"><a href="#cb4-15" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> <span class="bu">float</span>(<span class="fu">action_values</span>(game, policies, i) <span class="op">@</span> policies[i])</span>
+<span id="cb4-16"><a href="#cb4-16" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-17"><a href="#cb4-17" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> <span class="fu">best_response</span>(game, policies, i) <span class="op">-&gt;</span> Array:</span>
+<span id="cb4-18"><a href="#cb4-18" aria-hidden="true" tabindex="-1"></a>    <span class="co">"""eq. 24.3: a deterministic best response (ties: lowest index)."""</span></span>
+<span id="cb4-19"><a href="#cb4-19" aria-hidden="true" tabindex="-1"></a>    n <span class="op">=</span> game.R.shape[i <span class="op">+</span> <span class="dv">1</span>]</span>
+<span id="cb4-20"><a href="#cb4-20" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> np.<span class="fu">eye</span>(n)[np.<span class="fu">argmax</span>(<span class="fu">action_values</span>(game, policies, i))]</span>
+<span id="cb4-21"><a href="#cb4-21" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-22"><a href="#cb4-22" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> <span class="fu">softmax_response</span>(game, policies, i, lam) <span class="op">-&gt;</span> Array:</span>
+<span id="cb4-23"><a href="#cb4-23" aria-hidden="true" tabindex="-1"></a>    <span class="co">"""eq. 24.4: pi^i(a) proportional to exp(lam U^i(a, pi^-i))."""</span></span>
+<span id="cb4-24"><a href="#cb4-24" aria-hidden="true" tabindex="-1"></a>    u <span class="op">=</span> lam <span class="op">*</span> <span class="fu">action_values</span>(game, policies, i)</span>
+<span id="cb4-25"><a href="#cb4-25" aria-hidden="true" tabindex="-1"></a>    p <span class="op">=</span> np.<span class="fu">exp</span>(u <span class="op">-</span> u.<span class="bu">max</span>())           <span class="co"># subtract the max: exp can't overflow</span></span>
+<span id="cb4-26"><a href="#cb4-26" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> p <span class="op">/</span> p.<span class="bu">sum</span>()</span>
+<span id="cb4-27"><a href="#cb4-27" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-28"><a href="#cb4-28" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> <span class="fu">regret</span>(game, policies) <span class="op">-&gt;</span> <span class="bu">float</span>:</span>
+<span id="cb4-29"><a href="#cb4-29" aria-hidden="true" tabindex="-1"></a>    <span class="co">"""The most any one agent could gain by switching alone: 0 exactly at</span></span>
+<span id="cb4-30"><a href="#cb4-30" aria-hidden="true" tabindex="-1"></a><span class="co">    a Nash equilibrium."""</span></span>
+<span id="cb4-31"><a href="#cb4-31" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> <span class="bu">max</span>(<span class="fu">action_values</span>(game, policies, i).<span class="bu">max</span>()</span>
+<span id="cb4-32"><a href="#cb4-32" aria-hidden="true" tabindex="-1"></a>               <span class="op">-</span> <span class="fu">utility</span>(game, policies, i) <span class="cf">for</span> i <span class="kw">in</span> <span class="bu">range</span>(<span class="bu">len</span>(policies)))</span>
+<span id="cb4-33"><a href="#cb4-33" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-34"><a href="#cb4-34" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> <span class="fu">dominant_actions</span>(game, i) <span class="op">-&gt;</span> <span class="bu">list</span>:</span>
+<span id="cb4-35"><a href="#cb4-35" aria-hidden="true" tabindex="-1"></a>    <span class="co">"""Actions of agent i that are a best response to every pure joint</span></span>
+<span id="cb4-36"><a href="#cb4-36" aria-hidden="true" tabindex="-1"></a><span class="co">    action of the others (so to every mixed one too)."""</span></span>
+<span id="cb4-37"><a href="#cb4-37" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Rows: agent i's actions; columns: every joint action of the others.</span></span>
+<span id="cb4-38"><a href="#cb4-38" aria-hidden="true" tabindex="-1"></a>    Ri <span class="op">=</span> np.<span class="fu">moveaxis</span>(game.R[i], i, <span class="dv">0</span>).<span class="fu">reshape</span>(game.R.shape[i <span class="op">+</span> <span class="dv">1</span>], <span class="op">-</span><span class="dv">1</span>)</span>
+<span id="cb4-39"><a href="#cb4-39" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> [a <span class="cf">for</span> a <span class="kw">in</span> <span class="bu">range</span>(<span class="bu">len</span>(Ri)) <span class="cf">if</span> np.<span class="bu">all</span>(Ri[a] <span class="op">&gt;=</span> Ri.<span class="bu">max</span>(axis<span class="op">=</span><span class="dv">0</span>))]</span>
+<span id="cb4-40"><a href="#cb4-40" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-41"><a href="#cb4-41" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> <span class="fu">nash_equilibrium</span>(game, rng, starts<span class="op">=</span><span class="dv">10</span>):</span>
+<span id="cb4-42"><a href="#cb4-42" aria-hidden="true" tabindex="-1"></a>    <span class="co">"""eq. 24.5 by SLSQP from random starts: minimize sum_i (U_i - U^i(pi))</span></span>
+<span id="cb4-43"><a href="#cb4-43" aria-hidden="true" tabindex="-1"></a><span class="co">    subject to U_i &gt;= U^i(a_i, pi^-i) for every action. Returns the best</span></span>
+<span id="cb4-44"><a href="#cb4-44" aria-hidden="true" tabindex="-1"></a><span class="co">    run's policies and its regret (0 at an equilibrium)."""</span></span>
+<span id="cb4-45"><a href="#cb4-45" aria-hidden="true" tabindex="-1"></a>    sizes <span class="op">=</span> game.R.shape[<span class="dv">1</span>:]</span>
+<span id="cb4-46"><a href="#cb4-46" aria-hidden="true" tabindex="-1"></a>    cuts <span class="op">=</span> np.<span class="fu">cumsum</span>(sizes)[:<span class="op">-</span><span class="dv">1</span>]</span>
+<span id="cb4-47"><a href="#cb4-47" aria-hidden="true" tabindex="-1"></a>    k <span class="op">=</span> <span class="bu">len</span>(sizes)</span>
+<span id="cb4-48"><a href="#cb4-48" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-49"><a href="#cb4-49" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> <span class="fu">unpack</span>(z):                     <span class="co"># z = [pi^1, ..., pi^k, U_1..U_k]</span></span>
+<span id="cb4-50"><a href="#cb4-50" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> np.<span class="fu">split</span>(z[:<span class="op">-</span>k], cuts), z[<span class="op">-</span>k:]</span>
+<span id="cb4-51"><a href="#cb4-51" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-52"><a href="#cb4-52" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> <span class="fu">objective</span>(z):</span>
+<span id="cb4-53"><a href="#cb4-53" aria-hidden="true" tabindex="-1"></a>        pis, U <span class="op">=</span> <span class="fu">unpack</span>(z)</span>
+<span id="cb4-54"><a href="#cb4-54" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> <span class="bu">sum</span>(U[i] <span class="op">-</span> <span class="fu">utility</span>(game, pis, i) <span class="cf">for</span> i <span class="kw">in</span> <span class="bu">range</span>(k))</span>
+<span id="cb4-55"><a href="#cb4-55" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-56"><a href="#cb4-56" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> <span class="fu">gaps</span>(z):                       <span class="co"># &gt;= 0 when no action beats U_i</span></span>
+<span id="cb4-57"><a href="#cb4-57" aria-hidden="true" tabindex="-1"></a>        pis, U <span class="op">=</span> <span class="fu">unpack</span>(z)</span>
+<span id="cb4-58"><a href="#cb4-58" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> np.<span class="fu">concatenate</span>([U[i] <span class="op">-</span> <span class="fu">action_values</span>(game, pis, i)</span>
+<span id="cb4-59"><a href="#cb4-59" aria-hidden="true" tabindex="-1"></a>                               <span class="cf">for</span> i <span class="kw">in</span> <span class="bu">range</span>(k)])</span>
+<span id="cb4-60"><a href="#cb4-60" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-61"><a href="#cb4-61" aria-hidden="true" tabindex="-1"></a>    cons <span class="op">=</span> [{<span class="st">"type"</span>: <span class="st">"ineq"</span>, <span class="st">"fun"</span>: gaps}]</span>
+<span id="cb4-62"><a href="#cb4-62" aria-hidden="true" tabindex="-1"></a>    cons <span class="op">+=</span> [{<span class="st">"type"</span>: <span class="st">"eq"</span>, <span class="st">"fun"</span>: <span class="kw">lambda</span> z, i<span class="op">=</span>i: <span class="fu">unpack</span>(z)[<span class="dv">0</span>][i].<span class="bu">sum</span>() <span class="op">-</span> <span class="dv">1</span>}</span>
+<span id="cb4-63"><a href="#cb4-63" aria-hidden="true" tabindex="-1"></a>             <span class="cf">for</span> i <span class="kw">in</span> <span class="bu">range</span>(k)]</span>
+<span id="cb4-64"><a href="#cb4-64" aria-hidden="true" tabindex="-1"></a>    bounds <span class="op">=</span> [(<span class="dv">0</span>, <span class="dv">1</span>)] <span class="op">*</span> <span class="bu">sum</span>(sizes) <span class="op">+</span> [(<span class="va">None</span>, <span class="va">None</span>)] <span class="op">*</span> k</span>
+<span id="cb4-65"><a href="#cb4-65" aria-hidden="true" tabindex="-1"></a>    best <span class="op">=</span> <span class="va">None</span></span>
+<span id="cb4-66"><a href="#cb4-66" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> _ <span class="kw">in</span> <span class="bu">range</span>(starts):</span>
+<span id="cb4-67"><a href="#cb4-67" aria-hidden="true" tabindex="-1"></a>        pis0 <span class="op">=</span> [rng.<span class="fu">dirichlet</span>(np.<span class="fu">ones</span>(n)) <span class="cf">for</span> n <span class="kw">in</span> sizes]</span>
+<span id="cb4-68"><a href="#cb4-68" aria-hidden="true" tabindex="-1"></a>        U0 <span class="op">=</span> [<span class="fu">action_values</span>(game, pis0, i).<span class="bu">max</span>() <span class="cf">for</span> i <span class="kw">in</span> <span class="bu">range</span>(k)]</span>
+<span id="cb4-69"><a href="#cb4-69" aria-hidden="true" tabindex="-1"></a>        z0 <span class="op">=</span> np.<span class="fu">concatenate</span>(pis0 <span class="op">+</span> [np.<span class="fu">array</span>(U0)])</span>
+<span id="cb4-70"><a href="#cb4-70" aria-hidden="true" tabindex="-1"></a>        res <span class="op">=</span> <span class="fu">minimize</span>(objective, z0, method<span class="op">=</span><span class="st">"SLSQP"</span>, bounds<span class="op">=</span>bounds,</span>
+<span id="cb4-71"><a href="#cb4-71" aria-hidden="true" tabindex="-1"></a>                       constraints<span class="op">=</span>cons,</span>
+<span id="cb4-72"><a href="#cb4-72" aria-hidden="true" tabindex="-1"></a>                       options<span class="op">=</span>{<span class="st">"maxiter"</span>: <span class="dv">500</span>, <span class="st">"ftol"</span>: <span class="fl">1e-12</span>})</span>
+<span id="cb4-73"><a href="#cb4-73" aria-hidden="true" tabindex="-1"></a>        pis <span class="op">=</span> [np.<span class="fu">clip</span>(p, <span class="dv">0</span>, <span class="va">None</span>) <span class="cf">for</span> p <span class="kw">in</span> <span class="fu">unpack</span>(res.x)[<span class="dv">0</span>]]</span>
+<span id="cb4-74"><a href="#cb4-74" aria-hidden="true" tabindex="-1"></a>        pis <span class="op">=</span> [p <span class="op">/</span> p.<span class="bu">sum</span>() <span class="cf">for</span> p <span class="kw">in</span> pis]</span>
+<span id="cb4-75"><a href="#cb4-75" aria-hidden="true" tabindex="-1"></a>        r <span class="op">=</span> <span class="fu">regret</span>(game, pis)</span>
+<span id="cb4-76"><a href="#cb4-76" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> best <span class="kw">is</span> <span class="va">None</span> <span class="kw">or</span> r <span class="op">&lt;</span> best[<span class="dv">1</span>]:</span>
+<span id="cb4-77"><a href="#cb4-77" aria-hidden="true" tabindex="-1"></a>            best <span class="op">=</span> (pis, r)</span>
+<span id="cb4-78"><a href="#cb4-78" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> best</span>
+<span id="cb4-79"><a href="#cb4-79" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-80"><a href="#cb4-80" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> <span class="fu">support_enumeration</span>(game, tol<span class="op">=</span><span class="fl">1e-9</span>) <span class="op">-&gt;</span> <span class="bu">list</span>:</span>
+<span id="cb4-81"><a href="#cb4-81" aria-hidden="true" tabindex="-1"></a>    <span class="co">"""Every Nash equilibrium of a nondegenerate two-player game, exactly.</span></span>
+<span id="cb4-82"><a href="#cb4-82" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-83"><a href="#cb4-83" aria-hidden="true" tabindex="-1"></a><span class="co">    For each pair of equal-size supports, solve for the mixes that make</span></span>
+<span id="cb4-84"><a href="#cb4-84" aria-hidden="true" tabindex="-1"></a><span class="co">    the other agent indifferent across its support; keep the solution if</span></span>
+<span id="cb4-85"><a href="#cb4-85" aria-hidden="true" tabindex="-1"></a><span class="co">    the mixes are valid and no outside action does better. Exponential in</span></span>
+<span id="cb4-86"><a href="#cb4-86" aria-hidden="true" tabindex="-1"></a><span class="co">    the number of actions: for validating small games only.</span></span>
+<span id="cb4-87"><a href="#cb4-87" aria-hidden="true" tabindex="-1"></a><span class="co">    """</span></span>
+<span id="cb4-88"><a href="#cb4-88" aria-hidden="true" tabindex="-1"></a>    A, B <span class="op">=</span> game.R[<span class="dv">0</span>], game.R[<span class="dv">1</span>]        <span class="co"># rows = agent 1's action</span></span>
+<span id="cb4-89"><a href="#cb4-89" aria-hidden="true" tabindex="-1"></a>    n1, n2 <span class="op">=</span> A.shape</span>
+<span id="cb4-90"><a href="#cb4-90" aria-hidden="true" tabindex="-1"></a>    found <span class="op">=</span> []</span>
+<span id="cb4-91"><a href="#cb4-91" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-92"><a href="#cb4-92" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> <span class="fu">indifferent</span>(M, rows, cols):</span>
+<span id="cb4-93"><a href="#cb4-93" aria-hidden="true" tabindex="-1"></a>        <span class="co">"""Mix x over `rows` making x @ M[rows][:, cols] constant (v)."""</span></span>
+<span id="cb4-94"><a href="#cb4-94" aria-hidden="true" tabindex="-1"></a>        s <span class="op">=</span> <span class="bu">len</span>(rows)</span>
+<span id="cb4-95"><a href="#cb4-95" aria-hidden="true" tabindex="-1"></a>        lhs <span class="op">=</span> np.<span class="fu">zeros</span>((s <span class="op">+</span> <span class="dv">1</span>, s <span class="op">+</span> <span class="dv">1</span>))</span>
+<span id="cb4-96"><a href="#cb4-96" aria-hidden="true" tabindex="-1"></a>        <span class="co"># One equation per column c: sum_r x_r M[r, c] - v = 0.</span></span>
+<span id="cb4-97"><a href="#cb4-97" aria-hidden="true" tabindex="-1"></a>        lhs[:s, :s] <span class="op">=</span> M[np.<span class="fu">ix_</span>(rows, cols)].T</span>
+<span id="cb4-98"><a href="#cb4-98" aria-hidden="true" tabindex="-1"></a>        lhs[:s, s] <span class="op">=</span> <span class="op">-</span><span class="dv">1</span></span>
+<span id="cb4-99"><a href="#cb4-99" aria-hidden="true" tabindex="-1"></a>        lhs[s, :s] <span class="op">=</span> <span class="dv">1</span>                 <span class="co"># and the mix sums to 1</span></span>
+<span id="cb4-100"><a href="#cb4-100" aria-hidden="true" tabindex="-1"></a>        rhs <span class="op">=</span> np.<span class="fu">zeros</span>(s <span class="op">+</span> <span class="dv">1</span>)</span>
+<span id="cb4-101"><a href="#cb4-101" aria-hidden="true" tabindex="-1"></a>        rhs[s] <span class="op">=</span> <span class="dv">1</span></span>
+<span id="cb4-102"><a href="#cb4-102" aria-hidden="true" tabindex="-1"></a>        <span class="cf">try</span>:</span>
+<span id="cb4-103"><a href="#cb4-103" aria-hidden="true" tabindex="-1"></a>            <span class="cf">return</span> np.linalg.<span class="fu">solve</span>(lhs, rhs)[:s]</span>
+<span id="cb4-104"><a href="#cb4-104" aria-hidden="true" tabindex="-1"></a>        <span class="cf">except</span> np.linalg.LinAlgError:</span>
+<span id="cb4-105"><a href="#cb4-105" aria-hidden="true" tabindex="-1"></a>            <span class="cf">return</span> <span class="va">None</span></span>
+<span id="cb4-106"><a href="#cb4-106" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-107"><a href="#cb4-107" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> s <span class="kw">in</span> <span class="bu">range</span>(<span class="dv">1</span>, <span class="bu">min</span>(n1, n2) <span class="op">+</span> <span class="dv">1</span>):</span>
+<span id="cb4-108"><a href="#cb4-108" aria-hidden="true" tabindex="-1"></a>        <span class="cf">for</span> S1 <span class="kw">in</span> <span class="fu">combinations</span>(<span class="bu">range</span>(n1), s):</span>
+<span id="cb4-109"><a href="#cb4-109" aria-hidden="true" tabindex="-1"></a>            <span class="cf">for</span> S2 <span class="kw">in</span> <span class="fu">combinations</span>(<span class="bu">range</span>(n2), s):</span>
+<span id="cb4-110"><a href="#cb4-110" aria-hidden="true" tabindex="-1"></a>                <span class="co"># Agent 1 mixes to make agent 2 indifferent, and vice versa.</span></span>
+<span id="cb4-111"><a href="#cb4-111" aria-hidden="true" tabindex="-1"></a>                xs <span class="op">=</span> <span class="fu">indifferent</span>(B, <span class="bu">list</span>(S1), <span class="bu">list</span>(S2))</span>
+<span id="cb4-112"><a href="#cb4-112" aria-hidden="true" tabindex="-1"></a>                ys <span class="op">=</span> <span class="fu">indifferent</span>(A.T, <span class="bu">list</span>(S2), <span class="bu">list</span>(S1))</span>
+<span id="cb4-113"><a href="#cb4-113" aria-hidden="true" tabindex="-1"></a>                <span class="cf">if</span> xs <span class="kw">is</span> <span class="va">None</span> <span class="kw">or</span> ys <span class="kw">is</span> <span class="va">None</span> <span class="kw">or</span> <span class="bu">min</span>(xs.<span class="bu">min</span>(), ys.<span class="bu">min</span>()) <span class="op">&lt;</span> <span class="op">-</span>tol:</span>
+<span id="cb4-114"><a href="#cb4-114" aria-hidden="true" tabindex="-1"></a>                    <span class="cf">continue</span></span>
+<span id="cb4-115"><a href="#cb4-115" aria-hidden="true" tabindex="-1"></a>                x, y <span class="op">=</span> np.<span class="fu">zeros</span>(n1), np.<span class="fu">zeros</span>(n2)</span>
+<span id="cb4-116"><a href="#cb4-116" aria-hidden="true" tabindex="-1"></a>                x[<span class="bu">list</span>(S1)], y[<span class="bu">list</span>(S2)] <span class="op">=</span> xs, ys</span>
+<span id="cb4-117"><a href="#cb4-117" aria-hidden="true" tabindex="-1"></a>                new <span class="op">=</span> <span class="kw">not</span> <span class="bu">any</span>(np.<span class="fu">allclose</span>(x, fx) <span class="kw">and</span> np.<span class="fu">allclose</span>(y, fy)</span>
+<span id="cb4-118"><a href="#cb4-118" aria-hidden="true" tabindex="-1"></a>                              <span class="cf">for</span> fx, fy <span class="kw">in</span> found)</span>
+<span id="cb4-119"><a href="#cb4-119" aria-hidden="true" tabindex="-1"></a>                <span class="cf">if</span> <span class="fu">regret</span>(game, [x, y]) <span class="op">&lt;=</span> <span class="fl">1e-7</span> <span class="kw">and</span> new:</span>
+<span id="cb4-120"><a href="#cb4-120" aria-hidden="true" tabindex="-1"></a>                    found.<span class="fu">append</span>((x, y))</span>
+<span id="cb4-121"><a href="#cb4-121" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> found</span>
+<span id="cb4-122"><a href="#cb4-122" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-123"><a href="#cb4-123" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> <span class="fu">correlated_equilibrium</span>(game, objective<span class="op">=</span><span class="st">"utilitarian"</span>, agent<span class="op">=</span><span class="dv">0</span>) <span class="op">-&gt;</span> Array:</span>
+<span id="cb4-124"><a href="#cb4-124" aria-hidden="true" tabindex="-1"></a>    <span class="co">"""eq. 24.8 by linear programming; returns pi[a1, ..., ak], a</span></span>
+<span id="cb4-125"><a href="#cb4-125" aria-hidden="true" tabindex="-1"></a><span class="co">    distribution over joint actions. Objectives (Table 24.1):</span></span>
+<span id="cb4-126"><a href="#cb4-126" aria-hidden="true" tabindex="-1"></a><span class="co">    "utilitarian" (total reward), "egalitarian" (the worst-off agent),</span></span>
+<span id="cb4-127"><a href="#cb4-127" aria-hidden="true" tabindex="-1"></a><span class="co">    "dictatorial" (agent `agent`), or a weight vector w (maximize</span></span>
+<span id="cb4-128"><a href="#cb4-128" aria-hidden="true" tabindex="-1"></a><span class="co">    sum_i w_i U^i: used to trace the payoffs equilibria can reach)."""</span></span>
+<span id="cb4-129"><a href="#cb4-129" aria-hidden="true" tabindex="-1"></a>    k, shape <span class="op">=</span> game.R.shape[<span class="dv">0</span>], game.R.shape[<span class="dv">1</span>:]</span>
+<span id="cb4-130"><a href="#cb4-130" aria-hidden="true" tabindex="-1"></a>    joints <span class="op">=</span> <span class="bu">list</span>(np.<span class="fu">ndindex</span>(<span class="op">*</span>shape))</span>
+<span id="cb4-131"><a href="#cb4-131" aria-hidden="true" tabindex="-1"></a>    n <span class="op">=</span> <span class="bu">len</span>(joints)</span>
+<span id="cb4-132"><a href="#cb4-132" aria-hidden="true" tabindex="-1"></a>    rows <span class="op">=</span> []</span>
+<span id="cb4-133"><a href="#cb4-133" aria-hidden="true" tabindex="-1"></a>    <span class="co"># For each agent i, recommendation a_i and alternative b: the gain</span></span>
+<span id="cb4-134"><a href="#cb4-134" aria-hidden="true" tabindex="-1"></a>    <span class="co"># from switching to b, over the joint actions that recommend a_i, &lt;= 0.</span></span>
+<span id="cb4-135"><a href="#cb4-135" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> i <span class="kw">in</span> <span class="bu">range</span>(k):</span>
+<span id="cb4-136"><a href="#cb4-136" aria-hidden="true" tabindex="-1"></a>        <span class="cf">for</span> ai <span class="kw">in</span> <span class="bu">range</span>(shape[i]):</span>
+<span id="cb4-137"><a href="#cb4-137" aria-hidden="true" tabindex="-1"></a>            <span class="cf">for</span> b <span class="kw">in</span> <span class="bu">range</span>(shape[i]):</span>
+<span id="cb4-138"><a href="#cb4-138" aria-hidden="true" tabindex="-1"></a>                <span class="cf">if</span> b <span class="op">==</span> ai:</span>
+<span id="cb4-139"><a href="#cb4-139" aria-hidden="true" tabindex="-1"></a>                    <span class="cf">continue</span></span>
+<span id="cb4-140"><a href="#cb4-140" aria-hidden="true" tabindex="-1"></a>                row <span class="op">=</span> np.<span class="fu">zeros</span>(n)</span>
+<span id="cb4-141"><a href="#cb4-141" aria-hidden="true" tabindex="-1"></a>                <span class="cf">for</span> idx, a <span class="kw">in</span> <span class="bu">enumerate</span>(joints):</span>
+<span id="cb4-142"><a href="#cb4-142" aria-hidden="true" tabindex="-1"></a>                    <span class="cf">if</span> a[i] <span class="op">==</span> ai:</span>
+<span id="cb4-143"><a href="#cb4-143" aria-hidden="true" tabindex="-1"></a>                        alt <span class="op">=</span> a[:i] <span class="op">+</span> (b,) <span class="op">+</span> a[i <span class="op">+</span> <span class="dv">1</span>:]</span>
+<span id="cb4-144"><a href="#cb4-144" aria-hidden="true" tabindex="-1"></a>                        row[idx] <span class="op">=</span> game.R[(i,) <span class="op">+</span> alt] <span class="op">-</span> game.R[(i,) <span class="op">+</span> a]</span>
+<span id="cb4-145"><a href="#cb4-145" aria-hidden="true" tabindex="-1"></a>                rows.<span class="fu">append</span>(row)</span>
+<span id="cb4-146"><a href="#cb4-146" aria-hidden="true" tabindex="-1"></a>    rows <span class="op">=</span> np.<span class="fu">array</span>(rows)</span>
+<span id="cb4-147"><a href="#cb4-147" aria-hidden="true" tabindex="-1"></a>    <span class="co"># U[i, joint]: agent i's reward for each joint action.</span></span>
+<span id="cb4-148"><a href="#cb4-148" aria-hidden="true" tabindex="-1"></a>    U <span class="op">=</span> np.<span class="fu">array</span>([[game.R[(i,) <span class="op">+</span> a] <span class="cf">for</span> a <span class="kw">in</span> joints] <span class="cf">for</span> i <span class="kw">in</span> <span class="bu">range</span>(k)])</span>
+<span id="cb4-149"><a href="#cb4-149" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> objective <span class="op">==</span> <span class="st">"egalitarian"</span>:</span>
+<span id="cb4-150"><a href="#cb4-150" aria-hidden="true" tabindex="-1"></a>        <span class="co"># Variables (pi, t): maximize t with t &lt;= every agent's reward.</span></span>
+<span id="cb4-151"><a href="#cb4-151" aria-hidden="true" tabindex="-1"></a>        c <span class="op">=</span> np.<span class="fu">concatenate</span>([np.<span class="fu">zeros</span>(n), [<span class="op">-</span><span class="fl">1.0</span>]])</span>
+<span id="cb4-152"><a href="#cb4-152" aria-hidden="true" tabindex="-1"></a>        A_ub <span class="op">=</span> np.<span class="fu">vstack</span>([np.<span class="fu">hstack</span>([rows, np.<span class="fu">zeros</span>((<span class="bu">len</span>(rows), <span class="dv">1</span>))]),</span>
+<span id="cb4-153"><a href="#cb4-153" aria-hidden="true" tabindex="-1"></a>                          np.<span class="fu">hstack</span>([<span class="op">-</span>U, np.<span class="fu">ones</span>((k, <span class="dv">1</span>))])])</span>
+<span id="cb4-154"><a href="#cb4-154" aria-hidden="true" tabindex="-1"></a>        b_ub <span class="op">=</span> np.<span class="fu">zeros</span>(<span class="bu">len</span>(rows) <span class="op">+</span> k)</span>
+<span id="cb4-155"><a href="#cb4-155" aria-hidden="true" tabindex="-1"></a>        A_eq <span class="op">=</span> np.<span class="fu">concatenate</span>([np.<span class="fu">ones</span>(n), [<span class="fl">0.0</span>]])[<span class="va">None</span>, :]</span>
+<span id="cb4-156"><a href="#cb4-156" aria-hidden="true" tabindex="-1"></a>        bounds <span class="op">=</span> [(<span class="dv">0</span>, <span class="va">None</span>)] <span class="op">*</span> n <span class="op">+</span> [(<span class="va">None</span>, <span class="va">None</span>)]</span>
+<span id="cb4-157"><a href="#cb4-157" aria-hidden="true" tabindex="-1"></a>    <span class="cf">else</span>:</span>
+<span id="cb4-158"><a href="#cb4-158" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> <span class="bu">isinstance</span>(objective, <span class="bu">str</span>):</span>
+<span id="cb4-159"><a href="#cb4-159" aria-hidden="true" tabindex="-1"></a>            w <span class="op">=</span> np.<span class="fu">ones</span>(k) <span class="cf">if</span> objective <span class="op">==</span> <span class="st">"utilitarian"</span> <span class="cf">else</span> np.<span class="fu">eye</span>(k)[agent]</span>
+<span id="cb4-160"><a href="#cb4-160" aria-hidden="true" tabindex="-1"></a>        <span class="cf">else</span>:</span>
+<span id="cb4-161"><a href="#cb4-161" aria-hidden="true" tabindex="-1"></a>            w <span class="op">=</span> np.<span class="fu">asarray</span>(objective, dtype<span class="op">=</span><span class="bu">float</span>)</span>
+<span id="cb4-162"><a href="#cb4-162" aria-hidden="true" tabindex="-1"></a>        c <span class="op">=</span> <span class="op">-</span>(w <span class="op">@</span> U)                   <span class="co"># linprog minimizes</span></span>
+<span id="cb4-163"><a href="#cb4-163" aria-hidden="true" tabindex="-1"></a>        A_ub, b_ub <span class="op">=</span> rows, np.<span class="fu">zeros</span>(<span class="bu">len</span>(rows))</span>
+<span id="cb4-164"><a href="#cb4-164" aria-hidden="true" tabindex="-1"></a>        A_eq, bounds <span class="op">=</span> np.<span class="fu">ones</span>((<span class="dv">1</span>, n)), [(<span class="dv">0</span>, <span class="va">None</span>)] <span class="op">*</span> n</span>
+<span id="cb4-165"><a href="#cb4-165" aria-hidden="true" tabindex="-1"></a>    res <span class="op">=</span> <span class="fu">linprog</span>(c, A_ub<span class="op">=</span>A_ub, b_ub<span class="op">=</span>b_ub, A_eq<span class="op">=</span>A_eq, b_eq<span class="op">=</span>[<span class="fl">1.0</span>],</span>
+<span id="cb4-166"><a href="#cb4-166" aria-hidden="true" tabindex="-1"></a>                  bounds<span class="op">=</span>bounds, method<span class="op">=</span><span class="st">"highs"</span>)</span>
+<span id="cb4-167"><a href="#cb4-167" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> np.<span class="fu">clip</span>(res.x[:n], <span class="dv">0</span>, <span class="va">None</span>).<span class="fu">reshape</span>(shape)</span>
+<span id="cb4-168"><a href="#cb4-168" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-169"><a href="#cb4-169" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> <span class="fu">iterated_best_response</span>(game, k_max, policies<span class="op">=</span><span class="va">None</span>) <span class="op">-&gt;</span> <span class="bu">list</span>:</span>
+<span id="cb4-170"><a href="#cb4-170" aria-hidden="true" tabindex="-1"></a>    <span class="co">"""§24.6: all agents best-respond at once to the others' previous</span></span>
+<span id="cb4-171"><a href="#cb4-171" aria-hidden="true" tabindex="-1"></a><span class="co">    policies. Returns the joint policy after each round (0 = start)."""</span></span>
+<span id="cb4-172"><a href="#cb4-172" aria-hidden="true" tabindex="-1"></a>    policies <span class="op">=</span> <span class="fu">uniform_policies</span>(game) <span class="cf">if</span> policies <span class="kw">is</span> <span class="va">None</span> <span class="cf">else</span> policies</span>
+<span id="cb4-173"><a href="#cb4-173" aria-hidden="true" tabindex="-1"></a>    history <span class="op">=</span> [policies]</span>
+<span id="cb4-174"><a href="#cb4-174" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> _ <span class="kw">in</span> <span class="bu">range</span>(k_max):</span>
+<span id="cb4-175"><a href="#cb4-175" aria-hidden="true" tabindex="-1"></a>        policies <span class="op">=</span> [<span class="fu">best_response</span>(game, policies, i)</span>
+<span id="cb4-176"><a href="#cb4-176" aria-hidden="true" tabindex="-1"></a>                    <span class="cf">for</span> i <span class="kw">in</span> <span class="bu">range</span>(<span class="bu">len</span>(policies))]</span>
+<span id="cb4-177"><a href="#cb4-177" aria-hidden="true" tabindex="-1"></a>        history.<span class="fu">append</span>(policies)</span>
+<span id="cb4-178"><a href="#cb4-178" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> history</span>
+<span id="cb4-179"><a href="#cb4-179" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-180"><a href="#cb4-180" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> <span class="fu">hierarchical_softmax</span>(game, lam, k, policies<span class="op">=</span><span class="va">None</span>) <span class="op">-&gt;</span> <span class="bu">list</span>:</span>
+<span id="cb4-181"><a href="#cb4-181" aria-hidden="true" tabindex="-1"></a>    <span class="co">"""§24.7: level 0 plays uniformly; level k softmax-responds (precision</span></span>
+<span id="cb4-182"><a href="#cb4-182" aria-hidden="true" tabindex="-1"></a><span class="co">    lam) to everyone else playing level k - 1."""</span></span>
+<span id="cb4-183"><a href="#cb4-183" aria-hidden="true" tabindex="-1"></a>    policies <span class="op">=</span> <span class="fu">uniform_policies</span>(game) <span class="cf">if</span> policies <span class="kw">is</span> <span class="va">None</span> <span class="cf">else</span> policies</span>
+<span id="cb4-184"><a href="#cb4-184" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> _ <span class="kw">in</span> <span class="bu">range</span>(k):</span>
+<span id="cb4-185"><a href="#cb4-185" aria-hidden="true" tabindex="-1"></a>        policies <span class="op">=</span> [<span class="fu">softmax_response</span>(game, policies, i, lam)</span>
+<span id="cb4-186"><a href="#cb4-186" aria-hidden="true" tabindex="-1"></a>                    <span class="cf">for</span> i <span class="kw">in</span> <span class="bu">range</span>(<span class="bu">len</span>(policies))]</span>
+<span id="cb4-187"><a href="#cb4-187" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> policies</span>
+<span id="cb4-188"><a href="#cb4-188" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-189"><a href="#cb4-189" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> <span class="fu">fictitious_play</span>(game, k_max, counts<span class="op">=</span><span class="va">None</span>) <span class="op">-&gt;</span> <span class="bu">dict</span>:</span>
+<span id="cb4-190"><a href="#cb4-190" aria-hidden="true" tabindex="-1"></a>    <span class="co">"""§24.8: each agent counts the others' actions (eq. 24.9) and best-</span></span>
+<span id="cb4-191"><a href="#cb4-191" aria-hidden="true" tabindex="-1"></a><span class="co">    responds to those frequencies (ties: lowest index). counts[i][j] is</span></span>
+<span id="cb4-192"><a href="#cb4-192" aria-hidden="true" tabindex="-1"></a><span class="co">    agent i's count vector for agent j (default: ones). Returns each</span></span>
+<span id="cb4-193"><a href="#cb4-193" aria-hidden="true" tabindex="-1"></a><span class="co">    round's actions and each agent's model of the others."""</span></span>
+<span id="cb4-194"><a href="#cb4-194" aria-hidden="true" tabindex="-1"></a>    k, sizes <span class="op">=</span> game.R.shape[<span class="dv">0</span>], game.R.shape[<span class="dv">1</span>:]</span>
+<span id="cb4-195"><a href="#cb4-195" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> counts <span class="kw">is</span> <span class="va">None</span>:</span>
+<span id="cb4-196"><a href="#cb4-196" aria-hidden="true" tabindex="-1"></a>        N <span class="op">=</span> [[np.<span class="fu">ones</span>(sizes[j]) <span class="cf">for</span> j <span class="kw">in</span> <span class="bu">range</span>(k)] <span class="cf">for</span> _ <span class="kw">in</span> <span class="bu">range</span>(k)]</span>
+<span id="cb4-197"><a href="#cb4-197" aria-hidden="true" tabindex="-1"></a>    <span class="cf">else</span>:</span>
+<span id="cb4-198"><a href="#cb4-198" aria-hidden="true" tabindex="-1"></a>        N <span class="op">=</span> [[np.<span class="fu">array</span>(c, dtype<span class="op">=</span><span class="bu">float</span>) <span class="cf">for</span> c <span class="kw">in</span> row] <span class="cf">for</span> row <span class="kw">in</span> counts]</span>
+<span id="cb4-199"><a href="#cb4-199" aria-hidden="true" tabindex="-1"></a>    actions, models <span class="op">=</span> [], []</span>
+<span id="cb4-200"><a href="#cb4-200" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> _ <span class="kw">in</span> <span class="bu">range</span>(k_max):</span>
+<span id="cb4-201"><a href="#cb4-201" aria-hidden="true" tabindex="-1"></a>        model <span class="op">=</span> [[N[i][j] <span class="op">/</span> N[i][j].<span class="bu">sum</span>() <span class="cf">for</span> j <span class="kw">in</span> <span class="bu">range</span>(k)]</span>
+<span id="cb4-202"><a href="#cb4-202" aria-hidden="true" tabindex="-1"></a>                 <span class="cf">for</span> i <span class="kw">in</span> <span class="bu">range</span>(k)]</span>
+<span id="cb4-203"><a href="#cb4-203" aria-hidden="true" tabindex="-1"></a>        a <span class="op">=</span> [<span class="bu">int</span>(np.<span class="fu">argmax</span>(<span class="fu">action_values</span>(game, model[i], i)))</span>
+<span id="cb4-204"><a href="#cb4-204" aria-hidden="true" tabindex="-1"></a>             <span class="cf">for</span> i <span class="kw">in</span> <span class="bu">range</span>(k)]</span>
+<span id="cb4-205"><a href="#cb4-205" aria-hidden="true" tabindex="-1"></a>        <span class="cf">for</span> i <span class="kw">in</span> <span class="bu">range</span>(k):             <span class="co"># everyone sees the joint action</span></span>
+<span id="cb4-206"><a href="#cb4-206" aria-hidden="true" tabindex="-1"></a>            <span class="cf">for</span> j <span class="kw">in</span> <span class="bu">range</span>(k):</span>
+<span id="cb4-207"><a href="#cb4-207" aria-hidden="true" tabindex="-1"></a>                N[i][j][a[j]] <span class="op">+=</span> <span class="dv">1</span></span>
+<span id="cb4-208"><a href="#cb4-208" aria-hidden="true" tabindex="-1"></a>        actions.<span class="fu">append</span>(a)</span>
+<span id="cb4-209"><a href="#cb4-209" aria-hidden="true" tabindex="-1"></a>        models.<span class="fu">append</span>(model)</span>
+<span id="cb4-210"><a href="#cb4-210" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> {<span class="st">"actions"</span>: np.<span class="fu">array</span>(actions), <span class="st">"models"</span>: models}</span>
+<span id="cb4-211"><a href="#cb4-211" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-212"><a href="#cb4-212" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> <span class="fu">gradient_ascent_play</span>(game, k_max, rng, policies<span class="op">=</span><span class="va">None</span>, rate<span class="op">=</span><span class="fl">1.0</span>):</span>
+<span id="cb4-213"><a href="#cb4-213" aria-hidden="true" tabindex="-1"></a>    <span class="co">"""§24.9: each agent samples an action, then steps its policy along</span></span>
+<span id="cb4-214"><a href="#cb4-214" aria-hidden="true" tabindex="-1"></a><span class="co">    R^i(., a^-i), the gradient if the others repeat their last action</span></span>
+<span id="cb4-215"><a href="#cb4-215" aria-hidden="true" tabindex="-1"></a><span class="co">    (eq. 24.12), with step rate / sqrt(t), and projects back onto the</span></span>
+<span id="cb4-216"><a href="#cb4-216" aria-hidden="true" tabindex="-1"></a><span class="co">    simplex. Returns the joint policy after each round."""</span></span>
+<span id="cb4-217"><a href="#cb4-217" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> policies <span class="kw">is</span> <span class="va">None</span>:</span>
+<span id="cb4-218"><a href="#cb4-218" aria-hidden="true" tabindex="-1"></a>        policies <span class="op">=</span> <span class="fu">uniform_policies</span>(game)</span>
+<span id="cb4-219"><a href="#cb4-219" aria-hidden="true" tabindex="-1"></a>    policies <span class="op">=</span> [np.<span class="fu">array</span>(p, dtype<span class="op">=</span><span class="bu">float</span>) <span class="cf">for</span> p <span class="kw">in</span> policies]</span>
+<span id="cb4-220"><a href="#cb4-220" aria-hidden="true" tabindex="-1"></a>    history <span class="op">=</span> [policies]</span>
+<span id="cb4-221"><a href="#cb4-221" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> t <span class="kw">in</span> <span class="bu">range</span>(<span class="dv">1</span>, k_max <span class="op">+</span> <span class="dv">1</span>):</span>
+<span id="cb4-222"><a href="#cb4-222" aria-hidden="true" tabindex="-1"></a>        a <span class="op">=</span> [rng.<span class="fu">choice</span>(<span class="bu">len</span>(p), p<span class="op">=</span>p) <span class="cf">for</span> p <span class="kw">in</span> policies]</span>
+<span id="cb4-223"><a href="#cb4-223" aria-hidden="true" tabindex="-1"></a>        new <span class="op">=</span> []</span>
+<span id="cb4-224"><a href="#cb4-224" aria-hidden="true" tabindex="-1"></a>        <span class="cf">for</span> i, p <span class="kw">in</span> <span class="bu">enumerate</span>(policies):</span>
+<span id="cb4-225"><a href="#cb4-225" aria-hidden="true" tabindex="-1"></a>            <span class="co"># Others as their last actions (one-hot); agent i as itself.</span></span>
+<span id="cb4-226"><a href="#cb4-226" aria-hidden="true" tabindex="-1"></a>            others <span class="op">=</span> [np.<span class="fu">eye</span>(<span class="bu">len</span>(q))[a[j]] <span class="cf">for</span> j, q <span class="kw">in</span> <span class="bu">enumerate</span>(policies)]</span>
+<span id="cb4-227"><a href="#cb4-227" aria-hidden="true" tabindex="-1"></a>            others[i] <span class="op">=</span> p</span>
+<span id="cb4-228"><a href="#cb4-228" aria-hidden="true" tabindex="-1"></a>            step <span class="op">=</span> rate <span class="op">/</span> np.<span class="fu">sqrt</span>(t) <span class="op">*</span> <span class="fu">action_values</span>(game, others, i)</span>
+<span id="cb4-229"><a href="#cb4-229" aria-hidden="true" tabindex="-1"></a>            new.<span class="fu">append</span>(<span class="fu">project_simplex</span>(p <span class="op">+</span> step))</span>
+<span id="cb4-230"><a href="#cb4-230" aria-hidden="true" tabindex="-1"></a>        policies <span class="op">=</span> new</span>
+<span id="cb4-231"><a href="#cb4-231" aria-hidden="true" tabindex="-1"></a>        history.<span class="fu">append</span>(policies)</span>
+<span id="cb4-232"><a href="#cb4-232" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> history</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</div>
+<div id="tabset-1-2" class="tab-pane" role="tabpanel" aria-labelledby="tabset-1-2-tab">
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb5"><pre class="sourceCode julia snippet code-with-copy"><code class="sourceCode julia"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="im">using</span> <span class="bu">ADM</span>, <span class="bu">LinearAlgebra</span></span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a>g <span class="op">=</span> <span class="fu">intersection</span>()                 <span class="co"># R[i, a1, a2]; actions 1 = go, 2 = stop</span></span>
+<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-5"><a href="#cb5-5" aria-hidden="true" tabindex="-1"></a><span class="co"># Expected reward of each of agent i's actions, when the other plays policy p.</span></span>
+<span id="cb5-6"><a href="#cb5-6" aria-hidden="true" tabindex="-1"></a><span class="fu">action_values</span>(g, i, p) <span class="op">=</span> i <span class="op">==</span> <span class="fl">1</span> ? g.R[<span class="fl">1</span>, <span class="op">:</span>, <span class="op">:</span>] <span class="op">*</span> p <span class="op">:</span> g.R[<span class="fl">2</span>, <span class="op">:</span>, <span class="op">:</span>]<span class="ch">' * p</span></span>
+<span id="cb5-7"><a href="#cb5-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-8"><a href="#cb5-8" aria-hidden="true" tabindex="-1"></a><span class="co"># Correlated equilibrium (eq. 24.8) with ADM's simplex method: maximize</span></span>
+<span id="cb5-9"><a href="#cb5-9" aria-hidden="true" tabindex="-1"></a><span class="co"># total reward subject to "obeying is no worse" for every recommendation.</span></span>
+<span id="cb5-10"><a href="#cb5-10" aria-hidden="true" tabindex="-1"></a><span class="co"># Adding a constant to all rewards changes no constraint, and makes every</span></span>
+<span id="cb5-11"><a href="#cb5-11" aria-hidden="true" tabindex="-1"></a><span class="co"># reward positive, so maximizing pushes Σπ up to its limit of 1.</span></span>
+<span id="cb5-12"><a href="#cb5-12" aria-hidden="true" tabindex="-1"></a><span class="kw">function</span> <span class="fu">correlated_equilibrium</span>(g)</span>
+<span id="cb5-13"><a href="#cb5-13" aria-hidden="true" tabindex="-1"></a>    n1, n2 <span class="op">=</span> <span class="fu">size</span>(g.R, <span class="fl">2</span>), <span class="fu">size</span>(g.R, <span class="fl">3</span>)</span>
+<span id="cb5-14"><a href="#cb5-14" aria-hidden="true" tabindex="-1"></a>    R <span class="op">=</span> g.R <span class="op">.-</span> <span class="fu">minimum</span>(g.R) <span class="op">.+</span> <span class="fl">1</span></span>
+<span id="cb5-15"><a href="#cb5-15" aria-hidden="true" tabindex="-1"></a>    joint <span class="op">=</span> [(a1, a2) for a1 <span class="kw">in</span> <span class="fl">1</span><span class="op">:</span>n1 for a2 <span class="kw">in</span> <span class="fl">1</span><span class="op">:</span>n2]      <span class="co"># π's variables</span></span>
+<span id="cb5-16"><a href="#cb5-16" aria-hidden="true" tabindex="-1"></a>    rows <span class="op">=</span> <span class="dt">Vector</span>{<span class="dt">Float64</span>}[]</span>
+<span id="cb5-17"><a href="#cb5-17" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> (i, n) <span class="kw">in</span> ((<span class="fl">1</span>, n1), (<span class="fl">2</span>, n2)), ai <span class="kw">in</span> <span class="fl">1</span><span class="op">:</span>n, b <span class="kw">in</span> <span class="fl">1</span><span class="op">:</span>n</span>
+<span id="cb5-18"><a href="#cb5-18" aria-hidden="true" tabindex="-1"></a>        b <span class="op">==</span> ai <span class="op">&amp;&amp;</span> <span class="cf">continue</span></span>
+<span id="cb5-19"><a href="#cb5-19" aria-hidden="true" tabindex="-1"></a>        <span class="co"># Gain from switching ai → b, over joint actions that recommend ai.</span></span>
+<span id="cb5-20"><a href="#cb5-20" aria-hidden="true" tabindex="-1"></a>        <span class="fu">push!</span>(rows, [a[i] <span class="op">!=</span> ai ? <span class="fl">0.0</span> <span class="op">:</span></span>
+<span id="cb5-21"><a href="#cb5-21" aria-hidden="true" tabindex="-1"></a>                     R[i, (i <span class="op">==</span> <span class="fl">1</span> ? (b, a[<span class="fl">2</span>]) <span class="op">:</span> (a[<span class="fl">1</span>], b))<span class="op">...</span>] <span class="op">-</span> R[i, a<span class="op">...</span>]</span>
+<span id="cb5-22"><a href="#cb5-22" aria-hidden="true" tabindex="-1"></a>                     for a <span class="kw">in</span> joint])</span>
+<span id="cb5-23"><a href="#cb5-23" aria-hidden="true" tabindex="-1"></a>    <span class="cf">end</span></span>
+<span id="cb5-24"><a href="#cb5-24" aria-hidden="true" tabindex="-1"></a>    A <span class="op">=</span> <span class="fu">vcat</span>(<span class="fu">reduce</span>(vcat, <span class="fu">permutedims</span>.(rows)), <span class="fu">ones</span>(<span class="fl">1</span>, <span class="fu">length</span>(joint)))</span>
+<span id="cb5-25"><a href="#cb5-25" aria-hidden="true" tabindex="-1"></a>    rhs <span class="op">=</span> [<span class="fu">zeros</span>(<span class="fu">length</span>(rows)); <span class="fl">1.0</span>]                        <span class="co"># gains ≤ 0, Σπ ≤ 1</span></span>
+<span id="cb5-26"><a href="#cb5-26" aria-hidden="true" tabindex="-1"></a>    c <span class="op">=</span> [R[<span class="fl">1</span>, a<span class="op">...</span>] <span class="op">+</span> R[<span class="fl">2</span>, a<span class="op">...</span>] for a <span class="kw">in</span> joint]</span>
+<span id="cb5-27"><a href="#cb5-27" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> <span class="fu">Dict</span>(<span class="fu">zip</span>(joint, <span class="fu">simplex_max</span>(c, A, rhs)))</span>
+<span id="cb5-28"><a href="#cb5-28" aria-hidden="true" tabindex="-1"></a><span class="kw">end</span></span>
+<span id="cb5-29"><a href="#cb5-29" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-30"><a href="#cb5-30" aria-hidden="true" tabindex="-1"></a>light <span class="op">=</span> <span class="fu">correlated_equilibrium</span>(g)</span>
+<span id="cb5-31"><a href="#cb5-31" aria-hidden="true" tabindex="-1"></a>total <span class="op">=</span> <span class="fu">sum</span>(p <span class="op">*</span> (g.R[<span class="fl">1</span>, a<span class="op">...</span>] <span class="op">+</span> g.R[<span class="fl">2</span>, a<span class="op">...</span>]) <span class="cf">for</span> (a, p) <span class="kw">in</span> light)</span>
+<span id="cb5-32"><a href="#cb5-32" aria-hidden="true" tabindex="-1"></a><span class="fu">println</span>(<span class="st">"utilitarian correlated equilibrium: total reward "</span>, <span class="fu">round</span>(total; digits <span class="op">=</span> <span class="fl">3</span>))</span>
+<span id="cb5-33"><a href="#cb5-33" aria-hidden="true" tabindex="-1"></a><span class="pp">@assert</span> <span class="fu">isapprox</span>(total, <span class="fl">3.0</span>; atol <span class="op">=</span> <span class="fl">1e-9</span>)</span>
+<span id="cb5-34"><a href="#cb5-34" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-35"><a href="#cb5-35" aria-hidden="true" tabindex="-1"></a><span class="co"># Fictitious play with identical starting counts: the drivers move in lockstep.</span></span>
+<span id="cb5-36"><a href="#cb5-36" aria-hidden="true" tabindex="-1"></a><span class="kw">function</span> <span class="fu">fictitious_play</span>(g, rounds)</span>
+<span id="cb5-37"><a href="#cb5-37" aria-hidden="true" tabindex="-1"></a>    N <span class="op">=</span> [<span class="fu">ones</span>(<span class="fl">2</span>), <span class="fu">ones</span>(<span class="fl">2</span>)]                     <span class="co"># N[j]: counts of agent j's actions</span></span>
+<span id="cb5-38"><a href="#cb5-38" aria-hidden="true" tabindex="-1"></a>    acts <span class="op">=</span> <span class="dt">Tuple</span>{<span class="dt">Int</span>,<span class="dt">Int</span>}[]</span>
+<span id="cb5-39"><a href="#cb5-39" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> _ <span class="kw">in</span> <span class="fl">1</span><span class="op">:</span>rounds</span>
+<span id="cb5-40"><a href="#cb5-40" aria-hidden="true" tabindex="-1"></a>        a1 <span class="op">=</span> <span class="fu">argmax</span>(<span class="fu">action_values</span>(g, <span class="fl">1</span>, N[<span class="fl">2</span>] <span class="op">/</span> <span class="fu">sum</span>(N[<span class="fl">2</span>])))</span>
+<span id="cb5-41"><a href="#cb5-41" aria-hidden="true" tabindex="-1"></a>        a2 <span class="op">=</span> <span class="fu">argmax</span>(<span class="fu">action_values</span>(g, <span class="fl">2</span>, N[<span class="fl">1</span>] <span class="op">/</span> <span class="fu">sum</span>(N[<span class="fl">1</span>])))</span>
+<span id="cb5-42"><a href="#cb5-42" aria-hidden="true" tabindex="-1"></a>        N[<span class="fl">1</span>][a1] <span class="op">+=</span> <span class="fl">1</span>; N[<span class="fl">2</span>][a2] <span class="op">+=</span> <span class="fl">1</span></span>
+<span id="cb5-43"><a href="#cb5-43" aria-hidden="true" tabindex="-1"></a>        <span class="fu">push!</span>(acts, (a1, a2))</span>
+<span id="cb5-44"><a href="#cb5-44" aria-hidden="true" tabindex="-1"></a>    <span class="cf">end</span></span>
+<span id="cb5-45"><a href="#cb5-45" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> acts</span>
+<span id="cb5-46"><a href="#cb5-46" aria-hidden="true" tabindex="-1"></a><span class="cf">end</span></span>
+<span id="cb5-47"><a href="#cb5-47" aria-hidden="true" tabindex="-1"></a>acts <span class="op">=</span> <span class="fu">fictitious_play</span>(g, <span class="fl">2000</span>)</span>
+<span id="cb5-48"><a href="#cb5-48" aria-hidden="true" tabindex="-1"></a>go <span class="op">=</span> <span class="fu">count</span>(a <span class="op">-&gt;</span> a[<span class="fl">1</span>] <span class="op">==</span> <span class="fl">1</span>, acts) <span class="op">/</span> <span class="fu">length</span>(acts)</span>
+<span id="cb5-49"><a href="#cb5-49" aria-hidden="true" tabindex="-1"></a><span class="fu">println</span>(<span class="st">"P(go) = "</span>, <span class="fu">round</span>(go; digits <span class="op">=</span> <span class="fl">3</span>), <span class="st">", lockstep: "</span>, <span class="fu">all</span>(a <span class="op">-&gt;</span> a[<span class="fl">1</span>] <span class="op">==</span> a[<span class="fl">2</span>], acts))</span>
+<span id="cb5-50"><a href="#cb5-50" aria-hidden="true" tabindex="-1"></a><span class="pp">@assert</span> <span class="fu">abs</span>(go <span class="op">-</span> <span class="fl">2</span> <span class="op">/</span> <span class="fl">7</span>) <span class="op">&lt;</span> <span class="fl">0.01</span> <span class="op">&amp;&amp;</span> <span class="fu">all</span>(a <span class="op">-&gt;</span> a[<span class="fl">1</span>] <span class="op">==</span> a[<span class="fl">2</span>], acts)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</div>
+</div>
+</div>
+<div class="callout callout-style-default callout-note callout-titled" title="Reading the Python code">
+<div class="callout-header d-flex align-content-center collapsed" data-bs-toggle="collapse" data-bs-target=".callout-2-contents" aria-controls="callout-2" aria-expanded="false" aria-label="Toggle callout">
+<div class="callout-icon-container">
+<i class="callout-icon"></i>
+</div>
+<div class="callout-title-container flex-fill">
+<span class="screen-reader-only">Note</span>Reading the Python code
+</div>
+<div class="callout-btn-toggle d-inline-block border-0 py-1 ps-1 pe-0 float-end"><i class="callout-toggle"></i></div>
+</div>
+<div id="callout-2" class="callout-2-contents callout-collapse collapse">
+<div class="callout-body-container callout-body">
+<ul>
+<li><strong><code>np.tensordot(Ri, p, axes=([j], [0]))</code></strong> sums agent <span class="math inline">\(j\)</span>’s axis of the reward array against its policy. Doing this for every other agent leaves a vector over agent <span class="math inline">\(i\)</span>’s own actions: <a href="#eq-best-response" class="quarto-xref">Equation&nbsp;2</a>’s <span class="math inline">\(U^i(a^i, \boldsymbol{\pi}^{-i})\)</span>.</li>
+<li><strong><code>np.ndindex(*shape)</code></strong> walks every joint action as a tuple, like nested loops.</li>
+<li><strong><code>linprog</code></strong> minimizes, so maximization objectives are negated. <strong><code>A_ub @ x &lt;= b_ub</code></strong> holds the “obeying is no worse” constraints of <a href="#eq-correlated" class="quarto-xref">Equation&nbsp;5</a>.</li>
+<li><strong><code>minimize(..., method="SLSQP")</code></strong> handles the nonconvex Nash program: it finds <em>a</em> local solution, so the code tries several random starts and keeps the one with the smallest regret.</li>
+</ul>
+</div>
+</div>
+</div>
+</section>
+<section id="run-them" class="level3">
+<h3 class="anchored" data-anchor-id="run-them">Run them</h3>
+<div id="3895e642" class="cell" data-execution_count="8">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb6"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a>game <span class="op">=</span> <span class="fu">intersection</span>()</span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"dominant strategies:"</span>, G.<span class="fu">dominant_strategy_equilibrium</span>(game))</span>
+<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> x, y <span class="kw">in</span> G.<span class="fu">support_enumeration</span>(game):</span>
+<span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="st">"Nash:"</span>, np.<span class="bu">round</span>(x, <span class="dv">3</span>), np.<span class="bu">round</span>(y, <span class="dv">3</span>))</span>
+<span id="cb6-5"><a href="#cb6-5" aria-hidden="true" tabindex="-1"></a>light <span class="op">=</span> G.<span class="fu">correlated_equilibrium</span>(game, <span class="st">"egalitarian"</span>)</span>
+<span id="cb6-6"><a href="#cb6-6" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"traffic light:"</span>, np.<span class="bu">round</span>(light.<span class="fu">ravel</span>(), <span class="dv">3</span>), G.<span class="fu">correlated_utilities</span>(game, light))</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>dominant strategies: None
+Nash: [1. 0.] [0. 1.]
+Nash: [0. 1.] [1. 0.]
+Nash: [0.286 0.714] [0.286 0.714]
+traffic light: [0.  0.5 0.5 0. ] [1.5 1.5]</code></pre>
+</div>
+</div>
+</section>
+<section id="results" class="level3">
+<h3 class="anchored" data-anchor-id="results">Results</h3>
+<section id="what-equilibria-can-achieve-at-the-intersection" class="level4">
+<h4 class="anchored" data-anchor-id="what-equilibria-can-achieve-at-the-intersection">What equilibria can achieve at the intersection</h4>
+<div id="cell-fig-payoffs" class="cell" data-execution_count="9">
+<div class="cell-output cell-output-display">
+<div id="fig-payoffs" class="quarto-float quarto-figure quarto-figure-center anchored" alt="Scatter plot with driver 1's expected reward across and driver 2's up the side. A gray triangle joins the outcomes (minus 10, minus 10), (3, 0) and (0, 3); the fourth outcome, (minus 1, minus 1), lies inside it. A blue triangle inside has corners at (3, 0), (0, 3) and (minus 0.71, minus 0.71). Black points mark the three Nash equilibria at those corners. An orange point at (1.5, 1.5) marks the traffic light, midway along the edge between the two pure equilibria.">
+<figure class="quarto-float quarto-float-fig figure">
+<div aria-describedby="fig-payoffs-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<img src="ch24-multiagent-reasoning_files/figure-html/fig-payoffs-output-1.png" alt="Scatter plot with driver 1's expected reward across and driver 2's up the side. A gray triangle joins the outcomes (minus 10, minus 10), (3, 0) and (0, 3); the fourth outcome, (minus 1, minus 1), lies inside it. A blue triangle inside has corners at (3, 0), (0, 3) and (minus 0.71, minus 0.71). Black points mark the three Nash equilibria at those corners. An orange point at (1.5, 1.5) marks the traffic light, midway along the edge between the two pure equilibria." width="489" height="416" class="figure-img">
+</div>
+<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-payoffs-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Figure&nbsp;3: The intersection’s payoff plane. Gray: every payoff pair any joint-action distribution can give. Blue: the pairs that correlated equilibria give. Points: the three Nash equilibria (black) and the traffic light, the egalitarian correlated equilibrium (orange).
+</figcaption>
+</figure>
+</div>
+</div>
+</div>
+<ul>
+<li>The three Nash equilibria give (3, 0), (0, 3) and (−0.714, −0.714). Only the pure ones are efficient, and each favors one driver.</li>
+<li>The correlated equilibria (blue) reach exactly the triangle whose corners are the three Nash equilibria. So in this game, a correlated equilibrium is a public coin flip among Nash equilibria. That’s still worth having: the traffic light’s (1.5, 1.5) is on the efficient edge <em>and</em> fair, which no single Nash equilibrium is.</li>
+</ul>
+</section>
+<section id="iterated-best-response-and-the-travelers-dilemma" class="level4">
+<h4 class="anchored" data-anchor-id="iterated-best-response-and-the-travelers-dilemma">Iterated best response and the traveler’s dilemma</h4>
+<div id="cell-fig-td" class="cell" data-execution_count="10">
+<div class="cell-output cell-output-display">
+<div id="fig-td" class="quarto-float quarto-figure quarto-figure-center anchored" alt="Two charts. Left: a straight staircase falling from a claim of 96 at round 1 by one dollar per round to 2 at round 95, then flat. Right: four claim distributions over 2 to 100; level 1 is broad with most mass above 70; levels 2, 3 and 4 are increasingly concentrated between about 85 and 100, with a peak near 96.">
+<figure class="quarto-float quarto-float-fig figure">
+<div aria-describedby="fig-td-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<img src="ch24-multiagent-reasoning_files/figure-html/fig-td-output-1.png" alt="Two charts. Left: a straight staircase falling from a claim of 96 at round 1 by one dollar per round to 2 at round 95, then flat. Right: four claim distributions over 2 to 100; level 1 is broad with most mass above 70; levels 2, 3 and 4 are increasingly concentrated between about 85 and 100, with a peak near 96." width="929" height="333" class="figure-img">
+</div>
+<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-td-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Figure&nbsp;4: The traveler’s dilemma. Left: claims under iterated best response from uniform play, by round. Right: the hierarchical softmax model’s distribution of claims at levels 1-4, precision 0.3.
+</figcaption>
+</figure>
+</div>
+</div>
+</div>
+<ul>
+<li><strong>Best responses unravel.</strong> Against uniform claims, the best claim is $96. Against any claim <span class="math inline">\(c\)</span>, the best response is <span class="math inline">\(c - 1\)</span> (earning <span class="math inline">\(c + 1\)</span>). So each round undercuts the last by $1, reaching the unique Nash equilibrium of $2 at round 95, where both earn $2.</li>
+<li><strong>Levels of reasoning don’t unravel.</strong> With precision 0.3, the mean claim is $84 at level 1, $91 at level 2 and $93 at level 4. Undercutting by $1 gains little, and the softmax model’s noise keeps high claims attractive.</li>
+<li><strong>A numerical solver can stop far away.</strong> Started at random, SLSQP on the Nash program returned policies with regret 4.4e-07: nobody could gain more than that by deviating. Yet its most likely claim is $51, and each traveler expects $51.88. It is an approximate equilibrium, held up by tiny probabilities on high claims. The exact equilibrium, $2, is unique.</li>
+</ul>
+</section>
+<section id="can-behavior-data-pin-down-the-model" class="level4">
+<h4 class="anchored" data-anchor-id="can-behavior-data-pin-down-the-model">Can behavior data pin down the model?</h4>
+<div id="cell-fig-fit" class="cell" data-execution_count="11">
+<div class="cell-output cell-output-display">
+<div id="fig-fit" class="quarto-float quarto-figure quarto-figure-center anchored" alt="Left: heatmap with precision 0.05 to 1 across and level 0 to 4 up the side; a dark (high-likelihood) band covers precision 0.5 to 1 at level 1, about 0.2 to 0.45 at level 2, and about 0.15 to 0.35 at levels 3 and 4; level 0 and everything else is pale. The true value (0.3, 2) is circled inside the band. Right: three claim distributions over 60 to 100 that nearly overlap, rising from near 0 at 70 to a peak of about 0.06 near 96.">
+<figure class="quarto-float quarto-float-fig figure">
+<div aria-describedby="fig-fit-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<img src="ch24-multiagent-reasoning_files/figure-html/fig-fit-output-1.png" alt="Left: heatmap with precision 0.05 to 1 across and level 0 to 4 up the side; a dark (high-likelihood) band covers precision 0.5 to 1 at level 1, about 0.2 to 0.45 at level 2, and about 0.15 to 0.35 at levels 3 and 4; level 0 and everything else is pale. The true value (0.3, 2) is circled inside the band. Right: three claim distributions over 60 to 100 that nearly overlap, rising from near 0 at 70 to a peak of about 0.06 near 96." width="928" height="332" class="figure-img">
+</div>
+<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-fit-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Figure&nbsp;5: Fitting the hierarchical softmax model to 200 simulated claims (true precision 0.3, level 2). Left: log-likelihood of one dataset over precision and level (darker is higher; the true values are circled). Right: three (precision, level) pairs predict almost the same claims.
+</figcaption>
+</figure>
+</div>
+</div>
+</div>
+<p>Across 30 simulated datasets of 200 claims each, maximum likelihood recovered the true level in only 9 of 30. The fits spread along a ridge: a low precision at a high level predicts nearly the same claims as a high precision at level 1. The mean claims of the three pairs on the right are $90.9, $91.2 and $91.1. To separate depth of reasoning from precision, you need data from several different games.</p>
+</section>
+<section id="fictitious-play-and-gradient-ascent" class="level4">
+<h4 class="anchored" data-anchor-id="fictitious-play-and-gradient-ascent">Fictitious play and gradient ascent</h4>
+<div id="cell-fig-learning" class="cell" data-execution_count="12">
+<div class="cell-output cell-output-display">
+<div id="fig-learning" class="quarto-float quarto-figure quarto-figure-center anchored" alt="Three charts. Left: three frequency curves over 2000 rounds (log scale) that oscillate at first and settle near one third. Middle: the frequency of going settles near 0.29, while the average reward settles near minus 3.6, well below the mixed equilibrium's minus 0.71 shown dashed. Right: three wandering paths inside the triangle of probability vectors, which do not settle at the center (one third, one third) within 2000 rounds.">
+<figure class="quarto-float quarto-float-fig figure">
+<div aria-describedby="fig-learning-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<img src="ch24-multiagent-reasoning_files/figure-html/fig-learning-output-1.png" alt="Three charts. Left: three frequency curves over 2000 rounds (log scale) that oscillate at first and settle near one third. Middle: the frequency of going settles near 0.29, while the average reward settles near minus 3.6, well below the mixed equilibrium's minus 0.71 shown dashed. Right: three wandering paths inside the triangle of probability vectors, which do not settle at the center (one third, one third) within 2000 rounds." width="1091" height="323" class="figure-img">
+</div>
+<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-learning-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Figure&nbsp;6: Learning by play. Left: fictitious play in rock-paper-scissors (identical starting counts): each action’s running frequency. Middle: fictitious play at the intersection with identical starting counts: the running frequency of going and the running average reward. Right: gradient ascent (step 0.1/√t) in rock-paper-scissors from three random starts, plotted as P(rock) against P(paper) over 2000 rounds.
+</figcaption>
+</figure>
+</div>
+</div>
+</div>
+<ul>
+<li><strong>Fictitious play finds the mixed equilibrium of rock-paper-scissors in frequency.</strong> After 2000 rounds from equal counts, the frequencies are within 0.008 of a third; from 100 random starting counts, the median largest gap was 0.014. The actions themselves cycle in ever-longer runs.</li>
+<li><strong>Converging frequencies aren’t converging play.</strong> At the intersection, two drivers with identical counts make identical choices every round. Their frequency of going approaches 0.285 (the mixed equilibrium’s 2/7), but every round is a near-crash or a double wait: −3.57 per round, against −0.714 for independent mixing. With random starting counts, 99 of 100 runs settled into a pure equilibrium, one driver always going.</li>
+<li><strong>Gradient ascent keeps circling in rock-paper-scissors.</strong> After 2000 rounds, the three runs still had regret 0.32, 0.56, 0.38: the policies drift around the uniform equilibrium rather than settling at it. At the intersection, all 20 of 20 runs reached a pure equilibrium.</li>
+</ul>
+</section>
+</section>
+</section>
+<section id="solved-problems" class="level2">
+<h2 class="anchored" data-anchor-id="solved-problems">Solved problems</h2>
+<p><strong>Problem 1: dominance.</strong> In a game, agent 1 chooses <em>up</em> or <em>down</em>, agent 2 <em>left</em> or <em>right</em>. Agent 1’s rewards are (up, left) 4, (up, right) 1, (down, left) 3, (down, right) 0. Agent 2’s are 2, 3, 1, 5 in the same order. Does either agent have a dominant strategy? What will they play?</p>
+<div class="callout callout-style-default callout-tip callout-titled" title="Solution">
+<div class="callout-header d-flex align-content-center collapsed" data-bs-toggle="collapse" data-bs-target=".callout-3-contents" aria-controls="callout-3" aria-expanded="false" aria-label="Toggle callout">
+<div class="callout-icon-container">
+<i class="callout-icon"></i>
+</div>
+<div class="callout-title-container flex-fill">
+<span class="screen-reader-only">Tip</span>Solution
+</div>
+<div class="callout-btn-toggle d-inline-block border-0 py-1 ps-1 pe-0 float-end"><i class="callout-toggle"></i></div>
+</div>
+<div id="callout-3" class="callout-3-contents callout-collapse collapse">
+<div class="callout-body-container callout-body">
+<p>Agent 1: <em>up</em> beats <em>down</em> against both (4 &gt; 3 and 1 &gt; 0), so <em>up</em> is dominant. Agent 2: against <em>up</em> it prefers <em>right</em> (3 &gt; 2), and against <em>down</em> also <em>right</em> (5 &gt; 1), so <em>right</em> is dominant too. Both play their dominant strategies: (up, right), with rewards (1, 3). Check that it is a Nash equilibrium: agent 1 would get 0 by switching, agent 2 would get 2.</p>
+</div>
+</div>
+</div>
+<p><strong>Problem 2: a mixed equilibrium.</strong> A penalty kicker aims left or right; the goalkeeper dives left or right. The kicker scores with probability 0.9 if the keeper dives the wrong way, 0.4 if the keeper guesses right (either side). Rewards are the scoring probability for the kicker and its negative for the keeper. Find the equilibrium.</p>
+<div class="callout callout-style-default callout-tip callout-titled" title="Solution">
+<div class="callout-header d-flex align-content-center collapsed" data-bs-toggle="collapse" data-bs-target=".callout-4-contents" aria-controls="callout-4" aria-expanded="false" aria-label="Toggle callout">
+<div class="callout-icon-container">
+<i class="callout-icon"></i>
+</div>
+<div class="callout-title-container flex-fill">
+<span class="screen-reader-only">Tip</span>Solution
+</div>
+<div class="callout-btn-toggle d-inline-block border-0 py-1 ps-1 pe-0 float-end"><i class="callout-toggle"></i></div>
+</div>
+<div id="callout-4" class="callout-4-contents callout-collapse collapse">
+<div class="callout-body-container callout-body">
+<p>Let the keeper dive left with probability <span class="math inline">\(p\)</span>. Kicking left scores <span class="math inline">\(0.4p + 0.9(1 - p)\)</span>, kicking right <span class="math inline">\(0.9p + 0.4(1 - p)\)</span>. Indifference gives <span class="math inline">\(p = 1/2\)</span>. By symmetry the kicker also aims left half the time. The kicker scores <span class="math inline">\(0.65\)</span> on average. No pure equilibrium exists: any predictable choice is exploited.</p>
+</div>
+</div>
+</div>
+<p><strong>Problem 3: check a correlated equilibrium.</strong> At the intersection, a light shows (go, stop) with probability 0.4, (stop, go) 0.4 and (stop, stop) 0.2. Is it a correlated equilibrium, and what does each driver earn?</p>
+<div class="callout callout-style-default callout-tip callout-titled" title="Solution">
+<div class="callout-header d-flex align-content-center collapsed" data-bs-toggle="collapse" data-bs-target=".callout-5-contents" aria-controls="callout-5" aria-expanded="false" aria-label="Toggle callout">
+<div class="callout-icon-container">
+<i class="callout-icon"></i>
+</div>
+<div class="callout-title-container flex-fill">
+<span class="screen-reader-only">Tip</span>Solution
+</div>
+<div class="callout-btn-toggle d-inline-block border-0 py-1 ps-1 pe-0 float-end"><i class="callout-toggle"></i></div>
+</div>
+<div id="callout-5" class="callout-5-contents callout-collapse collapse">
+<div class="callout-body-container callout-body">
+<p>Driver 1 told “go” (probability 0.4, always facing “stop”): obey 3, deviate −1. Fine. Told “stop” (probability 0.6: driver 2 goes with probability <span class="math inline">\(0.4/0.6\)</span>, stops with <span class="math inline">\(0.2/0.6\)</span>): obeying earns <span class="math inline">\(\tfrac{2}{3}\cdot 0 + \tfrac{1}{3}(-1) = -\tfrac13\)</span>; going earns <span class="math inline">\(\tfrac23(-10) + \tfrac13 \cdot 3 = -\tfrac{17}{3}\)</span>. Obey. By symmetry it is a correlated equilibrium. Each earns <span class="math inline">\(0.4 \cdot 3 + 0.4 \cdot 0 + 0.2 \cdot (-1) = 1.0\)</span>: worse than the traffic light (1.5), because it sometimes wastes a round.</p>
+</div>
+</div>
+</div>
+<p><strong>Problem 4: fictitious play by hand.</strong> Two agents play the prisoner’s dilemma with fictitious play, counts starting at 1. What do they play in the first three rounds, and why does fictitious play settle immediately here?</p>
+<div class="callout callout-style-default callout-tip callout-titled" title="Solution">
+<div class="callout-header d-flex align-content-center collapsed" data-bs-toggle="collapse" data-bs-target=".callout-6-contents" aria-controls="callout-6" aria-expanded="false" aria-label="Toggle callout">
+<div class="callout-icon-container">
+<i class="callout-icon"></i>
+</div>
+<div class="callout-title-container flex-fill">
+<span class="screen-reader-only">Tip</span>Solution
+</div>
+<div class="callout-btn-toggle d-inline-block border-0 py-1 ps-1 pe-0 float-end"><i class="callout-toggle"></i></div>
+</div>
+<div id="callout-6" class="callout-6-contents callout-collapse collapse">
+<div class="callout-body-container callout-body">
+<p>With counts (1, 1), each models the other as 50/50 and computes cooperate: <span class="math inline">\(0.5(-1) + 0.5(-4) = -2.5\)</span>; defect: <span class="math inline">\(0.5 \cdot 0 + 0.5(-3) = -1.5\)</span>. Both defect. The counts become (1, 2), so each thinks the other defects 2/3 of the time, and defecting is still better; it always will be, since defecting is dominant: it’s best against <em>any</em> belief. Fictitious play reaches the dominant strategy equilibrium in round 1 and stays.</p>
+</div>
+</div>
+</div>
+<p><strong>Problem 5: how long does unraveling take?</strong> In the traveler’s dilemma, if both travelers start at $100 and best-respond to each other each round, when do they reach $2?</p>
+<div class="callout callout-style-default callout-tip callout-titled" title="Solution">
+<div class="callout-header d-flex align-content-center collapsed" data-bs-toggle="collapse" data-bs-target=".callout-7-contents" aria-controls="callout-7" aria-expanded="false" aria-label="Toggle callout">
+<div class="callout-icon-container">
+<i class="callout-icon"></i>
+</div>
+<div class="callout-title-container flex-fill">
+<span class="screen-reader-only">Tip</span>Solution
+</div>
+<div class="callout-btn-toggle d-inline-block border-0 py-1 ps-1 pe-0 float-end"><i class="callout-toggle"></i></div>
+</div>
+<div id="callout-7" class="callout-7-contents callout-collapse collapse">
+<div class="callout-body-container callout-body">
+<p>Against a claim of <span class="math inline">\(c &gt; 2\)</span>, claiming <span class="math inline">\(c - 1\)</span> earns <span class="math inline">\(c + 1\)</span>, the most possible: claiming <span class="math inline">\(c\)</span> earns <span class="math inline">\(c\)</span>, and claiming lower earns at most <span class="math inline">\(c\)</span>. So both claim $99 in round 1, $98 in round 2, …, $2 in round 98. Against $2, the best response is $2 (claiming $2 earns $2, anything higher earns $0). The page’s run started from uniform play, whose best response is $96, so it took 95 rounds.</p>
+</div>
+</div>
+</div>
+</section>
+<section id="recap" class="level2">
+<h2 class="anchored" data-anchor-id="recap">Recap</h2>
+<ol type="1">
+<li><strong>With several agents, “optimal” becomes “equilibrium” (<a href="#eq-best-response" class="quarto-xref">Equation&nbsp;2</a>, <a href="#eq-nash" class="quarto-xref">Equation&nbsp;4</a>).</strong> <em>Why it matters:</em> every later chapter in Part V asks the same question, in richer settings: which joint policies leave no agent wanting to deviate?</li>
+<li><strong>Nash equilibria always exist, but may be random, multiple, inefficient and hard to compute (<a href="#eq-nash" class="quarto-xref">Equation&nbsp;4</a>).</strong> <em>Why it matters:</em> the prisoner’s dilemma and the intersection show that self-interested best responses can leave everyone worse off; numerical solvers can stop at approximate equilibria.</li>
+<li><strong>Correlated equilibria coordinate through a shared signal, and are computed by a linear program (<a href="#eq-correlated" class="quarto-xref">Equation&nbsp;5</a>).</strong> <em>Why it matters:</em> the traffic light earns each driver 1.5, against −0.71 for the mixed Nash equilibrium; mediated coordination is often both fairer and more efficient.</li>
+<li><strong>Learning dynamics can reach equilibria, but can also cycle or miscoordinate (<a href="#eq-fictitious" class="quarto-xref">Equation&nbsp;6</a>).</strong> <em>Why it matters:</em> agents that learn from play are the multiagent version of reinforcement learning (Chapter 25’s Nash Q-learning builds on this), and convergence is the exception rather than the rule.</li>
+<li><strong>Behavioral models predict people better than equilibria do (<a href="#eq-softmax" class="quarto-xref">Equation&nbsp;3</a>).</strong> <em>Why it matters:</em> systems that interact with humans need a predictive model of them. But depth of reasoning and precision trade off, so one game’s data can’t separate them.</li>
+</ol>
+</section>
+<section id="cheat-sheet-connections" class="level2">
+<h2 class="anchored" data-anchor-id="cheat-sheet-connections">Cheat sheet &amp; connections</h2>
+<div id="tbl-cheatsheet" class="quarto-float quarto-figure quarto-figure-center anchored">
+<figure class="quarto-float quarto-float-tbl figure">
+<figcaption class="quarto-float-caption-top quarto-float-caption quarto-float-tbl" id="tbl-cheatsheet-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Table&nbsp;4: Key equations from this page (★ = well-known by name).
+</figcaption>
+<div aria-describedby="tbl-cheatsheet-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<table class="caption-top table">
+<colgroup>
+<col style="width: 33%">
+<col style="width: 33%">
+<col style="width: 33%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Name</th>
+<th>Formula</th>
+<th>Ref</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Utility</td>
+<td><span class="math inline">\(U^i(\boldsymbol{\pi}) = \sum_{\boldsymbol{a}} R^i(\boldsymbol{a}) \prod_j \pi^j(a^j)\)</span></td>
+<td><a href="#eq-utility" class="quarto-xref">Equation&nbsp;1</a></td>
+</tr>
+<tr class="even">
+<td>Best response</td>
+<td><span class="math inline">\(\arg\max_{a^i} U^i(a^i, \boldsymbol{\pi}^{-i})\)</span></td>
+<td><a href="#eq-best-response" class="quarto-xref">Equation&nbsp;2</a></td>
+</tr>
+<tr class="odd">
+<td>Softmax response</td>
+<td><span class="math inline">\(\pi^i(a^i) \propto \exp(\lambda U^i(a^i, \boldsymbol{\pi}^{-i}))\)</span></td>
+<td><a href="#eq-softmax" class="quarto-xref">Equation&nbsp;3</a></td>
+</tr>
+<tr class="even">
+<td>★ Nash equilibrium</td>
+<td><span class="math inline">\(U^i(\boldsymbol{\pi}) \ge U^i(a^i, \boldsymbol{\pi}^{-i})\)</span> for all <span class="math inline">\(i, a^i\)</span></td>
+<td><a href="#eq-nash" class="quarto-xref">Equation&nbsp;4</a></td>
+</tr>
+<tr class="odd">
+<td>★ Correlated equilibrium</td>
+<td><span class="math inline">\(\sum_{\boldsymbol{a}^{-i}} [R^i(a^i, \boldsymbol{a}^{-i}) - R^i(a^{i\prime}, \boldsymbol{a}^{-i})]\,\pi(a^i, \boldsymbol{a}^{-i}) \ge 0\)</span></td>
+<td><a href="#eq-correlated" class="quarto-xref">Equation&nbsp;5</a></td>
+</tr>
+<tr class="even">
+<td>Fictitious play</td>
+<td>best-respond to <span class="math inline">\(\hat{\pi}^j \propto N(j, \cdot)\)</span></td>
+<td><a href="#eq-fictitious" class="quarto-xref">Equation&nbsp;6</a></td>
+</tr>
+</tbody>
+</table>
+</div>
+</figure>
+</div>
+<p><strong>Common pitfalls</strong></p>
+<ul>
+<li><strong>Expecting one right answer.</strong> Games can have several equilibria; say which one, and why (an objective, a convention, a learning rule).</li>
+<li><strong>Trusting a solver’s “equilibrium”.</strong> Check the regret, and remember that a small regret doesn’t mean the policies are near an exact equilibrium.</li>
+<li><strong>Confusing frequency convergence with policy convergence.</strong> Fictitious play’s frequencies can match an equilibrium while the actual play is disastrous.</li>
+<li><strong>Treating people as Nash players.</strong> In the traveler’s dilemma the equilibrium predicts $2; people claim near $100.</li>
+<li><strong>Over-interpreting fitted behavioral parameters.</strong> Level and precision are hard to separate from one game’s data.</li>
+</ul>
+<p><strong>Connections</strong></p>
+<ul>
+<li><a href="../part1/ch06-simple-decisions.html">Ch 6 · Simple Decisions</a>: the single-agent version (maximize expected utility), and bounded rationality.</li>
+<li><a href="../part3/ch15-exploration-and-exploitation.html">Ch 15 · Exploration and Exploitation</a>: softmax action selection.</li>
+<li><a href="../part3/ch16-model-based-methods.html">Ch 16 · Model-Based Methods</a>: maximum likelihood models, used by fictitious play.</li>
+<li><a href="../part4/ch23-controller-abstractions.html">Ch 23 · Controller Abstractions</a>: projection onto the simplex, used by gradient ascent.</li>
+<li><a href="../part5/ch25-sequential-problems.html">Ch 25 · Sequential Problems</a>: games with states: Markov games and Nash Q-learning.</li>
+<li><a href="../appendices/c-computational-complexity.html">Appendix C · Computational Complexity</a>: computing a Nash equilibrium is PPAD-complete, which is why this page searches numerically on small games.</li>
+</ul>
+
+
+</section>
+
+</main> <!-- /main -->
+<script type="ojs-module-contents">
+eyJjb250ZW50cyI6W3sibWV0aG9kTmFtZSI6ImludGVycHJldCIsImNlbGxOYW1lIjoib2pzLWNlbGwtMSIsImlubGluZSI6ZmFsc2UsInNvdXJjZSI6InBsYXlEYXRhID0gRmlsZUF0dGFjaG1lbnQoXCJkYXRhL2NoMjQtcGxheS5qc29uXCIpLmpzb24oKVxudmlld29mIHBsYXlOYW1lID0gSW5wdXRzLnNlbGVjdChPYmplY3Qua2V5cyhwbGF5RGF0YSksIHtsYWJlbDogXCJHYW1lIMK3IHJ1bGVcIiwgdmFsdWU6IFwiaW50ZXJzZWN0aW9uIMK3IGZpY3RpdGlvdXMgcGxheVwifSlcbnZpZXdvZiBwbGF5VCA9IElucHV0cy5yYW5nZShbMSwgMjAwXSwge3N0ZXA6IDEsIHZhbHVlOiAyMCwgbGFiZWw6IFwiUm91bmRcIn0pXG4ifSx7Im1ldGhvZE5hbWUiOiJpbnRlcnByZXQiLCJjZWxsTmFtZSI6Im9qcy1jZWxsLTIiLCJpbmxpbmUiOmZhbHNlLCJzb3VyY2UiOiJwbGF5Tm93ID0ge1xuICBjb25zdCBSID0gcGxheURhdGFbcGxheU5hbWVdLCB0ID0gcGxheVQgLSAxO1xuICBjb25zdCByb3dzID0gWzAsIDFdLmZsYXRNYXAoaSA9PiBSLmFjdGlvbnMubWFwKChhLCBrKSA9PiAoe2FnZW50OiBgYWdlbnQgJHtpICsgMX1gLCBhY3Rpb246IGEsIHA6IFIucG9saWNpZXNbdF1baV1ba119KSkpO1xuICBjb25zdCBhdmcgPSBbMCwgMV0ubWFwKGkgPT4gZDMubWVhbihSLnJld2FyZHMuc2xpY2UoMCwgcGxheVQpLCByID0+IHJbaV0pKTtcbiAgcmV0dXJuIHtSLCByb3dzLCBhdmcsIHBsYXllZDogUi5wbGF5ZWRbdF0ubWFwKGsgPT4gUi5hY3Rpb25zW2tdKX07XG59XG5tZGBSb3VuZCAqKiR7cGxheVR9Kio6IHBsYXllZCAqKiR7cGxheU5vdy5wbGF5ZWQuam9pbihcIioqIGFuZCAqKlwiKX0qKi4gQXZlcmFnZSByZXdhcmQgc28gZmFyOiBhZ2VudCAxICoqJHtwbGF5Tm93LmF2Z1swXS50b0ZpeGVkKDIpfSoqLCBhZ2VudCAyICoqJHtwbGF5Tm93LmF2Z1sxXS50b0ZpeGVkKDIpfSoqLmBcbiJ9LHsibWV0aG9kTmFtZSI6ImludGVycHJldCIsImNlbGxOYW1lIjoib2pzLWNlbGwtMyIsImlubGluZSI6ZmFsc2UsInNvdXJjZSI6IlBsb3QucGxvdCh7XG4gIHdpZHRoOiA2NDAsIGhlaWdodDogMjQwLCBtYXJnaW5MZWZ0OiA3MCwgc3R5bGU6IHtiYWNrZ3JvdW5kOiBcIiNmY2ZjZmJcIn0sXG4gIGZ4OiB7bGFiZWw6IG51bGx9LCB4OiB7YXhpczogbnVsbCwgZG9tYWluOiBwbGF5Tm93LlIuYWN0aW9uc30sIHk6IHtkb21haW46IFswLCAxXSwgbGFiZWw6IFwicHJvYmFiaWxpdHlcIiwgZ3JpZDogdHJ1ZX0sXG4gIGNvbG9yOiB7ZG9tYWluOiBwbGF5Tm93LlIuYWN0aW9ucywgcmFuZ2U6IFtcIiMyYTc4ZDZcIiwgXCIjZWI2ODM0XCIsIFwiIzFiYWY3YVwiXSwgbGVnZW5kOiB0cnVlfSxcbiAgbWFya3M6IFtQbG90LmJhclkocGxheU5vdy5yb3dzLCB7Zng6IFwiYWdlbnRcIiwgeDogXCJhY3Rpb25cIiwgeTogXCJwXCIsIGZpbGw6IFwiYWN0aW9uXCJ9KSwgUGxvdC5ydWxlWShbMF0pXVxufSlcbiJ9LHsibWV0aG9kTmFtZSI6ImludGVycHJldFF1aWV0Iiwic291cmNlIjoic2hpbnlJbnB1dCgncGxheU5hbWUnKSJ9LHsibWV0aG9kTmFtZSI6ImludGVycHJldFF1aWV0Iiwic291cmNlIjoic2hpbnlJbnB1dCgncGxheVQnKSJ9XX0=
+</script>
+<script type="module">
+if (window.location.protocol === "file:") { alert("The OJS runtime does not work with file:// URLs. Please use a web server to view this document."); }
+window._ojs.paths.runtimeToDoc = "../../part5";
+window._ojs.paths.runtimeToRoot = "../..";
+window._ojs.paths.docToRoot = "..";
+window._ojs.selfContained = false;
+window._ojs.runtime.interpretFromScriptTags();
+</script>
+<script id="quarto-html-after-body" type="application/javascript">
+  window.document.addEventListener("DOMContentLoaded", function (event) {
+    // Ensure there is a toggle, if there isn't float one in the top right
+    if (window.document.querySelector('.quarto-color-scheme-toggle') === null) {
+      const a = window.document.createElement('a');
+      a.classList.add('top-right');
+      a.classList.add('quarto-color-scheme-toggle');
+      a.href = "";
+      a.onclick = function() { try { window.quartoToggleColorScheme(); } catch {} return false; };
+      const i = window.document.createElement("i");
+      i.classList.add('bi');
+      a.appendChild(i);
+      window.document.body.appendChild(a);
+    }
+    setColorSchemeToggle(hasAlternateSentinel())
+    const icon = "";
+    const anchorJS = new window.AnchorJS();
+    anchorJS.options = {
+      placement: 'right',
+      icon: icon
+    };
+    anchorJS.add('.anchored');
+    const isCodeAnnotation = (el) => {
+      for (const clz of el.classList) {
+        if (clz.startsWith('code-annotation-')) {                     
+          return true;
+        }
+      }
+      return false;
+    }
+    const onCopySuccess = function(e) {
+      // button target
+      const button = e.trigger;
+      // don't keep focus
+      button.blur();
+      // flash "checked"
+      button.classList.add('code-copy-button-checked');
+      var currentTitle = button.getAttribute("title");
+      button.setAttribute("title", "Copied!");
+      let tooltip;
+      if (window.bootstrap) {
+        button.setAttribute("data-bs-toggle", "tooltip");
+        button.setAttribute("data-bs-placement", "left");
+        button.setAttribute("data-bs-title", "Copied!");
+        tooltip = new bootstrap.Tooltip(button, 
+          { trigger: "manual", 
+            customClass: "code-copy-button-tooltip",
+            offset: [0, -8]});
+        tooltip.show();    
+      }
+      setTimeout(function() {
+        if (tooltip) {
+          tooltip.hide();
+          button.removeAttribute("data-bs-title");
+          button.removeAttribute("data-bs-toggle");
+          button.removeAttribute("data-bs-placement");
+        }
+        button.setAttribute("title", currentTitle);
+        button.classList.remove('code-copy-button-checked');
+      }, 1000);
+      // clear code selection
+      e.clearSelection();
+    }
+    const getTextToCopy = function(trigger) {
+      const outerScaffold = trigger.parentElement.cloneNode(true);
+      const codeEl = outerScaffold.querySelector('code');
+      for (const childEl of codeEl.children) {
+        if (isCodeAnnotation(childEl)) {
+          childEl.remove();
+        }
+      }
+      return codeEl.innerText;
+    }
+    const clipboard = new window.ClipboardJS('.code-copy-button:not([data-in-quarto-modal])', {
+      text: getTextToCopy
+    });
+    clipboard.on('success', onCopySuccess);
+    if (window.document.getElementById('quarto-embedded-source-code-modal')) {
+      const clipboardModal = new window.ClipboardJS('.code-copy-button[data-in-quarto-modal]', {
+        text: getTextToCopy,
+        container: window.document.getElementById('quarto-embedded-source-code-modal')
+      });
+      clipboardModal.on('success', onCopySuccess);
+    }
+      var localhostRegex = new RegExp(/^(?:http|https):\/\/localhost\:?[0-9]*\//);
+      var mailtoRegex = new RegExp(/^mailto:/);
+        var filterRegex = new RegExp("https:\/\/laventura\.github\.io\/adm-companion\/");
+      var isInternal = (href) => {
+          return filterRegex.test(href) || localhostRegex.test(href) || mailtoRegex.test(href);
+      }
+      // Inspect non-navigation links and adorn them if external
+     var links = window.document.querySelectorAll('a[href]:not(.nav-link):not(.navbar-brand):not(.toc-action):not(.sidebar-link):not(.sidebar-item-toggle):not(.pagination-link):not(.no-external):not([aria-hidden]):not(.dropdown-item):not(.quarto-navigation-tool):not(.about-link)');
+      for (var i=0; i<links.length; i++) {
+        const link = links[i];
+        if (!isInternal(link.href)) {
+          // undo the damage that might have been done by quarto-nav.js in the case of
+          // links that we want to consider external
+          if (link.dataset.originalHref !== undefined) {
+            link.href = link.dataset.originalHref;
+          }
+        }
+      }
+    function tippyHover(el, contentFn, onTriggerFn, onUntriggerFn) {
+      const config = {
+        allowHTML: true,
+        maxWidth: 500,
+        delay: 100,
+        arrow: false,
+        appendTo: function(el) {
+            return el.parentElement;
+        },
+        interactive: true,
+        interactiveBorder: 10,
+        theme: 'quarto',
+        placement: 'bottom-start',
+      };
+      if (contentFn) {
+        config.content = contentFn;
+      }
+      if (onTriggerFn) {
+        config.onTrigger = onTriggerFn;
+      }
+      if (onUntriggerFn) {
+        config.onUntrigger = onUntriggerFn;
+      }
+      window.tippy(el, config); 
+    }
+    const noterefs = window.document.querySelectorAll('a[role="doc-noteref"]');
+    for (var i=0; i<noterefs.length; i++) {
+      const ref = noterefs[i];
+      tippyHover(ref, function() {
+        // use id or data attribute instead here
+        let href = ref.getAttribute('data-footnote-href') || ref.getAttribute('href');
+        try { href = new URL(href).hash; } catch {}
+        const id = href.replace(/^#\/?/, "");
+        const note = window.document.getElementById(id);
+        if (note) {
+          return note.innerHTML;
+        } else {
+          return "";
+        }
+      });
+    }
+    const xrefs = window.document.querySelectorAll('a.quarto-xref');
+    const processXRef = (id, note) => {
+      // Strip column container classes
+      const stripColumnClz = (el) => {
+        el.classList.remove("page-full", "page-columns");
+        if (el.children) {
+          for (const child of el.children) {
+            stripColumnClz(child);
+          }
+        }
+      }
+      stripColumnClz(note)
+      if (id === null || id.startsWith('sec-')) {
+        // Special case sections, only their first couple elements
+        const container = document.createElement("div");
+        if (note.children && note.children.length > 2) {
+          container.appendChild(note.children[0].cloneNode(true));
+          for (let i = 1; i < note.children.length; i++) {
+            const child = note.children[i];
+            if (child.tagName === "P" && child.innerText === "") {
+              continue;
+            } else {
+              container.appendChild(child.cloneNode(true));
+              break;
+            }
+          }
+          if (window.Quarto?.typesetMath) {
+            window.Quarto.typesetMath(container);
+          }
+          return container.innerHTML
+        } else {
+          if (window.Quarto?.typesetMath) {
+            window.Quarto.typesetMath(note);
+          }
+          return note.innerHTML;
+        }
+      } else {
+        // Remove any anchor links if they are present
+        const anchorLink = note.querySelector('a.anchorjs-link');
+        if (anchorLink) {
+          anchorLink.remove();
+        }
+        if (window.Quarto?.typesetMath) {
+          window.Quarto.typesetMath(note);
+        }
+        if (note.classList.contains("callout")) {
+          return note.outerHTML;
+        } else {
+          return note.innerHTML;
+        }
+      }
+    }
+    for (var i=0; i<xrefs.length; i++) {
+      const xref = xrefs[i];
+      tippyHover(xref, undefined, function(instance) {
+        instance.disable();
+        let url = xref.getAttribute('href');
+        let hash = undefined; 
+        if (url.startsWith('#')) {
+          hash = url;
+        } else {
+          try { hash = new URL(url).hash; } catch {}
+        }
+        if (hash) {
+          const id = hash.replace(/^#\/?/, "");
+          const note = window.document.getElementById(id);
+          if (note !== null) {
+            try {
+              const html = processXRef(id, note.cloneNode(true));
+              instance.setContent(html);
+            } finally {
+              instance.enable();
+              instance.show();
+            }
+          } else {
+            // See if we can fetch this
+            fetch(url.split('#')[0])
+            .then(res => res.text())
+            .then(html => {
+              const parser = new DOMParser();
+              const htmlDoc = parser.parseFromString(html, "text/html");
+              const note = htmlDoc.getElementById(id);
+              if (note !== null) {
+                const html = processXRef(id, note);
+                instance.setContent(html);
+              } 
+            }).finally(() => {
+              instance.enable();
+              instance.show();
+            });
+          }
+        } else {
+          // See if we can fetch a full url (with no hash to target)
+          // This is a special case and we should probably do some content thinning / targeting
+          fetch(url)
+          .then(res => res.text())
+          .then(html => {
+            const parser = new DOMParser();
+            const htmlDoc = parser.parseFromString(html, "text/html");
+            const note = htmlDoc.querySelector('main.content');
+            if (note !== null) {
+              // This should only happen for chapter cross references
+              // (since there is no id in the URL)
+              // remove the first header
+              if (note.children.length > 0 && note.children[0].tagName === "HEADER") {
+                note.children[0].remove();
+              }
+              const html = processXRef(null, note);
+              instance.setContent(html);
+            } 
+          }).finally(() => {
+            instance.enable();
+            instance.show();
+          });
+        }
+      }, function(instance) {
+      });
+    }
+        let selectedAnnoteEl;
+        const selectorForAnnotation = ( cell, annotation) => {
+          let cellAttr = 'data-code-cell="' + cell + '"';
+          let lineAttr = 'data-code-annotation="' +  annotation + '"';
+          const selector = 'span[' + cellAttr + '][' + lineAttr + ']';
+          return selector;
+        }
+        const selectCodeLines = (annoteEl) => {
+          const doc = window.document;
+          const targetCell = annoteEl.getAttribute("data-target-cell");
+          const targetAnnotation = annoteEl.getAttribute("data-target-annotation");
+          const annoteSpan = window.document.querySelector(selectorForAnnotation(targetCell, targetAnnotation));
+          const lines = annoteSpan.getAttribute("data-code-lines").split(",");
+          const lineIds = lines.map((line) => {
+            return targetCell + "-" + line;
+          })
+          let top = null;
+          let height = null;
+          let parent = null;
+          if (lineIds.length > 0) {
+              //compute the position of the single el (top and bottom and make a div)
+              const el = window.document.getElementById(lineIds[0]);
+              top = el.offsetTop;
+              height = el.offsetHeight;
+              parent = el.parentElement.parentElement;
+            if (lineIds.length > 1) {
+              const lastEl = window.document.getElementById(lineIds[lineIds.length - 1]);
+              const bottom = lastEl.offsetTop + lastEl.offsetHeight;
+              height = bottom - top;
+            }
+            if (top !== null && height !== null && parent !== null) {
+              // cook up a div (if necessary) and position it 
+              let div = window.document.getElementById("code-annotation-line-highlight");
+              if (div === null) {
+                div = window.document.createElement("div");
+                div.setAttribute("id", "code-annotation-line-highlight");
+                div.style.position = 'absolute';
+                parent.appendChild(div);
+              }
+              div.style.top = top - 2 + "px";
+              div.style.height = height + 4 + "px";
+              div.style.left = 0;
+              let gutterDiv = window.document.getElementById("code-annotation-line-highlight-gutter");
+              if (gutterDiv === null) {
+                gutterDiv = window.document.createElement("div");
+                gutterDiv.setAttribute("id", "code-annotation-line-highlight-gutter");
+                gutterDiv.style.position = 'absolute';
+                const codeCell = window.document.getElementById(targetCell);
+                const gutter = codeCell.querySelector('.code-annotation-gutter');
+                gutter.appendChild(gutterDiv);
+              }
+              gutterDiv.style.top = top - 2 + "px";
+              gutterDiv.style.height = height + 4 + "px";
+            }
+            selectedAnnoteEl = annoteEl;
+          }
+        };
+        const unselectCodeLines = () => {
+          const elementsIds = ["code-annotation-line-highlight", "code-annotation-line-highlight-gutter"];
+          elementsIds.forEach((elId) => {
+            const div = window.document.getElementById(elId);
+            if (div) {
+              div.remove();
+            }
+          });
+          selectedAnnoteEl = undefined;
+        };
+          // Handle positioning of the toggle
+      window.addEventListener(
+        "resize",
+        throttle(() => {
+          elRect = undefined;
+          if (selectedAnnoteEl) {
+            selectCodeLines(selectedAnnoteEl);
+          }
+        }, 10)
+      );
+      function throttle(fn, ms) {
+      let throttle = false;
+      let timer;
+        return (...args) => {
+          if(!throttle) { // first call gets through
+              fn.apply(this, args);
+              throttle = true;
+          } else { // all the others get throttled
+              if(timer) clearTimeout(timer); // cancel #2
+              timer = setTimeout(() => {
+                fn.apply(this, args);
+                timer = throttle = false;
+              }, ms);
+          }
+        };
+      }
+        // Attach click handler to the DT
+        const annoteDls = window.document.querySelectorAll('dt[data-target-cell]');
+        for (const annoteDlNode of annoteDls) {
+          annoteDlNode.addEventListener('click', (event) => {
+            const clickedEl = event.target;
+            if (clickedEl !== selectedAnnoteEl) {
+              unselectCodeLines();
+              const activeEl = window.document.querySelector('dt[data-target-cell].code-annotation-active');
+              if (activeEl) {
+                activeEl.classList.remove('code-annotation-active');
+              }
+              selectCodeLines(clickedEl);
+              clickedEl.classList.add('code-annotation-active');
+            } else {
+              // Unselect the line
+              unselectCodeLines();
+              clickedEl.classList.remove('code-annotation-active');
+            }
+          });
+        }
+    const findCites = (el) => {
+      const parentEl = el.parentElement;
+      if (parentEl) {
+        const cites = parentEl.dataset.cites;
+        if (cites) {
+          return {
+            el,
+            cites: cites.split(' ')
+          };
+        } else {
+          return findCites(el.parentElement)
+        }
+      } else {
+        return undefined;
+      }
+    };
+    var bibliorefs = window.document.querySelectorAll('a[role="doc-biblioref"]');
+    for (var i=0; i<bibliorefs.length; i++) {
+      const ref = bibliorefs[i];
+      const citeInfo = findCites(ref);
+      if (citeInfo) {
+        tippyHover(citeInfo.el, function() {
+          var popup = window.document.createElement('div');
+          citeInfo.cites.forEach(function(cite) {
+            var citeDiv = window.document.createElement('div');
+            citeDiv.classList.add('hanging-indent');
+            citeDiv.classList.add('csl-entry');
+            var biblioDiv = window.document.getElementById('ref-' + cite);
+            if (biblioDiv) {
+              citeDiv.innerHTML = biblioDiv.innerHTML;
+            }
+            popup.appendChild(citeDiv);
+          });
+          return popup.innerHTML;
+        });
+      }
+    }
+  });
+  </script>
+<nav class="page-navigation">
+  <div class="nav-page nav-page-previous">
+      <a href="../part4/ch23-controller-abstractions.html" class="pagination-link" aria-label="23 · Controller Abstractions">
+        <i class="bi bi-arrow-left-short"></i> <span class="nav-page-text">23 · Controller Abstractions</span>
+      </a>          
+  </div>
+  <div class="nav-page nav-page-next">
+      <a href="../part5/ch25-sequential-problems.html" class="pagination-link" aria-label="25 · Sequential Problems">
+        <span class="nav-page-text">25 · Sequential Problems</span> <i class="bi bi-arrow-right-short"></i>
+      </a>
+  </div>
+</nav>
+</div> <!-- /content -->
+<footer class="footer">
+  <div class="nav-footer">
+    <div class="nav-footer-left">
+      &nbsp;
+    </div>   
+    <div class="nav-footer-center">
+<p>An independent, unofficial companion to <em>Algorithms for Decision Making</em> (MIT Press, 2022). The book is freely available at <a href="https://algorithmsbook.com">algorithmsbook.com</a>. Site text and figures © Atul Acharya, <a href="https://creativecommons.org/licenses/by-nc/4.0/">CC BY-NC 4.0</a>; code <a href="https://opensource.org/license/mit">MIT</a>.</p>
+</div>
+    <div class="nav-footer-right">
+      &nbsp;
+    </div>
+  </div>
+</footer>
+
+
+
+
+</body></html>

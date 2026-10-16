@@ -1,0 +1,1647 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en"><head>
+
+<meta charset="utf-8">
+<meta name="generator" content="quarto-1.9.38">
+
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+
+
+<title>D · Neural Representations – ADM Companion</title>
+<style>
+/* Default styles provided by pandoc.
+** See https://pandoc.org/MANUAL.html#variables-for-html for config info.
+*/
+code{white-space: pre-wrap;}
+span.smallcaps{font-variant: small-caps;}
+div.columns{display: flex; gap: min(4vw, 1.5em);}
+div.column{flex: auto; overflow-x: auto;}
+div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+ul.task-list{list-style: none;}
+ul.task-list li input[type="checkbox"] {
+  width: 0.8em;
+  margin: 0 0.8em 0.2em -1em; /* quarto-specific, see https://github.com/quarto-dev/quarto-cli/issues/4556 */ 
+  vertical-align: middle;
+}
+/* CSS for syntax highlighting */
+html { -webkit-text-size-adjust: 100%; }
+pre > code.sourceCode { white-space: pre; position: relative; }
+pre > code.sourceCode > span { display: inline-block; line-height: 1.25; }
+pre > code.sourceCode > span:empty { height: 1.2em; }
+.sourceCode { overflow: visible; }
+code.sourceCode > span { color: inherit; text-decoration: inherit; }
+div.sourceCode { margin: 1em 0; }
+pre.sourceCode { margin: 0; }
+@media screen {
+div.sourceCode { overflow: auto; }
+}
+@media print {
+pre > code.sourceCode { white-space: pre-wrap; }
+pre > code.sourceCode > span { text-indent: -5em; padding-left: 5em; }
+}
+pre.numberSource code
+  { counter-reset: source-line 0; }
+pre.numberSource code > span
+  { position: relative; left: -4em; counter-increment: source-line; }
+pre.numberSource code > span > a:first-child::before
+  { content: counter(source-line);
+    position: relative; left: -1em; text-align: right; vertical-align: baseline;
+    border: none; display: inline-block;
+    -webkit-touch-callout: none; -webkit-user-select: none;
+    -khtml-user-select: none; -moz-user-select: none;
+    -ms-user-select: none; user-select: none;
+    padding: 0 4px; width: 4em;
+  }
+pre.numberSource { margin-left: 3em;  padding-left: 4px; }
+div.sourceCode
+  {   }
+@media screen {
+pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+}
+</style>
+
+
+<script src="../site_libs/quarto-nav/quarto-nav.js"></script>
+<script src="../site_libs/quarto-nav/headroom.min.js"></script>
+<script src="../site_libs/clipboard/clipboard.min.js"></script>
+<script src="../site_libs/quarto-search/autocomplete.umd.js"></script>
+<script src="../site_libs/quarto-search/fuse.min.js"></script>
+<script src="../site_libs/quarto-search/quarto-search.js"></script>
+<meta name="quarto:offset" content="../">
+<link href="../appendices/e-search-algorithms.html" rel="next">
+<link href="../appendices/c-computational-complexity.html" rel="prev">
+<script src="../site_libs/quarto-html/quarto.js" type="module"></script>
+<script src="../site_libs/quarto-html/tabsets/tabsets.js" type="module"></script>
+<script src="../site_libs/quarto-html/popper.min.js"></script>
+<script src="../site_libs/quarto-html/tippy.umd.min.js"></script>
+<script src="../site_libs/quarto-html/anchor.min.js"></script>
+<link href="../site_libs/quarto-html/tippy.css" rel="stylesheet">
+<link href="../site_libs/quarto-html/quarto-syntax-highlighting-de63f62b328812d8e578a4d74e282472.css" rel="stylesheet" class="quarto-color-scheme" id="quarto-text-highlighting-styles">
+<link href="../site_libs/quarto-html/quarto-syntax-highlighting-dark-6b6957c917596b414ec0b78690761e87.css" rel="stylesheet" class="quarto-color-scheme quarto-color-alternate" id="quarto-text-highlighting-styles">
+<link href="../site_libs/quarto-html/quarto-syntax-highlighting-de63f62b328812d8e578a4d74e282472.css" rel="stylesheet" class="quarto-color-scheme-extra" id="quarto-text-highlighting-styles">
+<script src="../site_libs/bootstrap/bootstrap.min.js"></script>
+<link href="../site_libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
+<link href="../site_libs/bootstrap/bootstrap-d1de39f35053749ff84d2df96798693d.min.css" rel="stylesheet" append-hash="true" class="quarto-color-scheme" id="quarto-bootstrap" data-mode="light">
+<link href="../site_libs/bootstrap/bootstrap-dark-a6f4e11c7ca7fab1bededaf21cc7b528.min.css" rel="stylesheet" append-hash="true" class="quarto-color-scheme quarto-color-alternate" id="quarto-bootstrap" data-mode="dark">
+<link href="../site_libs/bootstrap/bootstrap-d1de39f35053749ff84d2df96798693d.min.css" rel="stylesheet" append-hash="true" class="quarto-color-scheme-extra" id="quarto-bootstrap" data-mode="light">
+<script id="quarto-search-options" type="application/json">{
+  "location": "sidebar",
+  "copy-button": false,
+  "collapse-after": 3,
+  "panel-placement": "start",
+  "type": "textbox",
+  "limit": 50,
+  "keyboard-shortcut": [
+    "f",
+    "/",
+    "s"
+  ],
+  "show-item-context": false,
+  "language": {
+    "search-no-results-text": "No results",
+    "search-matching-documents-text": "matching documents",
+    "search-copy-link-title": "Copy link to search",
+    "search-hide-matches-text": "Hide additional matches",
+    "search-more-match-text": "more match in this document",
+    "search-more-matches-text": "more matches in this document",
+    "search-clear-button-title": "Clear",
+    "search-text-placeholder": "",
+    "search-detached-cancel-button-title": "Cancel",
+    "search-submit-button-title": "Submit",
+    "search-label": "Search"
+  }
+}</script>
+
+  <script src="https://cdnjs.cloudflare.com/polyfill/v3/polyfill.min.js?features=es6"></script>
+  <script defer="" src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml-full.js" type="text/javascript"></script>
+
+<script type="text/javascript">
+const typesetMath = (el) => {
+  if (window.MathJax) {
+    // MathJax Typeset
+    window.MathJax.typeset([el]);
+  } else if (window.katex) {
+    // KaTeX Render
+    var mathElements = el.getElementsByClassName("math");
+    var macros = [];
+    for (var i = 0; i < mathElements.length; i++) {
+      var texText = mathElements[i].firstChild;
+      if (mathElements[i].tagName == "SPAN" && texText && texText.data) {
+        window.katex.render(texText.data, mathElements[i], {
+          displayMode: mathElements[i].classList.contains('display'),
+          throwOnError: false,
+          macros: macros,
+          fleqn: false
+        });
+      }
+    }
+  }
+}
+window.Quarto = {
+  typesetMath
+};
+</script>
+
+</head>
+
+<body class="nav-sidebar docked quarto-light"><script id="quarto-html-before-body" type="application/javascript">
+    const toggleBodyColorMode = (bsSheetEl) => {
+      const mode = bsSheetEl.getAttribute("data-mode");
+      const bodyEl = window.document.querySelector("body");
+      if (mode === "dark") {
+        bodyEl.classList.add("quarto-dark");
+        bodyEl.classList.remove("quarto-light");
+      } else {
+        bodyEl.classList.add("quarto-light");
+        bodyEl.classList.remove("quarto-dark");
+      }
+    }
+    const toggleBodyColorPrimary = () => {
+      const bsSheetEl = window.document.querySelector("link#quarto-bootstrap:not([rel=disabled-stylesheet])");
+      if (bsSheetEl) {
+        toggleBodyColorMode(bsSheetEl);
+      }
+    }
+    const setColorSchemeToggle = (alternate) => {
+      const toggles = window.document.querySelectorAll('.quarto-color-scheme-toggle');
+      for (let i=0; i < toggles.length; i++) {
+        const toggle = toggles[i];
+        if (toggle) {
+          if (alternate) {
+            toggle.classList.add("alternate");
+          } else {
+            toggle.classList.remove("alternate");
+          }
+        }
+      }
+    };
+    const toggleColorMode = (alternate) => {
+      // Switch the stylesheets
+      const primaryStylesheets = window.document.querySelectorAll('link.quarto-color-scheme:not(.quarto-color-alternate)');
+      const alternateStylesheets = window.document.querySelectorAll('link.quarto-color-scheme.quarto-color-alternate');
+      manageTransitions('#quarto-margin-sidebar .nav-link', false);
+      if (alternate) {
+        // note: dark is layered on light, we don't disable primary!
+        enableStylesheet(alternateStylesheets);
+        for (const sheetNode of alternateStylesheets) {
+          if (sheetNode.id === "quarto-bootstrap") {
+            toggleBodyColorMode(sheetNode);
+          }
+        }
+      } else {
+        disableStylesheet(alternateStylesheets);
+        enableStylesheet(primaryStylesheets)
+        toggleBodyColorPrimary();
+      }
+      manageTransitions('#quarto-margin-sidebar .nav-link', true);
+      // Switch the toggles
+      setColorSchemeToggle(alternate)
+      // Hack to workaround the fact that safari doesn't
+      // properly recolor the scrollbar when toggling (#1455)
+      if (navigator.userAgent.indexOf('Safari') > 0 && navigator.userAgent.indexOf('Chrome') == -1) {
+        manageTransitions("body", false);
+        window.scrollTo(0, 1);
+        setTimeout(() => {
+          window.scrollTo(0, 0);
+          manageTransitions("body", true);
+        }, 40);
+      }
+    }
+    const disableStylesheet = (stylesheets) => {
+      for (let i=0; i < stylesheets.length; i++) {
+        const stylesheet = stylesheets[i];
+        stylesheet.rel = 'disabled-stylesheet';
+      }
+    }
+    const enableStylesheet = (stylesheets) => {
+      for (let i=0; i < stylesheets.length; i++) {
+        const stylesheet = stylesheets[i];
+        if(stylesheet.rel !== 'stylesheet') { // for Chrome, which will still FOUC without this check
+          stylesheet.rel = 'stylesheet';
+        }
+      }
+    }
+    const manageTransitions = (selector, allowTransitions) => {
+      const els = window.document.querySelectorAll(selector);
+      for (let i=0; i < els.length; i++) {
+        const el = els[i];
+        if (allowTransitions) {
+          el.classList.remove('notransition');
+        } else {
+          el.classList.add('notransition');
+        }
+      }
+    }
+    const isFileUrl = () => {
+      return window.location.protocol === 'file:';
+    }
+    const hasAlternateSentinel = () => {
+      let styleSentinel = getColorSchemeSentinel();
+      if (styleSentinel !== null) {
+        return styleSentinel === "alternate";
+      } else {
+        return false;
+      }
+    }
+    const setStyleSentinel = (alternate) => {
+      const value = alternate ? "alternate" : "default";
+      if (!isFileUrl()) {
+        window.localStorage.setItem("quarto-color-scheme", value);
+      } else {
+        localAlternateSentinel = value;
+      }
+    }
+    const getColorSchemeSentinel = () => {
+      if (!isFileUrl()) {
+        const storageValue = window.localStorage.getItem("quarto-color-scheme");
+        return storageValue != null ? storageValue : localAlternateSentinel;
+      } else {
+        return localAlternateSentinel;
+      }
+    }
+    const toggleGiscusIfUsed = (isAlternate, darkModeDefault) => {
+      const baseTheme = document.querySelector('#giscus-base-theme')?.value ?? 'light';
+      const alternateTheme = document.querySelector('#giscus-alt-theme')?.value ?? 'dark';
+      let newTheme = '';
+      if(authorPrefersDark) {
+        newTheme = isAlternate ? baseTheme : alternateTheme;
+      } else {
+        newTheme = isAlternate ? alternateTheme : baseTheme;
+      }
+      const changeGiscusTheme = () => {
+        // From: https://github.com/giscus/giscus/issues/336
+        const sendMessage = (message) => {
+          const iframe = document.querySelector('iframe.giscus-frame');
+          if (!iframe) return;
+          iframe.contentWindow.postMessage({ giscus: message }, 'https://giscus.app');
+        }
+        sendMessage({
+          setConfig: {
+            theme: newTheme
+          }
+        });
+      }
+      const isGiscussLoaded = window.document.querySelector('iframe.giscus-frame') !== null;
+      if (isGiscussLoaded) {
+        changeGiscusTheme();
+      }
+    };
+    const authorPrefersDark = false;
+    const darkModeDefault = authorPrefersDark;
+      document.querySelector('link#quarto-text-highlighting-styles.quarto-color-scheme-extra').rel = 'disabled-stylesheet';
+      document.querySelector('link#quarto-bootstrap.quarto-color-scheme-extra').rel = 'disabled-stylesheet';
+    let localAlternateSentinel = darkModeDefault ? 'alternate' : 'default';
+    // Dark / light mode switch
+    window.quartoToggleColorScheme = () => {
+      // Read the current dark / light value
+      let toAlternate = !hasAlternateSentinel();
+      toggleColorMode(toAlternate);
+      setStyleSentinel(toAlternate);
+      toggleGiscusIfUsed(toAlternate, darkModeDefault);
+      window.dispatchEvent(new Event('resize'));
+    };
+    // Switch to dark mode if need be
+    if (hasAlternateSentinel()) {
+      toggleColorMode(true);
+    } else {
+      toggleColorMode(false);
+    }
+  </script>
+
+<div id="quarto-search-results"></div>
+  <header id="quarto-header" class="headroom fixed-top">
+  <nav class="quarto-secondary-nav">
+    <div class="container-fluid d-flex">
+      <button type="button" class="quarto-btn-toggle btn" data-bs-toggle="collapse" role="button" data-bs-target=".quarto-sidebar-collapse-item" aria-controls="quarto-sidebar" aria-expanded="false" aria-label="Toggle sidebar navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">
+        <i class="bi bi-layout-text-sidebar-reverse"></i>
+      </button>
+        <nav class="quarto-page-breadcrumbs" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="../appendices/a-mathematical-concepts.html">Appendices</a></li><li class="breadcrumb-item"><a href="../appendices/d-neural-representations.html">D · Neural Representations</a></li></ol></nav>
+        <a class="flex-grow-1" role="navigation" data-bs-toggle="collapse" data-bs-target=".quarto-sidebar-collapse-item" aria-controls="quarto-sidebar" aria-expanded="false" aria-label="Toggle sidebar navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">      
+        </a>
+      <button type="button" class="btn quarto-search-button" aria-label="Search" onclick="window.quartoOpenSearch();">
+        <i class="bi bi-search"></i>
+      </button>
+    </div>
+  </nav>
+</header>
+<!-- content -->
+<div id="quarto-content" class="quarto-container page-columns page-rows-contents page-layout-article">
+<!-- sidebar -->
+  <nav id="quarto-sidebar" class="sidebar collapse collapse-horizontal quarto-sidebar-collapse-item sidebar-navigation docked overflow-auto">
+    <div class="pt-lg-2 mt-2 text-left sidebar-header">
+    <div class="sidebar-title mb-0 py-0">
+      <a href="../">ADM Companion</a> 
+        <div class="sidebar-tools-main">
+  <a href="" class="quarto-color-scheme-toggle quarto-navigation-tool  px-1" onclick="window.quartoToggleColorScheme(); return false;" title="Toggle dark mode"><i class="bi"></i></a>
+</div>
+    </div>
+      </div>
+        <div class="mt-2 flex-shrink-0 align-items-center">
+        <div class="sidebar-search">
+        <div id="quarto-search" class="" title="Search"></div>
+        </div>
+        </div>
+    <div class="sidebar-menu-container"> 
+    <ul class="list-unstyled mt-1">
+        <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../index.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Algorithms for Decision Making - Companion</span></a>
+  </div>
+</li>
+        <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../notation.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Notation</span></a>
+  </div>
+</li>
+        <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../cheatsheets.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Cheat sheets</span></a>
+  </div>
+</li>
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-1" role="navigation" aria-expanded="false">
+ <span class="menu-text">Introduction</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-1" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-1" class="collapse list-unstyled sidebar-section depth1 ">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../intro/ch01-introduction.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">1 · Introduction</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-2" role="navigation" aria-expanded="false">
+ <span class="menu-text">Part I — Probabilistic Reasoning</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-2" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-2" class="collapse list-unstyled sidebar-section depth1 ">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../part1/ch02-representation.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">2 · Representation</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../part1/ch03-inference.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">3 · Inference</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../part1/ch04-parameter-learning.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">4 · Parameter Learning</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../part1/ch05-structure-learning.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">5 · Structure Learning</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../part1/ch06-simple-decisions.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">6 · Simple Decisions</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-3" role="navigation" aria-expanded="false">
+ <span class="menu-text">Part II — Sequential Problems</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-3" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-3" class="collapse list-unstyled sidebar-section depth1 ">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../part2/ch07-exact-solution-methods.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">7 · Exact Solution Methods</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../part2/ch08-approximate-value-functions.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">8 · Approximate Value Functions</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../part2/ch09-online-planning.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">9 · Online Planning</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../part2/ch10-policy-search.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">10 · Policy Search</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../part2/ch11-policy-gradient-estimation.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">11 · Policy Gradient Estimation</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../part2/ch12-policy-gradient-optimization.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">12 · Policy Gradient Optimization</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../part2/ch13-actor-critic-methods.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">13 · Actor-Critic Methods</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../part2/ch14-policy-validation.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">14 · Policy Validation</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-4" role="navigation" aria-expanded="false">
+ <span class="menu-text">Part III — Model Uncertainty</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-4" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-4" class="collapse list-unstyled sidebar-section depth1 ">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../part3/ch15-exploration-and-exploitation.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">15 · Exploration and Exploitation</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../part3/ch16-model-based-methods.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">16 · Model-Based Methods</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../part3/ch17-model-free-methods.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">17 · Model-Free Methods</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../part3/ch18-imitation-learning.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">18 · Imitation Learning</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-5" role="navigation" aria-expanded="false">
+ <span class="menu-text">Part IV — State Uncertainty</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-5" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-5" class="collapse list-unstyled sidebar-section depth1 ">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../part4/ch19-beliefs.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">19 · Beliefs</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../part4/ch20-exact-belief-state-planning.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">20 · Exact Belief State Planning</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../part4/ch21-offline-belief-state-planning.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">21 · Offline Belief State Planning</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../part4/ch22-online-belief-state-planning.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">22 · Online Belief State Planning</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../part4/ch23-controller-abstractions.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">23 · Controller Abstractions</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-6" role="navigation" aria-expanded="false">
+ <span class="menu-text">Part V — Multiagent Systems</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-6" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-6" class="collapse list-unstyled sidebar-section depth1 ">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../part5/ch24-multiagent-reasoning.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">24 · Multiagent Reasoning</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../part5/ch25-sequential-problems.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">25 · Sequential Problems</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../part5/ch26-state-uncertainty.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">26 · State Uncertainty</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../part5/ch27-collaborative-agents.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">27 · Collaborative Agents</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-7" role="navigation" aria-expanded="true">
+ <span class="menu-text">Appendices</span></a>
+          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-7" role="navigation" aria-expanded="true" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-7" class="collapse list-unstyled sidebar-section depth1 show">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../appendices/a-mathematical-concepts.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">A · Mathematical Concepts</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../appendices/b-probability-distributions.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">B · Probability Distributions</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../appendices/c-computational-complexity.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">C · Computational Complexity</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../appendices/d-neural-representations.html" class="sidebar-item-text sidebar-link active">
+ <span class="menu-text">D · Neural Representations</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../appendices/e-search-algorithms.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">E · Search Algorithms</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../appendices/f-problems.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">F · Problems</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+    </ul>
+    </div>
+</nav>
+<div id="quarto-sidebar-glass" class="quarto-sidebar-collapse-item" data-bs-toggle="collapse" data-bs-target=".quarto-sidebar-collapse-item"></div>
+<!-- margin-sidebar -->
+    <div id="quarto-margin-sidebar" class="sidebar margin-sidebar">
+        <nav id="TOC" role="doc-toc" class="toc-active">
+    <h2 id="toc-title">On this page</h2>
+   
+  <ul>
+  <li><a href="#at-a-glance" id="toc-at-a-glance" class="nav-link active" data-scroll-target="#at-a-glance">At a glance</a></li>
+  <li><a href="#feedforward-networks" id="toc-feedforward-networks" class="nav-link" data-scroll-target="#feedforward-networks">Feedforward networks</a></li>
+  <li><a href="#backpropagation" id="toc-backpropagation" class="nav-link" data-scroll-target="#backpropagation">Backpropagation</a>
+  <ul class="collapse">
+  <li><a href="#worked-example" id="toc-worked-example" class="nav-link" data-scroll-target="#worked-example">Worked example</a></li>
+  </ul></li>
+  <li><a href="#fitting-a-curve" id="toc-fitting-a-curve" class="nav-link" data-scroll-target="#fitting-a-curve">Fitting a curve</a></li>
+  <li><a href="#regularization" id="toc-regularization" class="nav-link" data-scroll-target="#regularization">Regularization</a></li>
+  <li><a href="#other-architectures" id="toc-other-architectures" class="nav-link" data-scroll-target="#other-architectures">Other architectures</a></li>
+  <li><a href="#code" id="toc-code" class="nav-link" data-scroll-target="#code">Code</a></li>
+  </ul>
+</nav>
+    </div>
+<!-- main -->
+<main class="content" id="quarto-document-content">
+
+
+<header id="title-block-header" class="quarto-title-block default"><nav class="quarto-page-breadcrumbs quarto-title-breadcrumbs d-none d-lg-block" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="../appendices/a-mathematical-concepts.html">Appendices</a></li><li class="breadcrumb-item"><a href="../appendices/d-neural-representations.html">D · Neural Representations</a></li></ol></nav>
+<div class="quarto-title">
+<h1 class="title">D · Neural Representations</h1>
+<p class="subtitle lead">Appendices</p>
+</div>
+
+
+
+<div class="quarto-title-meta">
+
+    
+  
+    
+  </div>
+  
+
+
+</header>
+
+
+<div class="callout callout-style-simple callout-note no-icon">
+<div class="callout-body d-flex">
+<div class="callout-icon-container">
+<i class="callout-icon no-icon"></i>
+</div>
+<div class="callout-body-container">
+<p><strong>Executed in:</strong> Python · <strong>Book:</strong> ADM Appendix D</p>
+</div>
+</div>
+</div>
+<p>A neural network is a flexible function with many adjustable parameters. Fed enough examples, gradient descent tunes the parameters until the function matches the data. On this site, neural networks are one option wherever a chapter needs a function it can’t write down: a value function (<a href="../part2/ch08-approximate-value-functions.html">Chapter 8</a>), a policy (<a href="../part2/ch11-policy-gradient-estimation.html">Chapters 10–13</a>), a critic (<a href="../part2/ch13-actor-critic-methods.html">Chapter 13</a>) or a discriminator (<a href="../part3/ch18-imitation-learning.html">Chapter 18</a>). This appendix follows ADM Appendix D. All code runs in plain NumPy, with the gradient computed by hand, so every step is visible.</p>
+<section id="at-a-glance" class="level2">
+<h2 class="anchored" data-anchor-id="at-a-glance">At a glance</h2>
+<div id="tbl-arch" class="quarto-float quarto-figure quarto-figure-center anchored">
+<figure class="quarto-float quarto-float-tbl figure">
+<figcaption class="quarto-float-caption-top quarto-float-caption quarto-float-tbl" id="tbl-arch-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Table&nbsp;1: Neural architectures in ADM Appendix D. Only the feedforward network is run in a chapter of this site; the others are demonstrated here or described.
+</figcaption>
+<div aria-describedby="tbl-arch-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<table class="caption-top table">
+<colgroup>
+<col style="width: 25%">
+<col style="width: 25%">
+<col style="width: 25%">
+<col style="width: 25%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Architecture</th>
+<th>Idea</th>
+<th>Good for</th>
+<th>Where it fits</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Feedforward</td>
+<td>layers of affine maps and nonlinearities</td>
+<td>any fixed-size input and output</td>
+<td>value functions (Ch 8, which fits one), policies and critics (Ch 10–13)</td>
+</tr>
+<tr class="even">
+<td>Convolutional</td>
+<td>the same small filter slides across the input</td>
+<td>images, signals, grids</td>
+<td>value functions or policies for image-like states</td>
+</tr>
+<tr class="odd">
+<td>Recurrent</td>
+<td>a hidden state carried from step to step</td>
+<td>sequences, histories</td>
+<td>summarizing observation histories in POMDPs (Ch 19–22)</td>
+</tr>
+<tr class="even">
+<td>Autoencoder</td>
+<td>squeeze the input through a narrow middle, then rebuild it</td>
+<td>compression, learned features</td>
+<td>learning compact state features</td>
+</tr>
+<tr class="odd">
+<td>Adversarial</td>
+<td>a generator and a discriminator trained against each other</td>
+<td>imitating a distribution</td>
+<td>GAIL (Ch 18, described there)</td>
+</tr>
+</tbody>
+</table>
+</div>
+</figure>
+</div>
+</section>
+<section id="feedforward-networks" class="level2">
+<h2 class="anchored" data-anchor-id="feedforward-networks">Feedforward networks</h2>
+<p>A <strong>feedforward network</strong>, or multilayer perceptron, is a chain of layers. Each layer mixes its inputs linearly and then bends the result with a fixed nonlinear function:</p>
+<div class="key-equation" data-name="One layer">
+<p><span id="eq-layer"><span class="math display">\[
+\mathbf{x}' = \phi\big(\mathbf{W}\mathbf{x} + \mathbf{b}\big)
+\tag{1}\]</span></span></p>
+</div>
+<p><strong>In words.</strong> Each output unit takes a weighted sum of all inputs, adds a bias, and passes it through an activation function.</p>
+<p><strong>Term by term.</strong></p>
+<ul>
+<li><span class="math inline">\(\mathbf{x}\)</span>: the layer’s input, a vector of length <span class="math inline">\(m\)</span>; <span class="math inline">\(\mathbf{x}'\)</span>: its output, of length <span class="math inline">\(n\)</span>.</li>
+<li><span class="math inline">\(\mathbf{W}\)</span>: an <span class="math inline">\(n \times m\)</span> weight matrix; row <span class="math inline">\(i\)</span> holds the weights of output unit <span class="math inline">\(i\)</span>. <span class="math inline">\(\mathbf{b}\)</span>: a bias vector of length <span class="math inline">\(n\)</span>.</li>
+<li><span class="math inline">\(\phi\)</span>: the <strong>activation function</strong>, applied to each element separately (<a href="#fig-activations" class="quarto-xref">Figure&nbsp;1</a>).</li>
+</ul>
+<p><strong>Why it holds.</strong> It is a design choice, and the nonlinearity is essential. Without it, two layers collapse into one: <span class="math inline">\(\mathbf{W}_2(\mathbf{W}_1\mathbf{x} + \mathbf{b}_1) + \mathbf{b}_2 = (\mathbf{W}_2\mathbf{W}_1)\mathbf{x} + (\mathbf{W}_2\mathbf{b}_1 + \mathbf{b}_2)\)</span>, still an affine map, so any depth of linear layers can only draw straight lines. With a nonlinear <span class="math inline">\(\phi\)</span>, a network with one wide enough hidden layer can approximate any continuous function on a bounded region to any accuracy (the universal approximation theorem; Cybenko 1989, Hornik 1991).</p>
+<p>The code on this page stores samples as rows, so a layer computes <code>X @ W + b</code> with <code>W</code> of shape <span class="math inline">\(m \times n\)</span>: the transpose of <a href="#eq-layer" class="quarto-xref">Equation&nbsp;1</a>, applied to a whole batch at once. Hidden layers apply <span class="math inline">\(\phi\)</span>; the output layer is left linear so it can produce any real number.</p>
+<div id="cell-fig-activations" class="cell" data-execution_count="2">
+<div class="cell-output cell-output-display">
+<div id="fig-activations" class="quarto-float quarto-figure quarto-figure-center anchored" alt="Four small line charts over inputs from minus 3 to 3. Sigmoid: an S-curve from 0 to 1. Tanh: an S-curve from minus 1 to 1. ReLU: zero for negative inputs, then a straight line of slope 1. Leaky ReLU: a line of slope 0.1 for negative inputs, then slope 1.">
+<figure class="quarto-float quarto-float-fig figure">
+<div aria-describedby="fig-activations-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<img src="d-neural-representations_files/figure-html/fig-activations-output-1.png" alt="Four small line charts over inputs from minus 3 to 3. Sigmoid: an S-curve from 0 to 1. Tanh: an S-curve from minus 1 to 1. ReLU: zero for negative inputs, then a straight line of slope 1. Leaky ReLU: a line of slope 0.1 for negative inputs, then slope 1." width="947" height="237" class="figure-img">
+</div>
+<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-activations-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Figure&nbsp;1: The four activation functions in adm.neural. Each changes slowly or not at all for very negative inputs and grows with the input.
+</figcaption>
+</figure>
+</div>
+</div>
+</div>
+<p>When the output must be a probability distribution, for example a stochastic policy over actions, the last layer is followed by a softmax:</p>
+<div class="key-equation famous" data-name="Softmax">
+<p><span id="eq-softmax"><span class="math display">\[
+\operatorname{softmax}(\mathbf{z})_i = \frac{\exp(z_i)}{\sum_j \exp(z_j)}
+\tag{2}\]</span></span></p>
+</div>
+<p><strong>In words.</strong> Exponentiate every score so it is positive, then divide by the total so the results add up to 1.</p>
+<p><strong>Term by term.</strong></p>
+<ul>
+<li><span class="math inline">\(z_i\)</span>: the score (logit) of option <span class="math inline">\(i\)</span>; larger scores get larger probabilities.</li>
+<li><span class="math inline">\(\exp\)</span>: keeps the order of the scores and makes them positive; a gap of 1 between scores means a ratio of <span class="math inline">\(e \approx 2.72\)</span> between probabilities.</li>
+<li>The denominator: normalizes the results to sum to 1.</li>
+</ul>
+<p><strong>Why it holds.</strong> Adding the same constant to every score cancels between numerator and denominator, so only differences between scores matter; the code subtracts the largest score before exponentiating to avoid overflow. Example: scores <span class="math inline">\((2, 1, -1)\)</span> give probabilities 0.705, 0.259, 0.035.</p>
+<p><a href="#fig-network" class="quarto-xref">Figure&nbsp;2</a> shows the network used for the examples below, and how information flows in training.</p>
+<div class="cell" data-fig-width="3" data-fig-height="5.04" data-layout-align="default">
+<div class="cell-output-display">
+<div id="fig-network" class="quarto-float quarto-figure quarto-figure-center anchored">
+<figure class="quarto-float quarto-float-fig figure">
+<div aria-describedby="fig-network-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<div>
+<svg width="288" height="484" viewbox="0.00 0.00 215.80 363.20" xmlns="http://www.w3.org/2000/svg" xlink="http://www.w3.org/1999/xlink" style="; max-width: none; max-height: none">
+<g id="graph0" class="graph" transform="scale(1 1) rotate(0) translate(14.4 348.8)">
+<title>net</title>
+<polygon fill="#fcfcfb" stroke="transparent" points="-14.4,14.4 -14.4,-348.8 201.4,-348.8 201.4,14.4 -14.4,14.4"></polygon>
+<!-- x -->
+<g id="node1" class="node">
+<title>x</title>
+<path fill="#f0efec" stroke="#52514e" d="M175,-334.4C175,-334.4 12,-334.4 12,-334.4 6,-334.4 0,-328.4 0,-322.4 0,-322.4 0,-310.4 0,-310.4 0,-304.4 6,-298.4 12,-298.4 12,-298.4 175,-298.4 175,-298.4 181,-298.4 187,-304.4 187,-310.4 187,-310.4 187,-322.4 187,-322.4 187,-328.4 181,-334.4 175,-334.4"></path>
+<text text-anchor="middle" x="93.5" y="-312.8" font-family="Helvetica,sans-Serif" font-size="12.00">input x (1 number)</text>
+</g>
+<!-- h1 -->
+<g id="node2" class="node">
+<title>h1</title>
+<path fill="#cde2fb" stroke="#2a78d6" d="M175,-260.3C175,-260.3 12,-260.3 12,-260.3 6,-260.3 0,-254.3 0,-248.3 0,-248.3 0,-235.7 0,-235.7 0,-229.7 6,-223.7 12,-223.7 12,-223.7 175,-223.7 175,-223.7 181,-223.7 187,-229.7 187,-235.7 187,-235.7 187,-248.3 187,-248.3 187,-254.3 181,-260.3 175,-260.3"></path>
+<text text-anchor="middle" x="93.5" y="-245.6" font-family="Helvetica,sans-Serif" font-size="12.00">hidden layer 1: 16 units</text>
+<text text-anchor="middle" x="93.5" y="-231.2" font-family="Helvetica,sans-Serif" font-size="12.00">h1 = tanh(x W1 + b1)</text>
+</g>
+<!-- x&#45;&gt;h1 -->
+<g id="edge1" class="edge">
+<title>x-&gt;h1</title>
+<path fill="none" stroke="#52514e" stroke-width="1.2" d="M93.5,-298.24C93.5,-289.09 93.5,-277.67 93.5,-267.59"></path>
+<polygon fill="#52514e" stroke="#52514e" stroke-width="1.2" points="95.95,-267.54 93.5,-260.54 91.05,-267.54 95.95,-267.54"></polygon>
+<text text-anchor="middle" x="111.56" y="-276.4" font-family="Helvetica,sans-Serif" font-size="10.00" fill="#52514e"> forward</text>
+</g>
+<!-- h2 -->
+<g id="node3" class="node">
+<title>h2</title>
+<path fill="#cde2fb" stroke="#2a78d6" d="M175,-185.5C175,-185.5 12,-185.5 12,-185.5 6,-185.5 0,-179.5 0,-173.5 0,-173.5 0,-160.9 0,-160.9 0,-154.9 6,-148.9 12,-148.9 12,-148.9 175,-148.9 175,-148.9 181,-148.9 187,-154.9 187,-160.9 187,-160.9 187,-173.5 187,-173.5 187,-179.5 181,-185.5 175,-185.5"></path>
+<text text-anchor="middle" x="93.5" y="-170.8" font-family="Helvetica,sans-Serif" font-size="12.00">hidden layer 2: 16 units</text>
+<text text-anchor="middle" x="93.5" y="-156.4" font-family="Helvetica,sans-Serif" font-size="12.00">h2 = tanh(h1 W2 + b2)</text>
+</g>
+<!-- h1&#45;&gt;h2 -->
+<g id="edge2" class="edge">
+<title>h1-&gt;h2</title>
+<path fill="none" stroke="#52514e" stroke-width="1.2" d="M71.02,-223.55C67.5,-219.7 64.37,-215.33 62.38,-210.6 59.56,-203.91 61.49,-197.29 65.5,-191.33"></path>
+<polygon fill="#52514e" stroke="#52514e" stroke-width="1.2" points="67.61,-192.61 70.1,-185.62 63.8,-189.54 67.61,-192.61"></polygon>
+<text text-anchor="middle" x="80.56" y="-201.6" font-family="Helvetica,sans-Serif" font-size="10.00" fill="#52514e"> forward</text>
+</g>
+<!-- h2&#45;&gt;h1 -->
+<g id="edge7" class="edge">
+<title>h2-&gt;h1</title>
+<path fill="none" stroke="#eb6834" stroke-width="1.2" d="M97.9,-185.9C99.3,-193.49 100.3,-202.46 99.5,-210.6 99.32,-212.43 99.08,-214.31 98.81,-216.19"></path>
+<polygon fill="#eb6834" stroke="#eb6834" stroke-width="1.2" points="96.34,-216.09 97.58,-223.4 101.17,-216.92 96.34,-216.09"></polygon>
+<text text-anchor="middle" x="118.96" y="-201.6" font-family="Helvetica,sans-Serif" font-size="10.00" fill="#eb6834"> gradient</text>
+</g>
+<!-- y -->
+<g id="node4" class="node">
+<title>y</title>
+<path fill="#cde2fb" stroke="#2a78d6" d="M175,-110.7C175,-110.7 12,-110.7 12,-110.7 6,-110.7 0,-104.7 0,-98.7 0,-98.7 0,-86.1 0,-86.1 0,-80.1 6,-74.1 12,-74.1 12,-74.1 175,-74.1 175,-74.1 181,-74.1 187,-80.1 187,-86.1 187,-86.1 187,-98.7 187,-98.7 187,-104.7 181,-110.7 175,-110.7"></path>
+<text text-anchor="middle" x="93.5" y="-96" font-family="Helvetica,sans-Serif" font-size="12.00">output (linear)</text>
+<text text-anchor="middle" x="93.5" y="-81.6" font-family="Helvetica,sans-Serif" font-size="12.00">ŷ = h2 W3 + b3</text>
+</g>
+<!-- h2&#45;&gt;y -->
+<g id="edge3" class="edge">
+<title>h2-&gt;y</title>
+<path fill="none" stroke="#52514e" stroke-width="1.2" d="M71.02,-148.75C67.5,-144.9 64.37,-140.53 62.38,-135.8 59.56,-129.11 61.49,-122.49 65.5,-116.53"></path>
+<polygon fill="#52514e" stroke="#52514e" stroke-width="1.2" points="67.61,-117.81 70.1,-110.82 63.8,-114.74 67.61,-117.81"></polygon>
+<text text-anchor="middle" x="80.56" y="-126.8" font-family="Helvetica,sans-Serif" font-size="10.00" fill="#52514e"> forward</text>
+</g>
+<!-- y&#45;&gt;h2 -->
+<g id="edge6" class="edge">
+<title>y-&gt;h2</title>
+<path fill="none" stroke="#eb6834" stroke-width="1.2" d="M97.58,-111C98.38,-115.17 99.09,-119.62 99.5,-123.8 100.06,-129.52 99.73,-135.66 99.01,-141.43"></path>
+<polygon fill="#eb6834" stroke="#eb6834" stroke-width="1.2" points="96.56,-141.21 97.9,-148.5 101.4,-141.96 96.56,-141.21"></polygon>
+<text text-anchor="middle" x="118.96" y="-126.8" font-family="Helvetica,sans-Serif" font-size="10.00" fill="#eb6834"> gradient</text>
+</g>
+<!-- L -->
+<g id="node5" class="node">
+<title>L</title>
+<path fill="#fbe1d6" stroke="#eb6834" d="M175,-36C175,-36 12,-36 12,-36 6,-36 0,-30 0,-24 0,-24 0,-12 0,-12 0,-6 6,0 12,0 12,0 175,0 175,0 181,0 187,-6 187,-12 187,-12 187,-24 187,-24 187,-30 181,-36 175,-36"></path>
+<text text-anchor="middle" x="93.5" y="-14.4" font-family="Helvetica,sans-Serif" font-size="12.00">loss (ŷ − y)²</text>
+</g>
+<!-- y&#45;&gt;L -->
+<g id="edge4" class="edge">
+<title>y-&gt;L</title>
+<path fill="none" stroke="#52514e" stroke-width="1.2" d="M71.02,-73.95C67.5,-70.1 64.37,-65.73 62.38,-61 59.58,-54.35 61.52,-47.78 65.52,-41.88"></path>
+<polygon fill="#52514e" stroke="#52514e" stroke-width="1.2" points="67.61,-43.21 70.12,-36.23 63.8,-40.11 67.61,-43.21"></polygon>
+<text text-anchor="middle" x="80.56" y="-52" font-family="Helvetica,sans-Serif" font-size="10.00" fill="#52514e"> forward</text>
+</g>
+<!-- L&#45;&gt;y -->
+<g id="edge5" class="edge">
+<title>L-&gt;y</title>
+<path fill="none" stroke="#eb6834" stroke-width="1.2" d="M97.51,-36.05C98.34,-40.26 99.08,-44.77 99.5,-49 100.07,-54.72 99.74,-60.86 99.02,-66.63"></path>
+<polygon fill="#eb6834" stroke="#eb6834" stroke-width="1.2" points="96.57,-66.4 97.91,-73.7 101.41,-67.16 96.57,-66.4"></polygon>
+<text text-anchor="middle" x="118.96" y="-52" font-family="Helvetica,sans-Serif" font-size="10.00" fill="#eb6834"> gradient</text>
+</g>
+</g>
+</svg>
+</div>
+</div>
+<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-network-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Figure&nbsp;2: The 1-16-16-1 network used for curve fitting. The forward pass computes the prediction layer by layer; the backward pass sends the loss gradient back through the same layers.
+</figcaption>
+</figure>
+</div>
+</div>
+</div>
+</section>
+<section id="backpropagation" class="level2">
+<h2 class="anchored" data-anchor-id="backpropagation">Backpropagation</h2>
+<p>Training needs the gradient of the loss with respect to every weight. <strong>Backpropagation</strong> (reverse-mode differentiation) gets all of them in one backward sweep, at about the cost of one extra forward pass:</p>
+<div class="key-equation famous" data-name="Chain rule (backpropagation)">
+<p><span id="eq-chain"><span class="math display">\[
+\frac{\partial \ell}{\partial \mathbf{x}} = \frac{\partial \ell}{\partial \mathbf{x}'}\,\frac{\partial \mathbf{x}'}{\partial \mathbf{x}}
+\tag{3}\]</span></span></p>
+</div>
+<p><strong>In words.</strong> The gradient with respect to a layer’s input is the gradient with respect to its output, times how much the output moves when the input moves.</p>
+<p><strong>Term by term.</strong></p>
+<ul>
+<li><span class="math inline">\(\ell\)</span>: the loss, a single number.</li>
+<li><span class="math inline">\(\partial \ell / \partial \mathbf{x}'\)</span>: arrives from the layer above (from the loss itself, at the top).</li>
+<li><span class="math inline">\(\partial \mathbf{x}' / \partial \mathbf{x}\)</span>: local to the layer. For <a href="#eq-layer" class="quarto-xref">Equation&nbsp;1</a> it is <span class="math inline">\(\phi'(\mathbf{W}\mathbf{x} + \mathbf{b})\)</span> times <span class="math inline">\(\mathbf{W}\)</span>, and the weight gradient is the incoming gradient (after <span class="math inline">\(\phi'\)</span>) times the layer input.</li>
+</ul>
+<p><strong>Why it holds.</strong> It is the chain rule of calculus, applied once per layer. Going from the output backward means each layer multiplies a gradient <em>vector</em> by its local derivative, so no large Jacobian matrix is ever formed. That is why the backward pass costs about as much as the forward pass, however many parameters there are.</p>
+<section id="worked-example" class="level3">
+<h3 class="anchored" data-anchor-id="worked-example">Worked example</h3>
+<p>Take a network with one hidden ReLU unit: <span class="math inline">\(\hat{y} = w_2\,\max(0, w_1 x + b_1) + b_2\)</span> with <span class="math inline">\(w_1 = 0.8\)</span>, <span class="math inline">\(b_1 = -0.2\)</span>, <span class="math inline">\(w_2 = 1.5\)</span>, <span class="math inline">\(b_2 = 0.1\)</span>, one sample <span class="math inline">\(x = 1.5\)</span>, <span class="math inline">\(y = 1\)</span>, and loss <span class="math inline">\(\ell = (\hat{y} - y)^2\)</span>.</p>
+<p><strong>Forward.</strong> <span class="math inline">\(z = 0.8 \cdot 1.5 - 0.2 =\)</span> 1.00, <span class="math inline">\(h = \max(0, z) =\)</span> 1.00, <span class="math inline">\(\hat{y} = 1.5 h + 0.1 =\)</span> 1.60, <span class="math inline">\(\ell =\)</span> 0.36.</p>
+<p><strong>Backward.</strong></p>
+<ul>
+<li><span class="math inline">\(\partial\ell/\partial\hat{y} = 2(\hat{y} - y) =\)</span> 1.20. Since <span class="math inline">\(\hat{y} = w_2 h + b_2\)</span>: <span class="math inline">\(\partial\ell/\partial w_2 =\)</span> 1.20 <span class="math inline">\(\times h =\)</span> 1.20 and <span class="math inline">\(\partial\ell/\partial b_2 =\)</span> 1.20.</li>
+<li>Into the hidden unit: <span class="math inline">\(\partial\ell/\partial h =\)</span> 1.20 <span class="math inline">\(\times w_2 =\)</span> 1.80. The ReLU is in its active region (<span class="math inline">\(z &gt; 0\)</span>), so its slope is 1 and <span class="math inline">\(\partial\ell/\partial z\)</span> is the same.</li>
+<li>Since <span class="math inline">\(z = w_1 x + b_1\)</span>: <span class="math inline">\(\partial\ell/\partial w_1 =\)</span> 1.80 <span class="math inline">\(\times x =\)</span> 2.70 and <span class="math inline">\(\partial\ell/\partial b_1 =\)</span> 1.80.</li>
+</ul>
+<div id="tbl-backprop" class="quarto-float quarto-figure quarto-figure-center anchored">
+<figure class="quarto-float quarto-float-tbl figure">
+<figcaption class="quarto-float-caption-top quarto-float-caption quarto-float-tbl" id="tbl-backprop-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Table&nbsp;2: The hand-computed gradients agree with centered finite differences, (ℓ(θ + h) − ℓ(θ − h)) / 2h with h = 10⁻⁶.
+</figcaption>
+<div aria-describedby="tbl-backprop-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<table class="caption-top table">
+<thead>
+<tr class="header">
+<th>Parameter</th>
+<th style="text-align: right;">Backpropagation</th>
+<th style="text-align: right;">Finite difference</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><span class="math inline">\(w_1\)</span></td>
+<td style="text-align: right;">2.700000</td>
+<td style="text-align: right;">2.700000</td>
+</tr>
+<tr class="even">
+<td><span class="math inline">\(b_1\)</span></td>
+<td style="text-align: right;">1.800000</td>
+<td style="text-align: right;">1.800000</td>
+</tr>
+<tr class="odd">
+<td><span class="math inline">\(w_2\)</span></td>
+<td style="text-align: right;">1.200000</td>
+<td style="text-align: right;">1.200000</td>
+</tr>
+<tr class="even">
+<td><span class="math inline">\(b_2\)</span></td>
+<td style="text-align: right;">1.200000</td>
+<td style="text-align: right;">1.200000</td>
+</tr>
+</tbody>
+</table>
+</div>
+</figure>
+</div>
+</section>
+</section>
+<section id="fitting-a-curve" class="level2">
+<h2 class="anchored" data-anchor-id="fitting-a-curve">Fitting a curve</h2>
+<p><a href="#fig-fit" class="quarto-xref">Figure&nbsp;3</a> fits 60 noisy samples of <span class="math inline">\(f(x) = \sin(2x)\,e^{-x^2/4}\)</span> with three networks of the same 1-16-16-1 shape, trained for 3,000 steps of Adam (a gradient method that scales each parameter’s step by its recent gradient size). Only the activation differs.</p>
+<div id="cell-fig-fit" class="cell" data-execution_count="4">
+<div class="cell-output cell-output-display">
+<div id="fig-fit" class="quarto-float quarto-figure quarto-figure-center anchored" alt="Two charts. Left: a wavy gray target curve with dots scattered around it. The identity-activation network is a nearly flat straight line. The ReLU and tanh networks both follow the wave closely, the ReLU one with slight corners. Right: loss curves. The identity curve flattens near 0.2. The ReLU and tanh curves fall just below the dashed noise line within about 500 steps; the tanh curve has several brief spikes.">
+<figure class="quarto-float quarto-float-fig figure">
+<div aria-describedby="fig-fit-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<img src="d-neural-representations_files/figure-html/fig-fit-output-1.png" alt="Two charts. Left: a wavy gray target curve with dots scattered around it. The identity-activation network is a nearly flat straight line. The ReLU and tanh networks both follow the wave closely, the ReLU one with slight corners. Right: loss curves. The identity curve flattens near 0.2. The ReLU and tanh curves fall just below the dashed noise line within about 500 steps; the tanh curve has several brief spikes." width="946" height="352" class="figure-img">
+</div>
+<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-fit-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Figure&nbsp;3: Left: three 1-16-16-1 networks fitted to 60 noisy samples (dots) of the gray target curve. Right: training loss (mean squared error) per step on a log scale; the dashed line is the noise variance, 0.0025.
+</figcaption>
+</figure>
+</div>
+</div>
+</div>
+<p>The test error on a fine grid, measured against the true <span class="math inline">\(f\)</span>, is 0.209 for the linear network, which can only draw a straight line, against 0.0017 for ReLU and 0.0012 for tanh. Both nonlinear networks settle slightly below the noise variance of 0.0025; driving the training loss much lower would mean fitting the noise itself. The spikes in the tanh curve are Adam steps that overshoot; after step 500 the loss is back below the noise level within about 15 steps each time.</p>
+</section>
+<section id="regularization" class="level2">
+<h2 class="anchored" data-anchor-id="regularization">Regularization</h2>
+<p>A large network fitted to few points can pass through every point, noise included, and swing wildly between them. <strong>Weight regularization</strong> adds a penalty on large weights to the training loss:</p>
+<div class="key-equation" data-name="L2-regularized loss">
+<p><span id="eq-l2"><span class="math display">\[
+\min_{\theta}\ \frac{1}{\lvert \mathcal{D} \rvert}\sum_{(x, y) \in \mathcal{D}} \big(f_\theta(x) - y\big)^2 + \beta \lVert \mathbf{W} \rVert_2^2
+\tag{4}\]</span></span></p>
+</div>
+<p><strong>In words.</strong> Fit the data, but pay a price for every large weight.</p>
+<p><strong>Term by term.</strong></p>
+<ul>
+<li><span class="math inline">\(\mathcal{D}\)</span>: the training data; <span class="math inline">\(f_\theta\)</span>: the network with parameters <span class="math inline">\(\theta\)</span>.</li>
+<li><span class="math inline">\(\lVert \mathbf{W} \rVert_2^2\)</span>: the sum of all squared weights (the code leaves biases unpenalized).</li>
+<li><span class="math inline">\(\beta \ge 0\)</span>: the strength. <span class="math inline">\(\beta = 0\)</span> is plain fitting; a large <span class="math inline">\(\beta\)</span> flattens the network toward a constant.</li>
+</ul>
+<p><strong>Why it holds.</strong> The penalty’s gradient, <span class="math inline">\(2\beta\mathbf{W}\)</span>, pulls every weight toward zero at each step, so a weight survives only if the data keep pushing it. Small weights keep each <span class="math inline">\(\tanh\)</span> unit near its linear region, which gives smoother functions. In Bayesian terms it is a Gaussian prior on the weights (<a href="../appendices/b-probability-distributions.html">Appendix B</a>), and the minimizer is the most probable network given the data.</p>
+<div id="cell-fig-reg" class="cell" data-execution_count="5">
+<div class="cell-output cell-output-display">
+<div id="fig-reg" class="quarto-float quarto-figure quarto-figure-center anchored" alt="Three panels. With beta 0 the network passes through every point but plunges far below the target between x of minus 1 and 0, where there are no points. With beta 0.001 it follows the target closely, missing only part of the trough where there are no points. With beta 0.1 it is nearly flat and misses the wave.">
+<figure class="quarto-float quarto-float-fig figure">
+<div aria-describedby="fig-reg-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<img src="d-neural-representations_files/figure-html/fig-reg-output-1.png" alt="Three panels. With beta 0 the network passes through every point but plunges far below the target between x of minus 1 and 0, where there are no points. With beta 0.001 it follows the target closely, missing only part of the trough where there are no points. With beta 0.1 it is nearly flat and misses the wave." width="935" height="275" class="figure-img">
+</div>
+<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-reg-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Figure&nbsp;4: A 1-64-64-1 tanh network fitted to 12 noisy points (dataset 1 of 8) with three regularization strengths β. The gray curve is the true function.
+</figcaption>
+</figure>
+</div>
+</div>
+</div>
+<div id="tbl-reg" class="quarto-float quarto-figure quarto-figure-center anchored">
+<figure class="quarto-float quarto-float-tbl figure">
+<figcaption class="quarto-float-caption-top quarto-float-caption quarto-float-tbl" id="tbl-reg-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Table&nbsp;3: Mean squared errors averaged over 8 datasets of 12 points (noise variance 0.01). Training error excludes the penalty.
+</figcaption>
+<div aria-describedby="tbl-reg-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<table class="caption-top table">
+<colgroup>
+<col style="width: 21%">
+<col style="width: 28%">
+<col style="width: 28%">
+<col style="width: 21%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>β</th>
+<th style="text-align: right;">Training error</th>
+<th style="text-align: right;">Test error</th>
+<th>Test error per dataset</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>0</td>
+<td style="text-align: right;">0.0015</td>
+<td style="text-align: right;">0.142</td>
+<td>0.426, 0.344, 0.027, 0.031, 0.029, 0.030, 0.203, 0.044</td>
+</tr>
+<tr class="even">
+<td>0.001</td>
+<td style="text-align: right;">0.0031</td>
+<td style="text-align: right;">0.048</td>
+<td>0.112, 0.080, 0.004, 0.011, 0.026, 0.009, 0.130, 0.014</td>
+</tr>
+<tr class="odd">
+<td>0.1</td>
+<td style="text-align: right;">0.2051</td>
+<td style="text-align: right;">0.214</td>
+<td>0.211, 0.234, 0.209, 0.209, 0.214, 0.220, 0.208, 0.208</td>
+</tr>
+</tbody>
+</table>
+</div>
+</figure>
+</div>
+<p>Without regularization the network drives its training error far below the noise variance of 0.01: it has memorized the noise. A small penalty, <span class="math inline">\(\beta = 10^{-3}\)</span>, gives a lower test error on 8 of the 8 datasets; a large one, <span class="math inline">\(\beta = 0.1\)</span>, underfits every dataset.</p>
+</section>
+<section id="other-architectures" class="level2">
+<h2 class="anchored" data-anchor-id="other-architectures">Other architectures</h2>
+<p><strong>Convolutional networks.</strong> Instead of connecting every input to every unit, a convolutional layer slides one small filter along the input, computing <span class="math inline">\(y_i = \sum_j w_j\,x_{i+j}\)</span> at each position. The same few weights are reused everywhere, so a pattern is detected wherever it appears. With the filter <span class="math inline">\((-1, 0, 1)\)</span>, the signal 0 0 0 1 1 1 1 0 0 becomes 0 1 1 0 0 −1 −1: the filter responds <span class="math inline">\(+1\)</span> around the step up, <span class="math inline">\(-1\)</span> around the step down, and 0 on flat stretches. Stacks of such layers, learned from data, find edges, then shapes, then objects in images.</p>
+<p><strong>Recurrent networks.</strong> A recurrent network reads a sequence one element at a time and carries a hidden state forward, <span class="math inline">\(\mathbf{h}_t = \phi(\mathbf{W}\mathbf{h}_{t-1} + \mathbf{U}\mathbf{x}_t + \mathbf{b})\)</span>, with the same weights at every step. The hidden state is a learned summary of everything seen so far, which makes recurrent networks a natural way to turn a POMDP’s action-observation history into something a policy can use, in place of an exact belief (<a href="../part4/ch19-beliefs.html">Chapter 19</a>). Training unrolls the network over time and backpropagates through the unrolled chain; gradients that shrink or grow at each step make long memories hard to learn, which gated designs such as the LSTM (Hochreiter and Schmidhuber 1997) address.</p>
+<p><strong>Autoencoders.</strong> An autoencoder is trained to reproduce its input through a narrow middle layer, the <strong>code</strong>. Because the input must pass through the bottleneck, the code has to capture what matters about it. <a href="#fig-autoencoder" class="quarto-xref">Figure&nbsp;5</a> squeezes 200 noisy points on three quarters of a circle through a single number. A linear autoencoder can only project onto a line (it recovers principal component analysis), with reconstruction error 0.137. A 2-32-1-32-2 tanh network bends its code around the arc, with error 0.0006, and its code is almost a monotone function of the angle (rank correlation 0.999): it has discovered that the data are one-dimensional.</p>
+<div id="cell-fig-autoencoder" class="cell" data-execution_count="7">
+<div class="cell-output cell-output-display">
+<div id="fig-autoencoder" class="quarto-float quarto-figure quarto-figure-center anchored" alt="Two charts. Left: gray points form an arc from angle 0 to 270 degrees. The orange reconstructions all lie on one straight line. The blue reconstructions lie along the arc. Right: the code value against angle from 0 to about 4.7 radians forms a single smooth curve that changes steadily with the angle.">
+<figure class="quarto-float quarto-float-fig figure">
+<div aria-describedby="fig-autoencoder-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<img src="d-neural-representations_files/figure-html/fig-autoencoder-output-1.png" alt="Two charts. Left: gray points form an arc from angle 0 to 270 degrees. The orange reconstructions all lie on one straight line. The blue reconstructions lie along the arc. Right: the code value against angle from 0 to about 4.7 radians forms a single smooth curve that changes steadily with the angle." width="829" height="352" class="figure-img">
+</div>
+<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-autoencoder-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Figure&nbsp;5: Left: 200 points near three quarters of a circle (gray) and their reconstructions through a one-number code, by a linear autoencoder (orange) and a tanh autoencoder (blue). Right: the tanh autoencoder’s code against each point’s angle.
+</figcaption>
+</figure>
+</div>
+</div>
+</div>
+<p><strong>Adversarial networks.</strong> A generative adversarial network (Goodfellow et al.&nbsp;2014) trains two networks against each other. A <strong>generator</strong> turns random noise into samples; a <strong>discriminator</strong> tries to tell those samples from real data. The generator improves by fooling the discriminator, and at the balance point its samples are indistinguishable from the data. <a href="../part3/ch18-imitation-learning.html">Chapter 18</a>’s GAIL uses the same game with a policy as the generator: the discriminator tries to tell the policy’s state-action pairs from an expert’s, and the policy is rewarded for fooling it.</p>
+<p><strong>References.</strong> G. Cybenko, “Approximation by superpositions of a sigmoidal function,” <em>Mathematics of Control, Signals and Systems</em> 2, 1989. K. Hornik, “Approximation capabilities of multilayer feedforward networks,” <em>Neural Networks</em> 4, 1991. S. Hochreiter and J. Schmidhuber, “Long short-term memory,” <em>Neural Computation</em> 9, 1997. I. Goodfellow et al., “Generative adversarial nets,” <em>NeurIPS</em>, 2014.</p>
+</section>
+<section id="code" class="level2">
+<h2 class="anchored" data-anchor-id="code">Code</h2>
+<p>The forward pass caches each layer’s input and pre-activation; the backward pass walks the layers in reverse, applying <a href="#eq-chain" class="quarto-xref">Equation&nbsp;3</a>. <a href="../part2/ch08-approximate-value-functions.html">Chapter 8</a>’s <code>NeuralNetValue</code> is the one-hidden-layer case of the same computation.</p>
+<div class="tabset-margin-container"></div><div class="panel-tabset" data-group="lang">
+<ul class="nav nav-tabs" role="tablist"><li class="nav-item" role="presentation"><a class="nav-link active" id="tabset-1-1-tab" data-bs-toggle="tab" data-bs-target="#tabset-1-1" role="tab" aria-controls="tabset-1-1" aria-selected="true" href="" aria-current="page">Python</a></li><li class="nav-item" role="presentation"><a class="nav-link" id="tabset-1-2-tab" data-bs-toggle="tab" data-bs-target="#tabset-1-2" role="tab" aria-controls="tabset-1-2" aria-selected="false" href="">Julia</a></li></ul>
+<div class="tab-content" data-group="lang">
+<div id="tabset-1-1" class="tab-pane active" role="tabpanel" aria-labelledby="tabset-1-1-tab">
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb1"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> <span class="fu">forward</span>(params, X, act<span class="op">=</span><span class="st">"tanh"</span>):</span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a>    <span class="co">"""Returns the output and a cache of (layer input, pre-activation)</span></span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="co">    per layer, which the backward pass needs."""</span></span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a>    phi <span class="op">=</span> ACTIVATIONS[act][<span class="dv">0</span>]</span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a>    A, cache <span class="op">=</span> X, []</span>
+<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> k, (W, b) <span class="kw">in</span> <span class="bu">enumerate</span>(params):</span>
+<span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a>        Z <span class="op">=</span> A <span class="op">@</span> W <span class="op">+</span> b                   <span class="co"># (n, d_in) @ (d_in, d_out)</span></span>
+<span id="cb1-8"><a href="#cb1-8" aria-hidden="true" tabindex="-1"></a>        cache.<span class="fu">append</span>((A, Z))</span>
+<span id="cb1-9"><a href="#cb1-9" aria-hidden="true" tabindex="-1"></a>        A <span class="op">=</span> Z <span class="cf">if</span> k <span class="op">==</span> <span class="bu">len</span>(params) <span class="op">-</span> <span class="dv">1</span> <span class="cf">else</span> <span class="fu">phi</span>(Z)   <span class="co"># linear output layer</span></span>
+<span id="cb1-10"><a href="#cb1-10" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> A, cache</span>
+<span id="cb1-11"><a href="#cb1-11" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-12"><a href="#cb1-12" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> <span class="fu">backward</span>(params, cache, dA, act<span class="op">=</span><span class="st">"tanh"</span>) <span class="op">-&gt;</span> <span class="bu">list</span>:</span>
+<span id="cb1-13"><a href="#cb1-13" aria-hidden="true" tabindex="-1"></a>    <span class="co">"""Chain rule from the output back: dA is dLoss/dOutput, (n, d_out).</span></span>
+<span id="cb1-14"><a href="#cb1-14" aria-hidden="true" tabindex="-1"></a><span class="co">    Returns [(dW, db)] matching params."""</span></span>
+<span id="cb1-15"><a href="#cb1-15" aria-hidden="true" tabindex="-1"></a>    dphi <span class="op">=</span> ACTIVATIONS[act][<span class="dv">1</span>]</span>
+<span id="cb1-16"><a href="#cb1-16" aria-hidden="true" tabindex="-1"></a>    grads <span class="op">=</span> [<span class="va">None</span>] <span class="op">*</span> <span class="bu">len</span>(params)</span>
+<span id="cb1-17"><a href="#cb1-17" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> k <span class="kw">in</span> <span class="bu">reversed</span>(<span class="bu">range</span>(<span class="bu">len</span>(params))):</span>
+<span id="cb1-18"><a href="#cb1-18" aria-hidden="true" tabindex="-1"></a>        A_prev, Z <span class="op">=</span> cache[k]</span>
+<span id="cb1-19"><a href="#cb1-19" aria-hidden="true" tabindex="-1"></a>        <span class="co"># Through the activation (skipped at the linear output layer)</span></span>
+<span id="cb1-20"><a href="#cb1-20" aria-hidden="true" tabindex="-1"></a>        dZ <span class="op">=</span> dA <span class="cf">if</span> k <span class="op">==</span> <span class="bu">len</span>(params) <span class="op">-</span> <span class="dv">1</span> <span class="cf">else</span> dA <span class="op">*</span> <span class="fu">dphi</span>(Z)</span>
+<span id="cb1-21"><a href="#cb1-21" aria-hidden="true" tabindex="-1"></a>        W <span class="op">=</span> params[k][<span class="dv">0</span>]</span>
+<span id="cb1-22"><a href="#cb1-22" aria-hidden="true" tabindex="-1"></a>        <span class="co"># Z = A_prev @ W + b: each weight's gradient sums over the batch</span></span>
+<span id="cb1-23"><a href="#cb1-23" aria-hidden="true" tabindex="-1"></a>        grads[k] <span class="op">=</span> (A_prev.T <span class="op">@</span> dZ, dZ.<span class="bu">sum</span>(axis<span class="op">=</span><span class="dv">0</span>))</span>
+<span id="cb1-24"><a href="#cb1-24" aria-hidden="true" tabindex="-1"></a>        dA <span class="op">=</span> dZ <span class="op">@</span> W.T                   <span class="co"># hand the gradient to layer k - 1</span></span>
+<span id="cb1-25"><a href="#cb1-25" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> grads</span>
+<span id="cb1-26"><a href="#cb1-26" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-27"><a href="#cb1-27" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> <span class="fu">mse_loss</span>(params, X, Y, act<span class="op">=</span><span class="st">"tanh"</span>, beta<span class="op">=</span><span class="fl">0.0</span>):</span>
+<span id="cb1-28"><a href="#cb1-28" aria-hidden="true" tabindex="-1"></a>    <span class="co">"""Mean squared error plus beta * (sum of squared weights), and its</span></span>
+<span id="cb1-29"><a href="#cb1-29" aria-hidden="true" tabindex="-1"></a><span class="co">    gradient. Biases are not penalized."""</span></span>
+<span id="cb1-30"><a href="#cb1-30" aria-hidden="true" tabindex="-1"></a>    Yhat, cache <span class="op">=</span> <span class="fu">forward</span>(params, X, act)</span>
+<span id="cb1-31"><a href="#cb1-31" aria-hidden="true" tabindex="-1"></a>    err <span class="op">=</span> Yhat <span class="op">-</span> Y</span>
+<span id="cb1-32"><a href="#cb1-32" aria-hidden="true" tabindex="-1"></a>    loss <span class="op">=</span> (err <span class="op">**</span> <span class="dv">2</span>).<span class="bu">sum</span>() <span class="op">/</span> <span class="bu">len</span>(X) <span class="op">+</span> beta <span class="op">*</span> <span class="bu">sum</span>((W <span class="op">**</span> <span class="dv">2</span>).<span class="bu">sum</span>()</span>
+<span id="cb1-33"><a href="#cb1-33" aria-hidden="true" tabindex="-1"></a>                                                  <span class="cf">for</span> W, _ <span class="kw">in</span> params)</span>
+<span id="cb1-34"><a href="#cb1-34" aria-hidden="true" tabindex="-1"></a>    grads <span class="op">=</span> <span class="fu">backward</span>(params, cache, <span class="dv">2</span> <span class="op">*</span> err <span class="op">/</span> <span class="bu">len</span>(X), act)</span>
+<span id="cb1-35"><a href="#cb1-35" aria-hidden="true" tabindex="-1"></a>    grads <span class="op">=</span> [(dW <span class="op">+</span> <span class="dv">2</span> <span class="op">*</span> beta <span class="op">*</span> W, db) <span class="cf">for</span> (dW, db), (W, _) <span class="kw">in</span></span>
+<span id="cb1-36"><a href="#cb1-36" aria-hidden="true" tabindex="-1"></a>             <span class="bu">zip</span>(grads, params)]</span>
+<span id="cb1-37"><a href="#cb1-37" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> loss, grads</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</div>
+<div id="tabset-1-2" class="tab-pane" role="tabpanel" aria-labelledby="tabset-1-2-tab">
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb2"><pre class="sourceCode julia snippet code-with-copy"><code class="sourceCode julia"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="im">using</span> <span class="bu">Random</span></span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a><span class="co"># Layers are (W, b) with W of size (d_out, d_in): Julia keeps one sample</span></span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a><span class="co"># per COLUMN, so a layer computes W * X .+ b (the transpose of the Python</span></span>
+<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a><span class="co"># layout, which is natural for Julia's column-major arrays).</span></span>
+<span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a><span class="kw">function</span> <span class="fu">forward</span>(params, X)</span>
+<span id="cb2-7"><a href="#cb2-7" aria-hidden="true" tabindex="-1"></a>    A, cache <span class="op">=</span> X, []</span>
+<span id="cb2-8"><a href="#cb2-8" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> (k, (W, b)) <span class="kw">in</span> <span class="fu">enumerate</span>(params)</span>
+<span id="cb2-9"><a href="#cb2-9" aria-hidden="true" tabindex="-1"></a>        Z <span class="op">=</span> W <span class="op">*</span> A <span class="op">.+</span> b</span>
+<span id="cb2-10"><a href="#cb2-10" aria-hidden="true" tabindex="-1"></a>        <span class="fu">push!</span>(cache, (A, Z))</span>
+<span id="cb2-11"><a href="#cb2-11" aria-hidden="true" tabindex="-1"></a>        A <span class="op">=</span> k <span class="op">==</span> <span class="fu">length</span>(params) ? Z <span class="op">:</span> <span class="fu">tanh</span>.(Z)   <span class="co"># linear output layer</span></span>
+<span id="cb2-12"><a href="#cb2-12" aria-hidden="true" tabindex="-1"></a>    <span class="cf">end</span></span>
+<span id="cb2-13"><a href="#cb2-13" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> A, cache</span>
+<span id="cb2-14"><a href="#cb2-14" aria-hidden="true" tabindex="-1"></a><span class="kw">end</span></span>
+<span id="cb2-15"><a href="#cb2-15" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-16"><a href="#cb2-16" aria-hidden="true" tabindex="-1"></a><span class="kw">function</span> <span class="fu">mse_loss</span>(params, X, Y)</span>
+<span id="cb2-17"><a href="#cb2-17" aria-hidden="true" tabindex="-1"></a>    Yhat, cache <span class="op">=</span> <span class="fu">forward</span>(params, X)</span>
+<span id="cb2-18"><a href="#cb2-18" aria-hidden="true" tabindex="-1"></a>    n <span class="op">=</span> <span class="fu">size</span>(X, <span class="fl">2</span>)</span>
+<span id="cb2-19"><a href="#cb2-19" aria-hidden="true" tabindex="-1"></a>    dA <span class="op">=</span> <span class="fl">2</span> <span class="op">.*</span> (Yhat <span class="op">.-</span> Y) <span class="op">./</span> n</span>
+<span id="cb2-20"><a href="#cb2-20" aria-hidden="true" tabindex="-1"></a>    grads <span class="op">=</span> <span class="fu">Vector</span><span class="dt">{Any}</span>(<span class="cn">undef</span>, <span class="fu">length</span>(params))</span>
+<span id="cb2-21"><a href="#cb2-21" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> k <span class="kw">in</span> <span class="fu">length</span>(params)<span class="op">:-</span><span class="fl">1</span><span class="op">:</span><span class="fl">1</span></span>
+<span id="cb2-22"><a href="#cb2-22" aria-hidden="true" tabindex="-1"></a>        A_prev, Z <span class="op">=</span> cache[k]</span>
+<span id="cb2-23"><a href="#cb2-23" aria-hidden="true" tabindex="-1"></a>        dZ <span class="op">=</span> k <span class="op">==</span> <span class="fu">length</span>(params) ? dA <span class="op">:</span> dA <span class="op">.*</span> (<span class="fl">1</span> <span class="op">.-</span> <span class="fu">tanh</span>.(Z) <span class="op">.^</span> <span class="fl">2</span>)</span>
+<span id="cb2-24"><a href="#cb2-24" aria-hidden="true" tabindex="-1"></a>        W <span class="op">=</span> params[k][<span class="fl">1</span>]</span>
+<span id="cb2-25"><a href="#cb2-25" aria-hidden="true" tabindex="-1"></a>        <span class="co"># sum over the batch (dims = 2), then drop that axis</span></span>
+<span id="cb2-26"><a href="#cb2-26" aria-hidden="true" tabindex="-1"></a>        grads[k] <span class="op">=</span> (dZ <span class="op">*</span> A_prev<span class="op">'</span>, <span class="fu">vec</span>(<span class="fu">sum</span>(dZ; dims <span class="op">=</span> <span class="fl">2</span>)))</span>
+<span id="cb2-27"><a href="#cb2-27" aria-hidden="true" tabindex="-1"></a>        dA <span class="op">=</span> W<span class="op">'</span> <span class="op">*</span> dZ</span>
+<span id="cb2-28"><a href="#cb2-28" aria-hidden="true" tabindex="-1"></a>    <span class="cf">end</span></span>
+<span id="cb2-29"><a href="#cb2-29" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> <span class="fu">sum</span>(abs2, Yhat <span class="op">.-</span> Y) <span class="op">/</span> n, grads</span>
+<span id="cb2-30"><a href="#cb2-30" aria-hidden="true" tabindex="-1"></a><span class="kw">end</span></span>
+<span id="cb2-31"><a href="#cb2-31" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-32"><a href="#cb2-32" aria-hidden="true" tabindex="-1"></a><span class="kw">function</span> <span class="fu">demo</span>()</span>
+<span id="cb2-33"><a href="#cb2-33" aria-hidden="true" tabindex="-1"></a>    rng <span class="op">=</span> <span class="fu">MersenneTwister</span>(<span class="fl">0</span>)</span>
+<span id="cb2-34"><a href="#cb2-34" aria-hidden="true" tabindex="-1"></a>    <span class="fu">f</span>(x) <span class="op">=</span> <span class="fu">sin</span>(<span class="fl">2</span>x) <span class="op">*</span> <span class="fu">exp</span>(<span class="op">-</span>x<span class="op">^</span><span class="fl">2</span> <span class="op">/</span> <span class="fl">4</span>)</span>
+<span id="cb2-35"><a href="#cb2-35" aria-hidden="true" tabindex="-1"></a>    X <span class="op">=</span> <span class="fl">6</span> <span class="op">.*</span> <span class="fu">rand</span>(rng, <span class="fl">1</span>, <span class="fl">60</span>) <span class="op">.-</span> <span class="fl">3</span>              <span class="co"># 1 × 60: one sample per column</span></span>
+<span id="cb2-36"><a href="#cb2-36" aria-hidden="true" tabindex="-1"></a>    Y <span class="op">=</span> <span class="fu">f</span>.(X)</span>
+<span id="cb2-37"><a href="#cb2-37" aria-hidden="true" tabindex="-1"></a>    params <span class="op">=</span> [(<span class="fu">randn</span>(rng, <span class="fl">16</span>, <span class="fl">1</span>), <span class="fu">zeros</span>(<span class="fl">16</span>)), (<span class="fu">randn</span>(rng, <span class="fl">16</span>, <span class="fl">16</span>) <span class="op">./</span> <span class="fl">4</span>, <span class="fu">zeros</span>(<span class="fl">16</span>)),</span>
+<span id="cb2-38"><a href="#cb2-38" aria-hidden="true" tabindex="-1"></a>              (<span class="fu">randn</span>(rng, <span class="fl">1</span>, <span class="fl">16</span>) <span class="op">./</span> <span class="fl">4</span>, <span class="fu">zeros</span>(<span class="fl">1</span>))]</span>
+<span id="cb2-39"><a href="#cb2-39" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Finite-difference check of one weight</span></span>
+<span id="cb2-40"><a href="#cb2-40" aria-hidden="true" tabindex="-1"></a>    loss0, grads <span class="op">=</span> <span class="fu">mse_loss</span>(params, X, Y)</span>
+<span id="cb2-41"><a href="#cb2-41" aria-hidden="true" tabindex="-1"></a>    h <span class="op">=</span> <span class="fl">1e-6</span></span>
+<span id="cb2-42"><a href="#cb2-42" aria-hidden="true" tabindex="-1"></a>    params[<span class="fl">2</span>][<span class="fl">1</span>][<span class="fl">3</span>, <span class="fl">5</span>] <span class="op">+=</span> h; up <span class="op">=</span> <span class="fu">mse_loss</span>(params, X, Y)[<span class="fl">1</span>]</span>
+<span id="cb2-43"><a href="#cb2-43" aria-hidden="true" tabindex="-1"></a>    params[<span class="fl">2</span>][<span class="fl">1</span>][<span class="fl">3</span>, <span class="fl">5</span>] <span class="op">-=</span> <span class="fl">2</span>h; down <span class="op">=</span> <span class="fu">mse_loss</span>(params, X, Y)[<span class="fl">1</span>]</span>
+<span id="cb2-44"><a href="#cb2-44" aria-hidden="true" tabindex="-1"></a>    params[<span class="fl">2</span>][<span class="fl">1</span>][<span class="fl">3</span>, <span class="fl">5</span>] <span class="op">+=</span> h</span>
+<span id="cb2-45"><a href="#cb2-45" aria-hidden="true" tabindex="-1"></a>    <span class="pp">@assert</span> <span class="fu">isapprox</span>((up <span class="op">-</span> down) <span class="op">/</span> <span class="fl">2</span>h, grads[<span class="fl">2</span>][<span class="fl">1</span>][<span class="fl">3</span>, <span class="fl">5</span>]; atol <span class="op">=</span> <span class="fl">1e-6</span>)</span>
+<span id="cb2-46"><a href="#cb2-46" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Plain gradient descent (Python's train() uses Adam)</span></span>
+<span id="cb2-47"><a href="#cb2-47" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> _ <span class="kw">in</span> <span class="fl">1</span><span class="op">:</span><span class="fl">3000</span></span>
+<span id="cb2-48"><a href="#cb2-48" aria-hidden="true" tabindex="-1"></a>        _, grads <span class="op">=</span> <span class="fu">mse_loss</span>(params, X, Y)</span>
+<span id="cb2-49"><a href="#cb2-49" aria-hidden="true" tabindex="-1"></a>        <span class="cf">for</span> ((W, b), (dW, db)) <span class="kw">in</span> <span class="fu">zip</span>(params, grads)</span>
+<span id="cb2-50"><a href="#cb2-50" aria-hidden="true" tabindex="-1"></a>            W <span class="op">.-=</span> <span class="fl">0.05</span> <span class="op">.*</span> dW; b <span class="op">.-=</span> <span class="fl">0.05</span> <span class="op">.*</span> db</span>
+<span id="cb2-51"><a href="#cb2-51" aria-hidden="true" tabindex="-1"></a>        <span class="cf">end</span></span>
+<span id="cb2-52"><a href="#cb2-52" aria-hidden="true" tabindex="-1"></a>    <span class="cf">end</span></span>
+<span id="cb2-53"><a href="#cb2-53" aria-hidden="true" tabindex="-1"></a>    loss <span class="op">=</span> <span class="fu">mse_loss</span>(params, X, Y)[<span class="fl">1</span>]</span>
+<span id="cb2-54"><a href="#cb2-54" aria-hidden="true" tabindex="-1"></a>    <span class="fu">println</span>(<span class="st">"loss "</span>, <span class="fu">round</span>(loss0; digits <span class="op">=</span> <span class="fl">4</span>), <span class="st">" -&gt; "</span>, <span class="fu">round</span>(loss; digits <span class="op">=</span> <span class="fl">4</span>))</span>
+<span id="cb2-55"><a href="#cb2-55" aria-hidden="true" tabindex="-1"></a>    <span class="pp">@assert</span> loss <span class="op">&lt;</span> loss0 <span class="op">/</span> <span class="fl">5</span></span>
+<span id="cb2-56"><a href="#cb2-56" aria-hidden="true" tabindex="-1"></a><span class="kw">end</span></span>
+<span id="cb2-57"><a href="#cb2-57" aria-hidden="true" tabindex="-1"></a><span class="fu">demo</span>()</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</div>
+</div>
+</div>
+
+
+</section>
+
+</main> <!-- /main -->
+<script id="quarto-html-after-body" type="application/javascript">
+  window.document.addEventListener("DOMContentLoaded", function (event) {
+    // Ensure there is a toggle, if there isn't float one in the top right
+    if (window.document.querySelector('.quarto-color-scheme-toggle') === null) {
+      const a = window.document.createElement('a');
+      a.classList.add('top-right');
+      a.classList.add('quarto-color-scheme-toggle');
+      a.href = "";
+      a.onclick = function() { try { window.quartoToggleColorScheme(); } catch {} return false; };
+      const i = window.document.createElement("i");
+      i.classList.add('bi');
+      a.appendChild(i);
+      window.document.body.appendChild(a);
+    }
+    setColorSchemeToggle(hasAlternateSentinel())
+    const icon = "";
+    const anchorJS = new window.AnchorJS();
+    anchorJS.options = {
+      placement: 'right',
+      icon: icon
+    };
+    anchorJS.add('.anchored');
+    const isCodeAnnotation = (el) => {
+      for (const clz of el.classList) {
+        if (clz.startsWith('code-annotation-')) {                     
+          return true;
+        }
+      }
+      return false;
+    }
+    const onCopySuccess = function(e) {
+      // button target
+      const button = e.trigger;
+      // don't keep focus
+      button.blur();
+      // flash "checked"
+      button.classList.add('code-copy-button-checked');
+      var currentTitle = button.getAttribute("title");
+      button.setAttribute("title", "Copied!");
+      let tooltip;
+      if (window.bootstrap) {
+        button.setAttribute("data-bs-toggle", "tooltip");
+        button.setAttribute("data-bs-placement", "left");
+        button.setAttribute("data-bs-title", "Copied!");
+        tooltip = new bootstrap.Tooltip(button, 
+          { trigger: "manual", 
+            customClass: "code-copy-button-tooltip",
+            offset: [0, -8]});
+        tooltip.show();    
+      }
+      setTimeout(function() {
+        if (tooltip) {
+          tooltip.hide();
+          button.removeAttribute("data-bs-title");
+          button.removeAttribute("data-bs-toggle");
+          button.removeAttribute("data-bs-placement");
+        }
+        button.setAttribute("title", currentTitle);
+        button.classList.remove('code-copy-button-checked');
+      }, 1000);
+      // clear code selection
+      e.clearSelection();
+    }
+    const getTextToCopy = function(trigger) {
+      const outerScaffold = trigger.parentElement.cloneNode(true);
+      const codeEl = outerScaffold.querySelector('code');
+      for (const childEl of codeEl.children) {
+        if (isCodeAnnotation(childEl)) {
+          childEl.remove();
+        }
+      }
+      return codeEl.innerText;
+    }
+    const clipboard = new window.ClipboardJS('.code-copy-button:not([data-in-quarto-modal])', {
+      text: getTextToCopy
+    });
+    clipboard.on('success', onCopySuccess);
+    if (window.document.getElementById('quarto-embedded-source-code-modal')) {
+      const clipboardModal = new window.ClipboardJS('.code-copy-button[data-in-quarto-modal]', {
+        text: getTextToCopy,
+        container: window.document.getElementById('quarto-embedded-source-code-modal')
+      });
+      clipboardModal.on('success', onCopySuccess);
+    }
+      var localhostRegex = new RegExp(/^(?:http|https):\/\/localhost\:?[0-9]*\//);
+      var mailtoRegex = new RegExp(/^mailto:/);
+        var filterRegex = new RegExp("https:\/\/laventura\.github\.io\/adm-companion\/");
+      var isInternal = (href) => {
+          return filterRegex.test(href) || localhostRegex.test(href) || mailtoRegex.test(href);
+      }
+      // Inspect non-navigation links and adorn them if external
+     var links = window.document.querySelectorAll('a[href]:not(.nav-link):not(.navbar-brand):not(.toc-action):not(.sidebar-link):not(.sidebar-item-toggle):not(.pagination-link):not(.no-external):not([aria-hidden]):not(.dropdown-item):not(.quarto-navigation-tool):not(.about-link)');
+      for (var i=0; i<links.length; i++) {
+        const link = links[i];
+        if (!isInternal(link.href)) {
+          // undo the damage that might have been done by quarto-nav.js in the case of
+          // links that we want to consider external
+          if (link.dataset.originalHref !== undefined) {
+            link.href = link.dataset.originalHref;
+          }
+        }
+      }
+    function tippyHover(el, contentFn, onTriggerFn, onUntriggerFn) {
+      const config = {
+        allowHTML: true,
+        maxWidth: 500,
+        delay: 100,
+        arrow: false,
+        appendTo: function(el) {
+            return el.parentElement;
+        },
+        interactive: true,
+        interactiveBorder: 10,
+        theme: 'quarto',
+        placement: 'bottom-start',
+      };
+      if (contentFn) {
+        config.content = contentFn;
+      }
+      if (onTriggerFn) {
+        config.onTrigger = onTriggerFn;
+      }
+      if (onUntriggerFn) {
+        config.onUntrigger = onUntriggerFn;
+      }
+      window.tippy(el, config); 
+    }
+    const noterefs = window.document.querySelectorAll('a[role="doc-noteref"]');
+    for (var i=0; i<noterefs.length; i++) {
+      const ref = noterefs[i];
+      tippyHover(ref, function() {
+        // use id or data attribute instead here
+        let href = ref.getAttribute('data-footnote-href') || ref.getAttribute('href');
+        try { href = new URL(href).hash; } catch {}
+        const id = href.replace(/^#\/?/, "");
+        const note = window.document.getElementById(id);
+        if (note) {
+          return note.innerHTML;
+        } else {
+          return "";
+        }
+      });
+    }
+    const xrefs = window.document.querySelectorAll('a.quarto-xref');
+    const processXRef = (id, note) => {
+      // Strip column container classes
+      const stripColumnClz = (el) => {
+        el.classList.remove("page-full", "page-columns");
+        if (el.children) {
+          for (const child of el.children) {
+            stripColumnClz(child);
+          }
+        }
+      }
+      stripColumnClz(note)
+      if (id === null || id.startsWith('sec-')) {
+        // Special case sections, only their first couple elements
+        const container = document.createElement("div");
+        if (note.children && note.children.length > 2) {
+          container.appendChild(note.children[0].cloneNode(true));
+          for (let i = 1; i < note.children.length; i++) {
+            const child = note.children[i];
+            if (child.tagName === "P" && child.innerText === "") {
+              continue;
+            } else {
+              container.appendChild(child.cloneNode(true));
+              break;
+            }
+          }
+          if (window.Quarto?.typesetMath) {
+            window.Quarto.typesetMath(container);
+          }
+          return container.innerHTML
+        } else {
+          if (window.Quarto?.typesetMath) {
+            window.Quarto.typesetMath(note);
+          }
+          return note.innerHTML;
+        }
+      } else {
+        // Remove any anchor links if they are present
+        const anchorLink = note.querySelector('a.anchorjs-link');
+        if (anchorLink) {
+          anchorLink.remove();
+        }
+        if (window.Quarto?.typesetMath) {
+          window.Quarto.typesetMath(note);
+        }
+        if (note.classList.contains("callout")) {
+          return note.outerHTML;
+        } else {
+          return note.innerHTML;
+        }
+      }
+    }
+    for (var i=0; i<xrefs.length; i++) {
+      const xref = xrefs[i];
+      tippyHover(xref, undefined, function(instance) {
+        instance.disable();
+        let url = xref.getAttribute('href');
+        let hash = undefined; 
+        if (url.startsWith('#')) {
+          hash = url;
+        } else {
+          try { hash = new URL(url).hash; } catch {}
+        }
+        if (hash) {
+          const id = hash.replace(/^#\/?/, "");
+          const note = window.document.getElementById(id);
+          if (note !== null) {
+            try {
+              const html = processXRef(id, note.cloneNode(true));
+              instance.setContent(html);
+            } finally {
+              instance.enable();
+              instance.show();
+            }
+          } else {
+            // See if we can fetch this
+            fetch(url.split('#')[0])
+            .then(res => res.text())
+            .then(html => {
+              const parser = new DOMParser();
+              const htmlDoc = parser.parseFromString(html, "text/html");
+              const note = htmlDoc.getElementById(id);
+              if (note !== null) {
+                const html = processXRef(id, note);
+                instance.setContent(html);
+              } 
+            }).finally(() => {
+              instance.enable();
+              instance.show();
+            });
+          }
+        } else {
+          // See if we can fetch a full url (with no hash to target)
+          // This is a special case and we should probably do some content thinning / targeting
+          fetch(url)
+          .then(res => res.text())
+          .then(html => {
+            const parser = new DOMParser();
+            const htmlDoc = parser.parseFromString(html, "text/html");
+            const note = htmlDoc.querySelector('main.content');
+            if (note !== null) {
+              // This should only happen for chapter cross references
+              // (since there is no id in the URL)
+              // remove the first header
+              if (note.children.length > 0 && note.children[0].tagName === "HEADER") {
+                note.children[0].remove();
+              }
+              const html = processXRef(null, note);
+              instance.setContent(html);
+            } 
+          }).finally(() => {
+            instance.enable();
+            instance.show();
+          });
+        }
+      }, function(instance) {
+      });
+    }
+        let selectedAnnoteEl;
+        const selectorForAnnotation = ( cell, annotation) => {
+          let cellAttr = 'data-code-cell="' + cell + '"';
+          let lineAttr = 'data-code-annotation="' +  annotation + '"';
+          const selector = 'span[' + cellAttr + '][' + lineAttr + ']';
+          return selector;
+        }
+        const selectCodeLines = (annoteEl) => {
+          const doc = window.document;
+          const targetCell = annoteEl.getAttribute("data-target-cell");
+          const targetAnnotation = annoteEl.getAttribute("data-target-annotation");
+          const annoteSpan = window.document.querySelector(selectorForAnnotation(targetCell, targetAnnotation));
+          const lines = annoteSpan.getAttribute("data-code-lines").split(",");
+          const lineIds = lines.map((line) => {
+            return targetCell + "-" + line;
+          })
+          let top = null;
+          let height = null;
+          let parent = null;
+          if (lineIds.length > 0) {
+              //compute the position of the single el (top and bottom and make a div)
+              const el = window.document.getElementById(lineIds[0]);
+              top = el.offsetTop;
+              height = el.offsetHeight;
+              parent = el.parentElement.parentElement;
+            if (lineIds.length > 1) {
+              const lastEl = window.document.getElementById(lineIds[lineIds.length - 1]);
+              const bottom = lastEl.offsetTop + lastEl.offsetHeight;
+              height = bottom - top;
+            }
+            if (top !== null && height !== null && parent !== null) {
+              // cook up a div (if necessary) and position it 
+              let div = window.document.getElementById("code-annotation-line-highlight");
+              if (div === null) {
+                div = window.document.createElement("div");
+                div.setAttribute("id", "code-annotation-line-highlight");
+                div.style.position = 'absolute';
+                parent.appendChild(div);
+              }
+              div.style.top = top - 2 + "px";
+              div.style.height = height + 4 + "px";
+              div.style.left = 0;
+              let gutterDiv = window.document.getElementById("code-annotation-line-highlight-gutter");
+              if (gutterDiv === null) {
+                gutterDiv = window.document.createElement("div");
+                gutterDiv.setAttribute("id", "code-annotation-line-highlight-gutter");
+                gutterDiv.style.position = 'absolute';
+                const codeCell = window.document.getElementById(targetCell);
+                const gutter = codeCell.querySelector('.code-annotation-gutter');
+                gutter.appendChild(gutterDiv);
+              }
+              gutterDiv.style.top = top - 2 + "px";
+              gutterDiv.style.height = height + 4 + "px";
+            }
+            selectedAnnoteEl = annoteEl;
+          }
+        };
+        const unselectCodeLines = () => {
+          const elementsIds = ["code-annotation-line-highlight", "code-annotation-line-highlight-gutter"];
+          elementsIds.forEach((elId) => {
+            const div = window.document.getElementById(elId);
+            if (div) {
+              div.remove();
+            }
+          });
+          selectedAnnoteEl = undefined;
+        };
+          // Handle positioning of the toggle
+      window.addEventListener(
+        "resize",
+        throttle(() => {
+          elRect = undefined;
+          if (selectedAnnoteEl) {
+            selectCodeLines(selectedAnnoteEl);
+          }
+        }, 10)
+      );
+      function throttle(fn, ms) {
+      let throttle = false;
+      let timer;
+        return (...args) => {
+          if(!throttle) { // first call gets through
+              fn.apply(this, args);
+              throttle = true;
+          } else { // all the others get throttled
+              if(timer) clearTimeout(timer); // cancel #2
+              timer = setTimeout(() => {
+                fn.apply(this, args);
+                timer = throttle = false;
+              }, ms);
+          }
+        };
+      }
+        // Attach click handler to the DT
+        const annoteDls = window.document.querySelectorAll('dt[data-target-cell]');
+        for (const annoteDlNode of annoteDls) {
+          annoteDlNode.addEventListener('click', (event) => {
+            const clickedEl = event.target;
+            if (clickedEl !== selectedAnnoteEl) {
+              unselectCodeLines();
+              const activeEl = window.document.querySelector('dt[data-target-cell].code-annotation-active');
+              if (activeEl) {
+                activeEl.classList.remove('code-annotation-active');
+              }
+              selectCodeLines(clickedEl);
+              clickedEl.classList.add('code-annotation-active');
+            } else {
+              // Unselect the line
+              unselectCodeLines();
+              clickedEl.classList.remove('code-annotation-active');
+            }
+          });
+        }
+    const findCites = (el) => {
+      const parentEl = el.parentElement;
+      if (parentEl) {
+        const cites = parentEl.dataset.cites;
+        if (cites) {
+          return {
+            el,
+            cites: cites.split(' ')
+          };
+        } else {
+          return findCites(el.parentElement)
+        }
+      } else {
+        return undefined;
+      }
+    };
+    var bibliorefs = window.document.querySelectorAll('a[role="doc-biblioref"]');
+    for (var i=0; i<bibliorefs.length; i++) {
+      const ref = bibliorefs[i];
+      const citeInfo = findCites(ref);
+      if (citeInfo) {
+        tippyHover(citeInfo.el, function() {
+          var popup = window.document.createElement('div');
+          citeInfo.cites.forEach(function(cite) {
+            var citeDiv = window.document.createElement('div');
+            citeDiv.classList.add('hanging-indent');
+            citeDiv.classList.add('csl-entry');
+            var biblioDiv = window.document.getElementById('ref-' + cite);
+            if (biblioDiv) {
+              citeDiv.innerHTML = biblioDiv.innerHTML;
+            }
+            popup.appendChild(citeDiv);
+          });
+          return popup.innerHTML;
+        });
+      }
+    }
+  });
+  </script>
+<nav class="page-navigation">
+  <div class="nav-page nav-page-previous">
+      <a href="../appendices/c-computational-complexity.html" class="pagination-link" aria-label="C · Computational Complexity">
+        <i class="bi bi-arrow-left-short"></i> <span class="nav-page-text">C · Computational Complexity</span>
+      </a>          
+  </div>
+  <div class="nav-page nav-page-next">
+      <a href="../appendices/e-search-algorithms.html" class="pagination-link" aria-label="E · Search Algorithms">
+        <span class="nav-page-text">E · Search Algorithms</span> <i class="bi bi-arrow-right-short"></i>
+      </a>
+  </div>
+</nav>
+</div> <!-- /content -->
+<footer class="footer">
+  <div class="nav-footer">
+    <div class="nav-footer-left">
+      &nbsp;
+    </div>   
+    <div class="nav-footer-center">
+<p>An independent, unofficial companion to <em>Algorithms for Decision Making</em> (MIT Press, 2022). The book is freely available at <a href="https://algorithmsbook.com">algorithmsbook.com</a>. Site text and figures © Atul Acharya, <a href="https://creativecommons.org/licenses/by-nc/4.0/">CC BY-NC 4.0</a>; code <a href="https://opensource.org/license/mit">MIT</a>.</p>
+</div>
+    <div class="nav-footer-right">
+      &nbsp;
+    </div>
+  </div>
+</footer>
+
+
+
+
+</body></html>

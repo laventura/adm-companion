@@ -1,0 +1,1 @@
+Sitemap: https://laventura.github.io/adm-companion/sitemap.xml
